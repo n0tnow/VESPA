@@ -1,7 +1,9 @@
 {
-  "name": "horizon-ui-chakra",
-  "version": "2.0.0",
+  "name": "motoetiler-vespa-admin",
+  "version": "1.0.0",
   "private": true,
+  "description": "MotoEtiler Vespa Bayisi Yönetim Paneli",
+  "author": "MotoEtiler",
   "dependencies": {
     "@babel/preset-react": "^7.18.6",
     "@chakra-ui/icons": "^2.0.19",

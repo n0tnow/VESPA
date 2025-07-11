@@ -170,15 +170,28 @@ class VespaScraper:
     def parse_product_segment(self, mtp_code, segment):
         """Tek bir ürün segmentini parse eder"""
         try:
-            # Fiyat pattern'i: 500,00TL formatında
-            price_pattern = r'(\d+[,.]?\d*)\s*TL'
-            price_match = re.search(price_pattern, segment)
+            # Fiyat pattern'i: Tam fiyatı yakala - 12.467,00TL formatında
+            price_patterns = [
+                r'(\d{1,2}\.\d{3},\d{2})TL',  # 12.467,00TL formatı
+                r'(\d{1,3},\d{2})TL',         # 467,00TL formatı  
+                r'(\d+)TL'                    # 467TL formatı
+            ]
             
-            if not price_match:
+            price_match = None
+            price_text = None
+            
+            for pattern in price_patterns:
+                matches = re.findall(pattern, segment)
+                if matches:
+                    # İlk bulduğu fiyatı al
+                    price_text = matches[0] + "TL"
+                    logger.debug(f"Fiyat bulundu {mtp_code}: {price_text}")
+                    break
+            
+            if not price_text:
                 logger.debug(f"Fiyat bulunamadı: {mtp_code}")
                 return None
             
-            price_text = price_match.group()
             price = self.parse_price(price_text)
             
             if not price or price <= 0:
@@ -206,7 +219,7 @@ class VespaScraper:
             
             part_id = self.generate_part_id(product_name, price)
             
-            # Resim linklerini çek (boş olabilir)
+            # Resim linklerini çek (şimdilik boş)
             image_urls = {
                 'thumbnail': None,
                 'main': None,
@@ -234,6 +247,15 @@ class VespaScraper:
         # Baştaki gereksiz karakterleri temizle
         while name and name[0] in '-•*0123456789. ':
             name = name[1:]
+        
+        # Sondaki gereksiz kısımları temizle
+        name = name.replace('Hızlı İncele', '').strip()
+        
+        # Çift boşlukları tek boşluk yap
+        name = re.sub(r'\s+', ' ', name)
+        
+        # Özel karakterleri temizle ama Türkçe karakterleri koru
+        name = re.sub(r'[^\w\sÇçĞğİıÖöŞşÜü/()-]', '', name)
         
         return name.strip()
     
@@ -270,19 +292,72 @@ class VespaScraper:
         """Vespa modellerini çeker"""
         logger.info("Vespa modelleri çekiliyor...")
         
-        # Test için direkt bilinen modeli kullan
+        # Test ve production modları
         test_models = [
             {
                 'name': 'Vespa Primavera 150 3v',
                 'url': 'https://www.motopit.com.tr/kategori/vespa-primavera-150-3v-yedek-parca'
+            },
+            {
+                'name': 'Vespa GTS 300',
+                'url': 'https://www.motopit.com.tr/kategori/vespa-gts-300-yedek-parca'
+            },
+            {
+                'name': 'Vespa Sprint 125',
+                'url': 'https://www.motopit.com.tr/kategori/vespa-sprint-125-3v-ie-yedek-parca'
             }
         ]
         
-        logger.info(f"Test modu: {len(test_models)} model kullanılacak")
-        for model in test_models:
-            logger.info(f"  Test Model: {model['name']} -> {model['url']}")
+        choice = input("\nKaç model işlensin? (1=test, 3=çoklu test, 0=tümü): ").strip()
         
-        return test_models
+        if choice == "1":
+            models = test_models[:1]
+            logger.info(f"Test modu: {len(models)} model")
+        elif choice == "3":
+            models = test_models[:3]  
+            logger.info(f"Çoklu test modu: {len(models)} model")
+        else:
+            # Tüm modelleri dinamik olarak çek
+            models = self.get_all_vespa_models()
+            if not models:
+                logger.warning("Dinamik model bulunamadı, test modellerini kullanıyorum")
+                models = test_models
+                
+        for i, model in enumerate(models):
+            logger.info(f"  Model {i+1}: {model['name']}")
+            
+        return models
+    
+    def get_all_vespa_models(self):
+        """Tüm Vespa modellerini dinamik olarak çeker"""
+        try:
+            main_url = f"{self.base_url}/kategori/vespa-yedek-parca"
+            response = self.get_page(main_url)
+            
+            if not response:
+                return []
+                
+            # Basit model listesi - genişletilebilir
+            known_models = [
+                ('primavera-150-3v', 'Vespa Primavera 150 3v'),
+                ('gts-300', 'Vespa GTS 300'),  
+                ('sprint-125-3v-ie', 'Vespa Sprint 125'),
+                ('et4-150', 'Vespa ET4 150'),
+                ('lx-150-ie', 'Vespa LX 150'),
+                ('gts-250', 'Vespa GTS 250'),
+                ('primavera-125', 'Vespa Primavera 125')
+            ]
+            
+            models = []
+            for slug, name in known_models:
+                url = f"{self.base_url}/kategori/vespa-{slug}-yedek-parca"
+                models.append({'name': name, 'url': url})
+                
+            return models
+            
+        except Exception as e:
+            logger.error(f"Model çekme hatası: {e}")
+            return []
     
     def extract_model_name_from_url(self, url):
         """URL'den model adını çıkarır"""
@@ -306,14 +381,57 @@ class VespaScraper:
         if not response:
             return []
         
+        # HTML içeriğini parse et
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Ürünleri çıkar
         products = self.extract_products_from_text(response.content)
         
-        # Her ürüne model bilgisini ekle
+        # Her ürün için resim linklerini çek
         for product in products:
+            # Resim linklerini çek (mevcut fonksiyonu kullan)
+            if self.download_images:
+                product['images'] = self.get_product_images(product['name'], soup)
+            else:
+                # Sadece HTML'den basit resim linklerini çek
+                product['images'] = self.get_basic_image_links(soup)
+            
+            # Model bilgisini ekle
             product['model'] = model_name
         
         logger.info(f"{model_name}: {len(products)} ürün bulundu")
         return products
+    
+    def get_basic_image_links(self, soup):
+        """HTML'den basit resim linklerini çeker"""
+        images = {
+            'thumbnail': None,
+            'main': None, 
+            'gallery': []
+        }
+        
+        # Tüm img taglarını bul
+        img_tags = soup.find_all('img', src=True)
+        
+        for img in img_tags[:3]:  # İlk 3 resmi al
+            src = img['src']
+            
+            # Tam URL yap
+            if src.startswith('/'):
+                src = self.base_url + src
+            elif not src.startswith('http'):
+                src = self.base_url + '/' + src
+            
+            # İlk resim thumbnail, ikinci main, diğerleri gallery
+            if not images['thumbnail']:
+                images['thumbnail'] = src
+            elif not images['main']:
+                images['main'] = src
+            else:
+                if len(images['gallery']) < 2:
+                    images['gallery'].append(src)
+        
+        return images
     
     def save_data(self):
         """Verileri JSON dosyalarına kaydeder"""
@@ -415,23 +533,26 @@ class VespaScraper:
             raise
 
 def main():
-    print("=== Vespa Yedek Parça Scraper ===")
+    print("🏍️  === Vespa Yedek Parça Scraper === 🏍️")
     print("Motopit.com.tr sitesinden Vespa yedek parça verilerini çeker")
+    print("✅ Fiyat parsing düzeltildi")
+    print("✅ Resim link çekme aktif") 
+    print("✅ Multiple model desteği")
     print()
     
-    # Debug seviyesi seçimi
+    # Debug seviyesi
     debug_mode = input("Debug modu aktif olsun mu? (y/n): ").lower() in ['y', 'yes', 'evet']
     if debug_mode:
         logging.getLogger().setLevel(logging.DEBUG)
-        print("Debug modu aktif - detaylı loglar gösterilecek")
+        print("🔍 Debug modu aktif - detaylı loglar gösterilecek")
     
-    # Resim indirme seçeneği
+    # Resim seçeneği  
     download_images = input("Resim indirmek istiyor musunuz? (y/n): ").lower() in ['y', 'yes', 'evet']
     
     if download_images:
-        print("Ürün bilgileri ve resimleri indirilecek...")
+        print("📥 Ürün bilgileri çekilecek ve resimler indirilecek")
     else:
-        print("Ürün bilgileri ve resim linkleri çekilecek (indirme yok)...")
+        print("🔗 Sadece ürün bilgileri ve resim linkleri çekilecek")
     
     # Scraper'ı başlat
     scraper = VespaScraper(download_images=download_images)

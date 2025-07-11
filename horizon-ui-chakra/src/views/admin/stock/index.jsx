@@ -47,6 +47,7 @@ import {
   Tab,
   TabPanel,
   Progress,
+  Image,
 } from '@chakra-ui/react';
 import { 
   MdAdd, 
@@ -71,75 +72,46 @@ export default function StockManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [activeTab, setActiveTab] = useState(0);
+  const [zoomImage, setZoomImage] = useState(null);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
 
-  // Sample stock data
-  const [stockItems, setStockItems] = useState([
-    {
-      id: 1,
-      name: 'Fren Balata Seti',
-      category: 'Fren Sistemi',
-      partNumber: 'FB-001',
-      currentStock: 5,
-      minStock: 10,
-      maxStock: 50,
-      price: 150,
-      supplier: 'MotoEtiler Yetkili Bayi',
-      lastUpdated: '2024-01-15',
-      status: 'low'
-    },
-    {
-      id: 2,
-      name: 'Motor Yağı 10W-40',
-      category: 'Motor',
-      partNumber: 'MY-002',
-      currentStock: 25,
-      minStock: 15,
-      maxStock: 100,
-      price: 75,
-      supplier: 'Mobil Türkiye',
-      lastUpdated: '2024-01-20',
-      status: 'normal'
-    },
-    {
-      id: 3,
-      name: 'Lastik Seti 120/70',
-      category: 'Lastik',
-      partNumber: 'LS-003',
-      currentStock: 8,
-      minStock: 6,
-      maxStock: 30,
-      price: 450,
-      supplier: 'Michelin',
-      lastUpdated: '2024-01-25',
-      status: 'normal'
-    },
-    {
-      id: 4,
-      name: 'Amortisör Takımı',
-      category: 'Süspansiyon',
-      partNumber: 'AM-004',
-      currentStock: 2,
-      minStock: 4,
-      maxStock: 20,
-      price: 800,
-      supplier: 'MotoEtiler Yetkili Bayi',
-      lastUpdated: '2024-01-10',
-      status: 'critical'
-    },
-    {
-      id: 5,
-      name: 'Debriyaj Takımı',
-      category: 'Transmisyon',
-      partNumber: 'DT-005',
-      currentStock: 12,
-      minStock: 8,
-      maxStock: 25,
-      price: 350,
-      supplier: 'Vespa Türkiye',
-      lastUpdated: '2024-01-28',
-      status: 'normal'
-    },
-  ]);
+  // Modal renk ve stil değişkenleri
+  const modalBg = useColorModeValue('white', 'gray.800');
+  const modalHeaderColor = useColorModeValue('brand.600', 'brand.200');
+  const modalTextColor = useColorModeValue('gray.800', 'gray.100');
+  const inputBg = useColorModeValue('gray.50', 'gray.700');
+  const inputTextColor = useColorModeValue('gray.800', 'gray.100');
+  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
+  const buttonBg = useColorModeValue('brand.500', 'brand.400');
+  const buttonTextColor = useColorModeValue('white', 'gray.900');
+  const buttonHoverBg = useColorModeValue('brand.600', 'brand.300');
+
+  // JSON dosyasını güvenli şekilde import et
+  let partsData;
+  try {
+    partsData = require('data/parts.json');
+  } catch (error) {
+    console.error('Parts data yüklenemedi:', error);
+    partsData = { parts: {} };
+  }
+
+  // Gerçek parça datası ile stokItems oluştur
+  const [stockItems, setStockItems] = useState(
+    Object.entries(partsData.parts).map(([id, part]) => ({
+      id,
+      name: part.name,
+      category: part.category || '-',
+      partNumber: id,
+      currentStock: part.currentStock || Math.floor(Math.random() * 100), // örnek stok
+      minStock: part.minStock || 5,
+      maxStock: part.maxStock || 100,
+      price: part.price || 0,
+      supplier: part.supplier || '-',
+      lastUpdated: part.lastUpdated || '2024-01-01',
+      status: 'normal',
+      image: part.images?.thumbnail || part.images?.main || '',
+    }))
+  );
 
   const [suppliers, setSuppliers] = useState([
     {
@@ -409,7 +381,8 @@ export default function StockManagement() {
                 <Table variant="simple">
                   <Thead>
                     <Tr>
-                      <Th>Ürün Adı</Th>
+                      <Th>Görsel</Th>
+                      <Th>ÜRÜN ADI</Th>
                       <Th>Kategori</Th>
                       <Th>Parça No</Th>
                       <Th>Mevcut Stok</Th>
@@ -424,13 +397,35 @@ export default function StockManagement() {
                     {filteredItems.map((item) => (
                       <Tr key={item.id}>
                         <Td>
-                          <Box>
-                            <Text fontWeight="bold">{item.name}</Text>
-                            <Text fontSize="sm" color="gray.500">
-                              Son güncelleme: {item.lastUpdated}
-                            </Text>
+                          <Box
+                            bg="white"
+                            borderRadius="md"
+                            boxShadow="md"
+                            p="1"
+                            display="flex"
+                            alignItems="center"
+                            justifyContent="center"
+                            w="48px"
+                            h="48px"
+                            cursor="pointer"
+                            onClick={() => {
+                              if (item.image) {
+                                setZoomImage(item.image);
+                                setIsZoomOpen(true);
+                              }
+                            }}
+                          >
+                            <Image
+                              src={item.image || 'https://via.placeholder.com/40x40?text=No+Image'}
+                              alt={item.name}
+                              boxSize="40px"
+                              objectFit="contain"
+                              borderRadius="md"
+                              fallbackSrc="https://via.placeholder.com/40x40?text=No+Image"
+                            />
                           </Box>
                         </Td>
+                        <Td>{item.name}</Td>
                         <Td>{item.category}</Td>
                         <Td>{item.partNumber}</Td>
                         <Td>
@@ -593,55 +588,67 @@ export default function StockManagement() {
       </Card>
 
       {/* Add/Edit Item Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size="lg" isCentered>
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
+        <ModalContent bg={modalBg} color={modalTextColor} borderRadius="2xl" boxShadow="2xl">
+          <ModalHeader color={modalHeaderColor} fontWeight="bold">
             {selectedItem ? 'Ürün Düzenle' : 'Yeni Ürün Ekle'}
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color={modalTextColor} />
           <ModalBody>
             <Stack spacing={4}>
               <FormControl isRequired>
-                <FormLabel>Ürün Adı</FormLabel>
+                <FormLabel color={modalTextColor}>Ürün Adı</FormLabel>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   placeholder="Ürün adını girin"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 />
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Kategori</FormLabel>
+                <FormLabel color={modalTextColor}>Kategori</FormLabel>
                 <Select
                   value={formData.category}
                   onChange={(e) => setFormData({...formData, category: e.target.value})}
                   placeholder="Kategori seçin"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 >
                   {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat} style={{ color: 'black' }}>{cat}</option>
                   ))}
                 </Select>
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Parça Numarası</FormLabel>
+                <FormLabel color={modalTextColor}>Parça Numarası</FormLabel>
                 <Input
                   value={formData.partNumber}
                   onChange={(e) => setFormData({...formData, partNumber: e.target.value})}
                   placeholder="Parça numarasını girin"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 />
               </FormControl>
 
               <Stack direction="row" spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Mevcut Stok</FormLabel>
+                  <FormLabel color={modalTextColor}>Mevcut Stok</FormLabel>
                   <NumberInput
                     value={formData.currentStock}
                     onChange={(value) => setFormData({...formData, currentStock: parseInt(value) || 0})}
                     min={0}
                   >
-                    <NumberInputField />
+                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
                     <NumberInputStepper>
                       <NumberIncrementStepper />
                       <NumberDecrementStepper />
@@ -650,13 +657,13 @@ export default function StockManagement() {
                 </FormControl>
 
                 <FormControl isRequired>
-                  <FormLabel>Min Stok</FormLabel>
+                  <FormLabel color={modalTextColor}>Min Stok</FormLabel>
                   <NumberInput
                     value={formData.minStock}
                     onChange={(value) => setFormData({...formData, minStock: parseInt(value) || 0})}
                     min={0}
                   >
-                    <NumberInputField />
+                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
                     <NumberInputStepper>
                       <NumberIncrementStepper />
                       <NumberDecrementStepper />
@@ -667,13 +674,13 @@ export default function StockManagement() {
 
               <Stack direction="row" spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Max Stok</FormLabel>
+                  <FormLabel color={modalTextColor}>Max Stok</FormLabel>
                   <NumberInput
                     value={formData.maxStock}
                     onChange={(value) => setFormData({...formData, maxStock: parseInt(value) || 0})}
                     min={0}
                   >
-                    <NumberInputField />
+                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
                     <NumberInputStepper>
                       <NumberIncrementStepper />
                       <NumberDecrementStepper />
@@ -682,13 +689,13 @@ export default function StockManagement() {
                 </FormControl>
 
                 <FormControl isRequired>
-                  <FormLabel>Fiyat (₺)</FormLabel>
+                  <FormLabel color={modalTextColor}>Fiyat (₺)</FormLabel>
                   <NumberInput
                     value={formData.price}
                     onChange={(value) => setFormData({...formData, price: parseFloat(value) || 0})}
                     min={0}
                   >
-                    <NumberInputField />
+                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
                     <NumberInputStepper>
                       <NumberIncrementStepper />
                       <NumberDecrementStepper />
@@ -698,38 +705,74 @@ export default function StockManagement() {
               </Stack>
 
               <FormControl isRequired>
-                <FormLabel>Tedarikçi</FormLabel>
+                <FormLabel color={modalTextColor}>Tedarikçi</FormLabel>
                 <Select
                   value={formData.supplier}
                   onChange={(e) => setFormData({...formData, supplier: e.target.value})}
                   placeholder="Tedarikçi seçin"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 >
                   {suppliers.map(supplier => (
-                    <option key={supplier.id} value={supplier.name}>{supplier.name}</option>
+                    <option key={supplier.id} value={supplier.name} style={{ color: 'black' }}>{supplier.name}</option>
                   ))}
                 </Select>
               </FormControl>
 
               <FormControl>
-                <FormLabel>Notlar</FormLabel>
+                <FormLabel color={modalTextColor}>Notlar</FormLabel>
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({...formData, notes: e.target.value})}
                   placeholder="Ürün hakkında notlar"
                   rows={3}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 />
               </FormControl>
             </Stack>
           </ModalBody>
 
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
+          <ModalFooter bg={modalBg} borderBottomRadius="2xl">
+            <Button variant="ghost" mr={3} onClick={onClose} color={buttonTextColor} bg="transparent" _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}>
               İptal
             </Button>
-            <Button colorScheme="brand" onClick={handleSaveItem}>
+            <Button
+              bg={buttonBg}
+              color={buttonTextColor}
+              _hover={{ bg: buttonHoverBg }}
+              onClick={handleSaveItem}
+              fontWeight="bold"
+              px={6}
+              borderRadius="lg"
+            >
               {selectedItem ? 'Güncelle' : 'Ekle'}
             </Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Zoom Image Modal */}
+      <Modal isOpen={isZoomOpen} onClose={() => setIsZoomOpen(false)} size="xl" isCentered>
+        <ModalOverlay />
+        <ModalContent bg="white" borderRadius="lg" boxShadow="2xl">
+          <ModalCloseButton color="black" />
+          <ModalBody p={0} display="flex" alignItems="center" justifyContent="center">
+            <Image
+              src={zoomImage}
+              alt="Büyük Ürün Görseli"
+              w="100%"
+              maxH="70vh"
+              objectFit="contain"
+              borderRadius="lg"
+              bg="white"
+              fallbackSrc="https://via.placeholder.com/400x400?text=No+Image"
+            />
+          </ModalBody>
         </ModalContent>
       </Modal>
     </Box>

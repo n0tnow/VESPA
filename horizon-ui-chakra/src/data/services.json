@@ -1,0 +1,379 @@
+{
+  "services": {
+    "serv_001": {
+      "id": "serv_001",
+      "customerId": "cust_001",
+      "type": "Periyodik Bakım",
+      "date": "2024-02-15",
+      "cost": 850,
+      "technician": "Mehmet Usta",
+      "status": "completed",
+      "description": "Motor yağı değişimi, filtre değişimi, fren kontrolü",
+      "parts": [
+        {
+          "id": "83bdb4cd",
+          "name": "Aks Rulmanı",
+          "quantity": 1,
+          "price": 501
+        },
+        {
+          "id": "9e12e0d9",
+          "name": "Buji",
+          "quantity": 1,
+          "price": 765
+        }
+      ],
+      "workItems": [
+        "Motor yağı değişimi",
+        "Hava filtresi değişimi",
+        "Fren kontrolü",
+        "Genel kontrol"
+      ]
+    },
+    "serv_002": {
+      "id": "serv_002",
+      "customerId": "cust_002",
+      "type": "Onarım",
+      "date": "2024-01-28",
+      "cost": 1250,
+      "technician": "Ali Teknisyen",
+      "status": "completed",
+      "description": "Fren sistemi onarımı, lastik değişimi",
+      "parts": [
+        {
+          "id": "217213c4",
+          "name": "Aks Somun Sigorta Kapak Pimi/ Kopilyası",
+          "quantity": 2,
+          "price": 56
+        },
+        {
+          "id": "aafff02c",
+          "name": "Amortisör Takozu Arka Üst (adet fiyatıdır)",
+          "quantity": 1,
+          "price": 171
+        }
+      ],
+      "workItems": [
+        "Fren balata değişimi",
+        "Lastik değişimi",
+        "Fren sistemi ayarı"
+      ]
+    },
+    "serv_003": {
+      "id": "serv_003",
+      "customerId": "cust_003",
+      "type": "Acil Onarım",
+      "date": "2023-12-10",
+      "cost": 2100,
+      "technician": "Hasan Usta",
+      "status": "completed",
+      "description": "Motor arızası, elektrik sistemi kontrolü",
+      "parts": [
+        {
+          "id": "0ee73b9d",
+          "name": "Beyin/ CDI",
+          "quantity": 1,
+          "price": 12492
+        },
+        {
+          "id": "e2148ce6",
+          "name": "Ampül Sinyal Sarı 12V - 6W",
+          "quantity": 2,
+          "price": 638
+        }
+      ],
+      "workItems": [
+        "Motor arıza tespiti",
+        "Elektrik sistemi kontrolü",
+        "CDI değişimi"
+      ]
+    },
+    "serv_004": {
+      "id": "serv_004",
+      "customerId": "cust_004",
+      "type": "Garantili Bakım",
+      "date": "2024-01-15",
+      "cost": 650,
+      "technician": "Fatma Teknisyen",
+      "status": "completed",
+      "description": "Garanti kapsamında periyodik bakım",
+      "parts": [
+        {
+          "id": "8d06836b",
+          "name": "Amblem Varyatör/ Amblem Debriyaj",
+          "quantity": 1,
+          "price": 654
+        }
+      ],
+      "workItems": [
+        "Genel kontrol",
+        "Yağ kontrolü",
+        "Fren kontrolü"
+      ]
+    },
+    "serv_005": {
+      "id": "serv_005",
+      "customerId": "cust_005",
+      "type": "Modifikasyon",
+      "date": "2024-02-05",
+      "cost": 3200,
+      "technician": "Emre Usta",
+      "status": "completed",
+      "description": "Egzoz sistemi modifikasyonu, performans artırımı",
+      "parts": [
+        {
+          "id": "f7c26242",
+          "name": "Ana Sehpa Yayı - İnce Olan",
+          "quantity": 1,
+          "price": 445
+        },
+        {
+          "id": "42b2db5b",
+          "name": "Ayna SAĞ",
+          "quantity": 1,
+          "price": 2380
+        }
+      ],
+      "workItems": [
+        "Egzoz değişimi",
+        "Performans ayarları",
+        "Görsel modifikasyonlar"
+      ]
+    },
+    "serv_006": {
+      "id": "serv_006",
+      "customerId": "cust_006",
+      "type": "Periyodik Bakım",
+      "date": "2024-01-20",
+      "cost": 780,
+      "technician": "Mehmet Usta",
+      "status": "completed",
+      "description": "Standart periyodik bakım",
+      "parts": [
+        {
+          "id": "8ae12743",
+          "name": "Bağlantı Plastik Klips ADET FİYATIDIR",
+          "quantity": 4,
+          "price": 23
+        }
+      ],
+      "workItems": [
+        "Yağ değişimi",
+        "Filtre değişimi",
+        "Genel kontrol"
+      ]
+    },
+    "serv_007": {
+      "id": "serv_007",
+      "customerId": "cust_007",
+      "type": "Onarım",
+      "date": "2024-02-10",
+      "cost": 1850,
+      "technician": "Ali Teknisyen",
+      "status": "completed",
+      "description": "Süspansiyon sistemi onarımı",
+      "parts": [
+        {
+          "id": "d2ac1e4d",
+          "name": "Benzin Pompa Üst Plastik Somunu",
+          "quantity": 1,
+          "price": 434
+        },
+        {
+          "id": "a85fb291",
+          "name": "Cam/Siperlik/ KISA TİP15",
+          "quantity": 1,
+          "price": 12770
+        }
+      ],
+      "workItems": [
+        "Amortisör değişimi",
+        "Yay kontrolü",
+        "Süspansiyon ayarı"
+      ]
+    },
+    "serv_008": {
+      "id": "serv_008",
+      "customerId": "cust_008",
+      "type": "Acil Onarım",
+      "date": "2024-01-25",
+      "cost": 950,
+      "technician": "Hasan Usta",
+      "status": "completed",
+      "description": "Elektrik sistemi arızası",
+      "parts": [
+        {
+          "id": "5d758510",
+          "name": "Cam/Siperlik/ KISA TİP/ Spor-Karartılmış Cam15",
+          "quantity": 1,
+          "price": 14500
+        }
+      ],
+      "workItems": [
+        "Elektrik sistemi kontrolü",
+        "Ampül değişimi",
+        "Kablolama kontrolü"
+      ]
+    },
+    "serv_009": {
+      "id": "serv_009",
+      "customerId": "cust_009",
+      "type": "Periyodik Bakım",
+      "date": "2024-02-01",
+      "cost": 720,
+      "technician": "Fatma Teknisyen",
+      "status": "completed",
+      "description": "Rutin bakım işlemleri",
+      "parts": [
+        {
+          "id": "e2437873",
+          "name": "Ana Sehpa Yayı/ Kalın Olan",
+          "quantity": 1,
+          "price": 362
+        }
+      ],
+      "workItems": [
+        "Yağ kontrolü",
+        "Fren ayarı",
+        "Genel kontrol"
+      ]
+    },
+    "serv_010": {
+      "id": "serv_010",
+      "customerId": "cust_010",
+      "type": "Garantili Bakım",
+      "date": "2024-01-30",
+      "cost": 580,
+      "technician": "Emre Usta",
+      "status": "completed",
+      "description": "Garanti kapsamında bakım",
+      "parts": [],
+      "workItems": [
+        "Genel kontrol",
+        "Yağ kontrolü",
+        "Fren kontrolü"
+      ]
+    },
+    "serv_011": {
+      "id": "serv_011",
+      "customerId": "cust_011",
+      "type": "Modifikasyon",
+      "date": "2024-02-12",
+      "cost": 4500,
+      "technician": "Mehmet Usta",
+      "status": "completed",
+      "description": "Performans artırımı ve görsel modifikasyonlar",
+      "parts": [
+        {
+          "id": "138f58df",
+          "name": "Benzin Pompa Üst Plastik Somunu",
+          "quantity": 1,
+          "price": 434
+        }
+      ],
+      "workItems": [
+        "Performans ayarları",
+        "Görsel modifikasyonlar",
+        "Egzoz değişimi"
+      ]
+    },
+    "serv_012": {
+      "id": "serv_012",
+      "customerId": "cust_012",
+      "type": "Onarım",
+      "date": "2024-01-18",
+      "cost": 1350,
+      "technician": "Ali Teknisyen",
+      "status": "completed",
+      "description": "Fren sistemi onarımı",
+      "parts": [
+        {
+          "id": "786ec500",
+          "name": "Fren Balata Seti",
+          "quantity": 1,
+          "price": 850
+        }
+      ],
+      "workItems": [
+        "Fren balata değişimi",
+        "Fren sistemi ayarı",
+        "Fren yağı kontrolü"
+      ]
+    },
+    "serv_013": {
+      "id": "serv_013",
+      "customerId": "cust_013",
+      "type": "Periyodik Bakım",
+      "date": "2024-02-08",
+      "cost": 680,
+      "technician": "Hasan Usta",
+      "status": "completed",
+      "description": "Standart bakım işlemleri",
+      "parts": [
+        {
+          "id": "2e4c9c21",
+          "name": "Motor Yağı 10W-40",
+          "quantity": 1,
+          "price": 120
+        }
+      ],
+      "workItems": [
+        "Yağ değişimi",
+        "Filtre değişimi",
+        "Genel kontrol"
+      ]
+    },
+    "serv_014": {
+      "id": "serv_014",
+      "customerId": "cust_014",
+      "type": "Acil Onarım",
+      "date": "2024-02-15",
+      "cost": 2800,
+      "technician": "Fatma Teknisyen",
+      "status": "completed",
+      "description": "Motor arızası ve elektrik sistemi problemi",
+      "parts": [
+        {
+          "id": "7b61fb15",
+          "name": "Akü 12V",
+          "quantity": 1,
+          "price": 450
+        },
+        {
+          "id": "8322a6dc",
+          "name": "Şarj Dinamosu",
+          "quantity": 1,
+          "price": 1200
+        }
+      ],
+      "workItems": [
+        "Motor arıza tespiti",
+        "Elektrik sistemi kontrolü",
+        "Akü değişimi"
+      ]
+    },
+    "serv_015": {
+      "id": "serv_015",
+      "customerId": "cust_015",
+      "type": "Periyodik Bakım",
+      "date": "2024-01-10",
+      "cost": 620,
+      "technician": "Emre Usta",
+      "status": "completed",
+      "description": "İlk bakım işlemleri",
+      "parts": [
+        {
+          "id": "fd4b6ff8",
+          "name": "Hava Filtresi",
+          "quantity": 1,
+          "price": 85
+        }
+      ],
+      "workItems": [
+        "Yağ değişimi",
+        "Filtre değişimi",
+        "Genel kontrol"
+      ]
+    }
+  }
+} 

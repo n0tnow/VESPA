@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -52,6 +52,7 @@ import {
   HStack,
   Divider,
   Heading,
+  Image,
 } from '@chakra-ui/react';
 import { 
   MdAdd, 
@@ -71,11 +72,21 @@ import {
 } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
+import partsData from 'data/parts.json';
+import modelsData from 'data/models.json';
 
 export default function ServiceTracking() {
   const brandColor = useColorModeValue('brand.500', 'white');
   const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
   const cardBg = useColorModeValue('white', 'gray.700');
+  const modalBg = useColorModeValue('white', 'gray.800');
+  const modalOverlayBg = useColorModeValue('blackAlpha.600', 'blackAlpha.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.700', 'white');
+  const secondaryTextColor = useColorModeValue('gray.600', 'gray.400');
+  const blueBg = useColorModeValue('blue.50', 'blue.900');
+  const grayBg = useColorModeValue('gray.50', 'gray.900');
+  const greenBg = useColorModeValue('green.50', 'green.900');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedService, setSelectedService] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -186,16 +197,27 @@ export default function ServiceTracking() {
     'Emre Usta (MotoEtiler)'
   ]);
 
-  const [availableParts] = useState([
-    { name: 'Motor Yağı 10W-40', price: 75 },
-    { name: 'Yağ Filtresi', price: 45 },
-    { name: 'Fren Balata Seti', price: 130 },
-    { name: 'Amortisör Takımı', price: 400 },
-    { name: 'Akü 12V', price: 170 },
-    { name: 'Lastik Seti', price: 300 },
-    { name: 'Spark Plug', price: 25 },
-    { name: 'Hava Filtresi', price: 35 }
-  ]);
+  // Gerçek parça verilerini kullan
+  const [availableParts, setAvailableParts] = useState([]);
+  const [vespaModels, setVespaModels] = useState([]);
+
+  // Verileri yükle
+  useEffect(() => {
+    // Parça verilerini yükle
+    const partsArray = Object.entries(partsData.parts).map(([id, part]) => ({
+      id,
+      name: part.name,
+      price: part.price,
+      category: part.category,
+      url: part.url,
+      images: part.images
+    }));
+    setAvailableParts(partsArray);
+
+    // Model verilerini yükle
+    const modelsArray = Object.keys(modelsData.models);
+    setVespaModels(modelsArray);
+  }, []);
 
   // Müşteri verileri
   const [customers] = useState([
@@ -204,7 +226,7 @@ export default function ServiceTracking() {
       name: 'Ahmet Yılmaz',
       email: 'ahmet@email.com',
       phone: '+90 532 123 45 67',
-      vespaModel: 'Vespa Primavera 150',
+      vespaModel: 'Vespa Primavera 150 3v',
       plateNumber: '34 ABC 123'
     },
     {
@@ -220,8 +242,16 @@ export default function ServiceTracking() {
       name: 'Mehmet Özkan',
       email: 'mehmet@email.com',
       phone: '+90 534 456 78 90',
-      vespaModel: 'Vespa Sprint 150',
+      vespaModel: 'Vespa Sprint 125',
       plateNumber: '35 GHI 789'
+    },
+    {
+      id: 4,
+      name: 'Ayşe Demir',
+      email: 'ayse@email.com',
+      phone: '+90 535 555 66 77',
+      vespaModel: 'Vespa ET4 150',
+      plateNumber: '16 XYZ 456'
     }
   ]);
 
@@ -440,18 +470,26 @@ export default function ServiceTracking() {
     return serviceRecords.filter(service => service.status === 'completed').length;
   };
 
-  const handlePartSelection = (partName, isSelected) => {
-    const part = availableParts.find(p => p.name === partName);
+  const handlePartSelection = (partId, isSelected) => {
+    const part = availableParts.find(p => p.id === partId);
     if (isSelected) {
       setSelectedParts([...selectedParts, { ...part, quantity: 1, selected: true, cost: part.price }]);
     } else {
-      setSelectedParts(selectedParts.filter(p => p.name !== partName));
+      setSelectedParts(selectedParts.filter(p => p.id !== partId));
     }
   };
 
-  const updatePartQuantity = (partName, quantity) => {
+  // Seçilen modele göre parça filtrele
+  const getPartsForModel = (modelName) => {
+    if (!modelName || !modelsData.models[modelName]) return availableParts;
+    
+    const modelParts = modelsData.models[modelName].categories.Genel.parts;
+    return availableParts.filter(part => modelParts.includes(part.id));
+  };
+
+  const updatePartQuantity = (partId, quantity) => {
     setSelectedParts(selectedParts.map(part => 
-      part.name === partName 
+      part.id === partId 
         ? { ...part, quantity: quantity, cost: part.price * quantity }
         : part
     ));
@@ -840,12 +878,14 @@ export default function ServiceTracking() {
 
       {/* Add/Edit Service Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            {selectedService ? 'Servis Düzenle' : 'Yeni Servis Ekle'}
+        <ModalOverlay bg={modalOverlayBg} />
+        <ModalContent bg={modalBg} borderRadius="15px" border="1px solid" borderColor={borderColor}>
+          <ModalHeader color={brandColor} borderBottom="1px solid" borderColor={borderColor}>
+            <Text fontSize="xl" fontWeight="bold">
+              {selectedService ? 'Servis Düzenle' : 'Yeni Servis Ekle'}
+            </Text>
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color={textColor} />
           <ModalBody>
             <Stack spacing={4}>
               {/* Müşteri Seçimi */}
@@ -866,28 +906,28 @@ export default function ServiceTracking() {
 
               {/* Müşteri Bilgileri */}
               {selectedCustomer && (
-                <Box p="4" bg="blue.50" borderRadius="md">
-                  <Text fontWeight="bold" mb="2">Müşteri Bilgileri:</Text>
+                <Box p="4" bg={blueBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                  <Text fontWeight="bold" mb="2" color={brandColor}>Müşteri Bilgileri:</Text>
                   <Stack spacing={1}>
-                    <Text><strong>Ad:</strong> {selectedCustomer.name}</Text>
-                    <Text><strong>Telefon:</strong> {selectedCustomer.phone}</Text>
-                    <Text><strong>Model:</strong> {selectedCustomer.vespaModel}</Text>
-                    <Text><strong>Plaka:</strong> {selectedCustomer.plateNumber}</Text>
+                    <Text color={textColor}><strong>Ad:</strong> {selectedCustomer.name}</Text>
+                    <Text color={textColor}><strong>Telefon:</strong> {selectedCustomer.phone}</Text>
+                    <Text color={textColor}><strong>Model:</strong> {selectedCustomer.vespaModel}</Text>
+                    <Text color={textColor}><strong>Plaka:</strong> {selectedCustomer.plateNumber}</Text>
                   </Stack>
                 </Box>
               )}
 
               {/* Müşteri Servis Geçmişi */}
               {customerServiceHistory.length > 0 && (
-                <Box p="4" bg="gray.50" borderRadius="md">
-                  <Text fontWeight="bold" mb="2">Servis Geçmişi:</Text>
+                <Box p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                  <Text fontWeight="bold" mb="2" color={brandColor}>Servis Geçmişi:</Text>
                   <Stack spacing={2}>
                     {customerServiceHistory.slice(-3).map(service => (
-                      <Box key={service.id} p="2" bg="white" borderRadius="md">
-                        <Text fontSize="sm">
+                      <Box key={service.id} p="2" bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                        <Text fontSize="sm" color={textColor}>
                           <strong>{service.serviceDate}</strong> - {service.serviceType} - {service.technician}
                         </Text>
-                        <Text fontSize="xs" color="gray.600">{service.description}</Text>
+                        <Text fontSize="xs" color={secondaryTextColor}>{service.description}</Text>
                       </Box>
                     ))}
                   </Stack>
@@ -950,9 +990,9 @@ export default function ServiceTracking() {
 
               {/* Yapılacak İşlemler */}
               <FormControl>
-                <FormLabel>Yapılacak İşlemler</FormLabel>
-                <Box border="1px" borderColor="gray.200" p="4" borderRadius="md">
-                  <Text fontSize="sm" mb="3" color="gray.600">
+                <FormLabel color={textColor}>Yapılacak İşlemler</FormLabel>
+                <Box border="1px" borderColor={borderColor} p="4" borderRadius="md" bg={cardBg}>
+                  <Text fontSize="sm" mb="3" color={secondaryTextColor}>
                     Yapılacak işlemleri seçin:
                   </Text>
                   <SimpleGrid columns={2} spacing={2}>
@@ -980,12 +1020,12 @@ export default function ServiceTracking() {
 
               {/* Seçilen İşlemler */}
               {workItems.length > 0 && (
-                <Box p="4" bg="green.50" borderRadius="md">
-                  <Text fontWeight="bold" mb="2">Seçilen İşlemler:</Text>
+                <Box p="4" bg={greenBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                  <Text fontWeight="bold" mb="2" color={brandColor}>Seçilen İşlemler:</Text>
                   <Stack spacing={2}>
                     {workItems.map(item => (
                       <HStack key={item.name} justify="space-between">
-                        <Text>{item.name}</Text>
+                        <Text color={textColor}>{item.name}</Text>
                         <HStack>
                           <NumberInput
                             size="sm"
@@ -1050,40 +1090,57 @@ export default function ServiceTracking() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Kullanılan Parçalar</FormLabel>
-                <Box border="1px" borderColor="gray.200" p="4" borderRadius="md" maxH="200px" overflowY="auto">
-                  <VStack align="start" spacing={2}>
-                    {availableParts.map(part => {
-                      const selectedPart = selectedParts.find(p => p.name === part.name);
-                      const isSelected = !!selectedPart;
-                      
-                      return (
-                        <HStack key={part.name} w="100%" justify="space-between">
-                          <Checkbox
-                            isChecked={isSelected}
-                            onChange={(e) => handlePartSelection(part.name, e.target.checked)}
-                          >
-                            {part.name} - ₺{part.price}
-                          </Checkbox>
-                          {isSelected && (
-                            <NumberInput
-                              size="sm"
-                              w="80px"
-                              value={selectedPart.quantity}
-                              onChange={(value) => updatePartQuantity(part.name, parseInt(value) || 1)}
-                              min={1}
+                <FormLabel>Kullanılan Parçalar ({selectedCustomer ? selectedCustomer.vespaModel : 'Müşteri Seç'})</FormLabel>
+                <Box border="1px" borderColor="gray.200" p="4" borderRadius="md" maxH="300px" overflowY="auto">
+                  {selectedCustomer ? (
+                    <VStack align="start" spacing={2}>
+                      {getPartsForModel(selectedCustomer.vespaModel).map(part => {
+                        const selectedPart = selectedParts.find(p => p.id === part.id);
+                        const isSelected = !!selectedPart;
+                        
+                        return (
+                          <HStack key={part.id} w="100%" justify="space-between">
+                            <Checkbox
+                              isChecked={isSelected}
+                              onChange={(e) => handlePartSelection(part.id, e.target.checked)}
                             >
-                              <NumberInputField />
-                              <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                              </NumberInputStepper>
-                            </NumberInput>
-                          )}
-                        </HStack>
-                      );
-                    })}
-                  </VStack>
+                              <HStack>
+                                <Image
+                                  src={part.images?.thumbnail || part.images?.main || 'https://via.placeholder.com/32x32?text=No+Image'}
+                                  alt={part.name}
+                                  boxSize="32px"
+                                  objectFit="contain"
+                                  borderRadius="md"
+                                  mr="2"
+                                  fallbackSrc="https://via.placeholder.com/32x32?text=No+Image" />
+                                <VStack align="start" spacing={0}>
+                                  <Text fontWeight="medium">{part.name}</Text>
+                                  <Text fontSize="sm" color="gray.600">₺{part.price?.toLocaleString()}</Text>
+                                </VStack>
+                              </HStack>
+                            </Checkbox>
+                            {isSelected && (
+                              <NumberInput
+                                size="sm"
+                                w="80px"
+                                value={selectedPart.quantity}
+                                onChange={(value) => updatePartQuantity(part.id, parseInt(value) || 1)}
+                                min={1}
+                              >
+                                <NumberInputField />
+                                <NumberInputStepper>
+                                  <NumberIncrementStepper />
+                                  <NumberDecrementStepper />
+                                </NumberInputStepper>
+                              </NumberInput>
+                            )}
+                          </HStack>
+                        );
+                      })}
+                    </VStack>
+                  ) : (
+                    <Text color="gray.500">Önce müşteri seçiniz</Text>
+                  )}
                 </Box>
               </FormControl>
 
@@ -1097,32 +1154,51 @@ export default function ServiceTracking() {
               </FormControl>
 
               {/* Maliyet Hesaplama */}
-              <Box p="4" bg="gray.50" borderRadius="md">
-                <Text fontWeight="bold" mb="2">Maliyet Özeti:</Text>
+              <Box p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                <Text fontWeight="bold" mb="2" color={brandColor}>Maliyet Özeti:</Text>
                 <Stack spacing={1}>
                   <HStack justify="space-between">
-                    <Text>Servis Ücreti:</Text>
-                    <Text>₺{(servicePrices[formData.serviceType] || 0).toLocaleString()}</Text>
+                    <Text color={textColor}>Servis Ücreti:</Text>
+                    <Text color={textColor}>₺{(servicePrices[formData.serviceType] || 0).toLocaleString()}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text>İşlemler:</Text>
-                    <Text>₺{workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0).toLocaleString()}</Text>
+                    <Text color={textColor}>İşlemler:</Text>
+                    <Text color={textColor}>₺{workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0).toLocaleString()}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text>Parçalar:</Text>
-                    <Text>₺{selectedParts.reduce((sum, part) => sum + part.cost, 0).toLocaleString()}</Text>
+                    <Text color={textColor}>Parçalar:</Text>
+                    <Text color={textColor}>₺{selectedParts.reduce((sum, part) => sum + part.cost, 0).toLocaleString()}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text>Ek İşçilik:</Text>
-                    <Text>₺{(formData.laborCost || 0).toLocaleString()}</Text>
+                    <Text color={textColor}>Ek İşçilik:</Text>
+                    <Text color={textColor}>₺{(formData.laborCost || 0).toLocaleString()}</Text>
                   </HStack>
-                  <Divider />
+                  <Divider borderColor={borderColor} />
                   <HStack justify="space-between">
-                    <Text fontWeight="bold" fontSize="lg">Toplam:</Text>
-                    <Text fontWeight="bold" fontSize="lg">₺{calculateTotalCost().toLocaleString()}</Text>
+                    <Text fontWeight="bold" fontSize="lg" color={brandColor}>Toplam:</Text>
+                    <Text fontWeight="bold" fontSize="lg" color={brandColor}>₺{calculateTotalCost().toLocaleString()}</Text>
                   </HStack>
                 </Stack>
               </Box>
+              {selectedParts.length > 0 && (
+                <Box mt="2">
+                  <Text fontWeight="bold" mb="1">Seçilen Parçalar:</Text>
+                  <Stack spacing={1} direction="row" flexWrap="wrap">
+                    {selectedParts.map(part => (
+                      <HStack key={part.id} spacing={2} border="1px solid" borderColor={borderColor} borderRadius="md" p="1">
+                        <Image
+                          src={part.images?.thumbnail || part.images?.main || 'https://via.placeholder.com/24x24?text=No+Image'}
+                          alt={part.name}
+                          boxSize="24px"
+                          objectFit="contain"
+                          borderRadius="md"
+                          fallbackSrc="https://via.placeholder.com/24x24?text=No+Image" />
+                        <Text fontSize="sm">{part.name} x{part.quantity}</Text>
+                      </HStack>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
             </Stack>
           </ModalBody>
 
@@ -1139,23 +1215,27 @@ export default function ServiceTracking() {
 
       {/* Fiyat Listesi Modal */}
       <Modal isOpen={isPriceListOpen} onClose={() => setIsPriceListOpen(false)} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
+        <ModalOverlay bg={modalOverlayBg} />
+        <ModalContent bg={modalBg} borderRadius="15px" border="1px solid" borderColor={borderColor}>
+          <ModalHeader borderBottom="1px solid" borderColor={borderColor}>
             <Heading size="md" color={brandColor}>MotoEtiler Servis Fiyat Listesi</Heading>
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color={textColor} />
           <ModalBody>
             <Stack spacing={4}>
               {/* Arama Kutusu */}
               <InputGroup>
                 <InputLeftElement pointerEvents="none">
-                  <MdSearch color="gray.300" />
+                  <MdSearch color={secondaryTextColor} />
                 </InputLeftElement>
                 <Input
                   placeholder="Servis türü ara..."
                   value={priceSearchTerm}
                   onChange={(e) => setPriceSearchTerm(e.target.value)}
+                  bg={cardBg}
+                  color={textColor}
+                  borderColor={borderColor}
+                  _placeholder={{ color: secondaryTextColor }}
                 />
               </InputGroup>
 
@@ -1163,10 +1243,10 @@ export default function ServiceTracking() {
               <Box maxH="400px" overflowY="auto">
                 <Stack spacing={3}>
                   {filteredPrices.map(([serviceType, price]) => (
-                    <Box key={serviceType} p="4" border="1px solid" borderColor="gray.200" borderRadius="md" bg={cardBg}>
+                    <Box key={serviceType} p="4" border="1px solid" borderColor={borderColor} borderRadius="md" bg={cardBg}>
                       <HStack justify="space-between" align="center">
                         <VStack align="start" spacing={1}>
-                          <Text fontWeight="bold">{serviceType}</Text>
+                          <Text fontWeight="bold" color={textColor}>{serviceType}</Text>
                           <Text color={price > 0 ? 'green.500' : 'orange.500'} fontSize="lg" fontWeight="bold">
                             {price > 0 ? `₺${price.toLocaleString()}` : 'Özel Fiyat'}
                           </Text>
@@ -1179,8 +1259,11 @@ export default function ServiceTracking() {
                               value={editPrice}
                               onChange={(value) => setEditPrice(value)}
                               min={0}
+                              bg={cardBg}
+                              color={textColor}
+                              borderColor={borderColor}
                             >
-                              <NumberInputField />
+                              <NumberInputField color={textColor} borderColor={borderColor} />
                               <NumberInputStepper>
                                 <NumberIncrementStepper />
                                 <NumberDecrementStepper />
@@ -1191,12 +1274,14 @@ export default function ServiceTracking() {
                               size="sm"
                               colorScheme="green"
                               onClick={handleSavePrice}
+                              aria-label="Kaydet"
                             />
                             <IconButton
                               icon={<MdClose />}
                               size="sm"
                               colorScheme="red"
                               onClick={handleCancelEdit}
+                              aria-label="İptal"
                             />
                           </HStack>
                         ) : (
@@ -1206,6 +1291,7 @@ export default function ServiceTracking() {
                             colorScheme="blue"
                             variant="outline"
                             onClick={() => handleEditPrice(serviceType, price)}
+                            aria-label="Düzenle"
                           />
                         )}
                       </HStack>
@@ -1216,7 +1302,7 @@ export default function ServiceTracking() {
             </Stack>
           </ModalBody>
 
-          <ModalFooter>
+          <ModalFooter borderTop="1px solid" borderColor={borderColor}>
             <Button colorScheme="brand" onClick={() => setIsPriceListOpen(false)}>
               Tamam
             </Button>

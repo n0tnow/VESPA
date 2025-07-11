@@ -1,23 +1,24 @@
 /* eslint-disable */
 /*!
-  _   _  ___  ____  ___ ________  _   _   _   _ ___   
- | | | |/ _ \|  _ \|_ _|__  / _ \| \ | | | | | |_ _| 
- | |_| | | | | |_) || |  / / | | |  \| | | | | || | 
- |  _  | |_| |  _ < | | / /| |_| | |\  | | |_| || |
- |_| |_|\___/|_| \_\___/____\___/|_| \_|  \___/|___|
-                                                                                                                                                                                                                                                                                                                                       
+  __  __       _        ______ _   _ _           
+ |  \/  |     | |      |  ____| | (_) |          
+ | \  / | ___ | |_ ___ | |__  | |_ _| | ___ _ __  
+ | |\/| |/ _ \| __/ _ \|  __| | __| | |/ _ \ '__| 
+ | |  | | (_) | || (_) | |____| |_| | |  __/ |    
+ |_|  |_|\___/ \__\___/|______|\__|_|_|\___|_|    
+                                                  
 =========================================================
-* Horizon UI - v1.1.0
-=========================================================
-
-* Product Page: https://www.horizon-ui.com/
-* Copyright 2023 Horizon UI (https://www.horizon-ui.com/)
-
-* Designed and Coded by Simmmple
-
+* MotoEtiler Vespa Admin Panel - v1.0.0
 =========================================================
 
-* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+* Copyright 2024 MotoEtiler
+* Vespa Bayi Yönetim Sistemi
+
+* MotoEtiler için özel olarak geliştirilmiştir
+
+=========================================================
+
+* Bu yazılım MotoEtiler Vespa bayisi için özelleştirilmiştir.
 
 */
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -17,7 +17,6 @@ import {
   TabPanels,
   Tab,
   TabPanel,
-
   Heading,
   Divider,
   List,
@@ -35,20 +34,10 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
-  FormControl,
-  FormLabel,
-  Textarea,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
   Alert,
   AlertIcon,
   AlertTitle,
   AlertDescription,
-  Tooltip,
-  IconButton,
   Table,
   Thead,
   Tbody,
@@ -63,13 +52,10 @@ import {
   MdLocalGasStation,
   MdColorLens,
   MdInfo,
-  MdEdit,
   MdAdd,
-  MdDelete,
   MdSearch,
   MdAttachMoney,
   MdBuild,
-  MdPalette,
   MdCheckCircle,
   MdStar,
   MdStarBorder
@@ -77,192 +63,151 @@ import {
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
 
+// JSON dosyalarını güvenli şekilde import et
+let modelsData;
+let partsData;
+
+try {
+  modelsData = require('data/models.json');
+} catch (error) {
+  console.error('Models data yüklenemedi:', error);
+  modelsData = { models: {} };
+}
+
+try {
+  partsData = require('data/parts.json');
+} catch (error) {
+  console.error('Parts data yüklenemedi:', error);
+  partsData = { parts: {} };
+}
+
 export default function VespaModels() {
   const brandColor = useColorModeValue('brand.500', 'white');
   const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
+  const modalBg = useColorModeValue('white', 'gray.800');
+  const modalOverlayBg = useColorModeValue('blackAlpha.600', 'blackAlpha.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.700', 'white');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedModel, setSelectedModel] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [activeTab, setActiveTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Vespa Models Data
-  const [vespaModels, setVespaModels] = useState([
-    {
-      id: 1,
-      name: 'Vespa Primavera 150',
-      category: 'Klasik',
-      price: 85000,
-      currency: 'TL',
-      engineSize: '150cc',
-      maxSpeed: '95 km/h',
-      fuelConsumption: '2.5L/100km',
-      colors: ['Beyaz', 'Siyah', 'Kırmızı', 'Mavi', 'Sarı'],
-      features: [
-        'LED Farlar',
-        'Dijital Gösterge',
-        'USB Şarj',
-        'Bagaj Bölmesi',
-        'Anti-Slip Sistem'
-      ],
-      specifications: {
-        engine: '150cc 4-stroke',
-        power: '12.9 HP',
-        torque: '12.8 Nm',
-        transmission: 'CVT Otomatik',
-        fuel: '7 Litre',
-        weight: '134 kg',
-        dimensions: '1930x745x1350 mm'
-      },
-      description: 'MotoEtiler\'de satışta! Vespa Primavera 150, modern teknoloji ile klasik tasarımı birleştiren ideal şehir scooter\'ı.',
-      inStock: true,
-      rating: 4.5,
-      image: '/api/placeholder/300/200'
-    },
-    {
-      id: 2,
-      name: 'Vespa GTS 300',
-      category: 'Touring',
-      price: 125000,
-      currency: 'TL',
-      engineSize: '300cc',
-      maxSpeed: '130 km/h',
-      fuelConsumption: '3.2L/100km',
-      colors: ['Siyah', 'Gri', 'Beyaz', 'Lacivert'],
-      features: [
-        'ABS Fren Sistemi',
-        'Traction Control',
-        'Büyük Bagaj',
-        'Konforlu Sürüş',
-        'Güçlü Motor'
-      ],
-      specifications: {
-        engine: '300cc 4-stroke',
-        power: '23.8 HP',
-        torque: '26 Nm',
-        transmission: 'CVT Otomatik',
-        fuel: '9 Litre',
-        weight: '158 kg',
-        dimensions: '1955x760x1415 mm'
-      },
-      description: 'MotoEtiler\'de satışta! Vespa GTS 300, uzun mesafe sürüşler için güçlü motor ve konforlu tasarımı ile öne çıkar. MotoEtiler garantisi ile!',
-      inStock: true,
-      rating: 4.8,
-      image: '/api/placeholder/300/200'
-    },
-    {
-      id: 3,
-      name: 'Vespa Sprint 150',
-      category: 'Sport',
-      price: 79000,
-      currency: 'TL',
-      engineSize: '150cc',
-      maxSpeed: '95 km/h',
-      fuelConsumption: '2.4L/100km',
-      colors: ['Beyaz', 'Siyah', 'Kırmızı', 'Turuncu'],
-      features: [
-        'Sportif Tasarım',
-        'LED Teknoloji',
-        'Compact Boyut',
-        'Çevik Handling',
-        'Ekonomik Yakıt'
-      ],
-      specifications: {
-        engine: '150cc 4-stroke',
-        power: '12.9 HP',
-        torque: '12.8 Nm',
-        transmission: 'CVT Otomatik',
-        fuel: '6 Litre',
-        weight: '130 kg',
-        dimensions: '1770x690x1340 mm'
-      },
-      description: 'MotoEtiler\'de özel sipariş! Vespa Sprint 150, sportif ruhu ve çevik kullanımı ile genç sürücüler için ideal.',
-      inStock: false,
-      rating: 4.3,
-      image: '/api/placeholder/300/200'
-    },
-    {
-      id: 4,
-      name: 'Vespa LX 150',
-      category: 'Klasik',
-      price: 75000,
-      currency: 'TL',
-      engineSize: '150cc',
-      maxSpeed: '90 km/h',
-      fuelConsumption: '2.8L/100km',
-      colors: ['Beyaz', 'Siyah', 'Bej'],
-      features: [
-        'Klasik Tasarım',
-        'Güvenilir Motor',
-        'Kolay Bakım',
-        'Ekonomik Fiyat',
-        'Dayanıklı Yapı'
-      ],
-      specifications: {
-        engine: '150cc 4-stroke',
-        power: '11.6 HP',
-        torque: '11.5 Nm',
-        transmission: 'CVT Otomatik',
-        fuel: '8 Litre',
-        weight: '125 kg',
-        dimensions: '1865x700x1345 mm'
-      },
-      description: 'Vespa LX 150, klasik Vespa deneyimi sunan güvenilir ve ekonomik model.',
-      inStock: true,
-      rating: 4.1,
-      image: '/api/placeholder/300/200'
-    },
-    {
-      id: 5,
-      name: 'Vespa Elettrica',
-      category: 'Elektrikli',
-      price: 165000,
-      currency: 'TL',
-      engineSize: 'Elektrikli',
-      maxSpeed: '45 km/h',
-      fuelConsumption: '0 L/100km',
-      colors: ['Beyaz', 'Gri'],
-      features: [
-        'Tamamen Elektrikli',
-        'Sessiz Motor',
-        'Çevre Dostu',
-        'Akıllı Bağlantı',
-        'Hızlı Şarj'
-      ],
-      specifications: {
-        engine: 'Elektrik Motor',
-        power: '4 kW',
-        torque: '200 Nm',
-        transmission: 'Direkt',
-        fuel: '4.2 kWh Batarya',
-        weight: '130 kg',
-        dimensions: '1930x745x1350 mm'
-      },
-      description: 'Vespa Elettrica, çevre dostu elektrikli teknoloji ile geleneksel Vespa tasarımını birleştiriyor.',
-      inStock: true,
-      rating: 4.6,
-      image: '/api/placeholder/300/200'
-    }
-  ]);
+  const [vespaModels, setVespaModels] = useState([]);
+  const [modelParts, setModelParts] = useState({});
 
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    price: 0,
-    engineSize: '',
-    maxSpeed: '',
-    fuelConsumption: '',
-    colors: [],
-    features: [],
-    description: '',
-    inStock: true
-  });
+  // Verileri yükle
+  useEffect(() => {
+    try {
+      setLoading(true);
+      
+      // Veri kontrolü
+      if (!modelsData || !modelsData.models || !partsData || !partsData.parts) {
+        throw new Error('Veri dosyaları eksik veya hatalı');
+      }
+
+      const modelsArray = Object.entries(modelsData.models)
+        .filter(([modelName, modelData]) => modelName && modelData) // Güvenlik kontrolü
+        .map(([modelName, modelData], index) => {
+          try {
+            // Güvenli veri erişimi
+            const categoriesData = modelData.categories || {};
+            const generalData = categoriesData.Genel || {};
+            const partsArray = generalData.parts || [];
+            const partCount = partsArray.length;
+            
+            const engineSize = modelName.includes('300') ? '300cc' : 
+                             modelName.includes('150') ? '150cc' : '125cc';
+            const category = modelName.includes('GTS') ? 'Touring' : 
+                           modelName.includes('Sprint') ? 'Sport' : 
+                           modelName.includes('ET4') ? 'Klasik' : 'Klasik';
+            
+            return {
+              id: index + 1,
+              name: modelName,
+              category,
+              price: modelName.includes('300') ? 125000 : 
+                     modelName.includes('150') && modelName.includes('3v') ? 85000 : 
+                     modelName.includes('150') ? 75000 : 70000,
+              currency: 'TL',
+              engineSize,
+              maxSpeed: modelName.includes('300') ? '130 km/h' : '95 km/h',
+              fuelConsumption: modelName.includes('300') ? '3.2L/100km' : '2.5L/100km',
+              colors: ['Beyaz', 'Siyah', 'Kırmızı', 'Mavi', 'Sarı'],
+              features: [
+                'LED Farlar',
+                'Dijital Gösterge',
+                'USB Şarj',
+                'Bagaj Bölmesi',
+                modelName.includes('300') ? 'ABS Fren Sistemi' : 'Anti-Slip Sistem'
+              ],
+              specifications: {
+                engine: engineSize + ' 4-stroke',
+                power: modelName.includes('300') ? '23.8 HP' : '12.9 HP',
+                torque: modelName.includes('300') ? '26 Nm' : '12.8 Nm',
+                transmission: 'CVT Otomatik',
+                fuel: modelName.includes('300') ? '9 Litre' : '7 Litre',
+                weight: modelName.includes('300') ? '158 kg' : '134 kg',
+                dimensions: '1930x745x1350 mm'
+              },
+              description: `MotoEtiler'de satışta! ${modelName}, modern teknoloji ile klasik tasarımı birleştiren ideal Vespa. ${partCount} çeşit yedek parça stokta!`,
+              inStock: true,
+              rating: 4.5,
+              image: '/api/placeholder/300/200',
+              partCount,
+              url: modelData.url || '#'
+            };
+          } catch (err) {
+            console.error(`Model işleme hatası: ${modelName}`, err);
+            return null;
+          }
+        })
+        .filter(Boolean); // null değerleri filtrele
+      
+      setVespaModels(modelsArray);
+      
+      // Her model için parça listesi
+      const partsMap = {};
+      Object.entries(modelsData.models).forEach(([modelName, modelData]) => {
+        try {
+          const generalData = modelData.categories?.Genel || {};
+          const partIds = generalData.parts || [];
+          const modelPartsDetails = partIds
+            .map(partId => partsData.parts[partId])
+            .filter(Boolean);
+          partsMap[modelName] = modelPartsDetails;
+        } catch (err) {
+          console.error(`Parça işleme hatası: ${modelName}`, err);
+          partsMap[modelName] = [];
+        }
+      });
+      
+      setModelParts(partsMap);
+      setLoading(false);
+      setError(null);
+      
+    } catch (err) {
+      console.error('Veri yükleme hatası:', err);
+      setError(err.message);
+      setLoading(false);
+      
+      // Fallback data
+      setVespaModels([]);
+      setModelParts({});
+    }
+  }, []);
 
   const categories = ['Klasik', 'Sport', 'Touring', 'Elektrikli'];
 
   const filteredModels = vespaModels.filter(model => {
+    if (!model || !model.name) return false;
+    
     const matchesSearch = model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         model.category.toLowerCase().includes(searchTerm.toLowerCase());
+                         (model.category || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'all' || model.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -274,25 +219,14 @@ export default function VespaModels() {
 
   const handleAddModel = () => {
     setSelectedModel(null);
-    setFormData({
-      name: '',
-      category: '',
-      price: 0,
-      engineSize: '',
-      maxSpeed: '',
-      fuelConsumption: '',
-      colors: [],
-      features: [],
-      description: '',
-      inStock: true
-    });
     onOpen();
   };
 
-  const renderStars = (rating) => {
+  const renderStars = (rating = 0) => {
     const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
+    const safeRating = Math.max(0, Math.min(5, rating || 0));
+    const fullStars = Math.floor(safeRating);
+    const hasHalfStar = safeRating % 1 !== 0;
     
     for (let i = 0; i < fullStars; i++) {
       stars.push(<Icon key={i} as={MdStar} color="yellow.400" />);
@@ -302,7 +236,7 @@ export default function VespaModels() {
       stars.push(<Icon key="half" as={MdStar} color="yellow.400" />);
     }
     
-    const emptyStars = 5 - Math.ceil(rating);
+    const emptyStars = 5 - Math.ceil(safeRating);
     for (let i = 0; i < emptyStars; i++) {
       stars.push(<Icon key={`empty-${i}`} as={MdStarBorder} color="gray.300" />);
     }
@@ -310,15 +244,51 @@ export default function VespaModels() {
     return stars;
   };
 
+  // Güvenli hesaplama fonksiyonları
   const getTotalModels = () => vespaModels.length;
-  const getInStockModels = () => vespaModels.filter(model => model.inStock).length;
+  
+  const getInStockModels = () => vespaModels.filter(model => model?.inStock).length;
+  
   const getAveragePrice = () => {
-    const total = vespaModels.reduce((sum, model) => sum + model.price, 0);
+    if (vespaModels.length === 0) return 0;
+    const total = vespaModels.reduce((sum, model) => sum + (model?.price || 0), 0);
     return Math.round(total / vespaModels.length);
   };
+  
   const getTopRatedModel = () => {
-    return vespaModels.reduce((max, model) => model.rating > max.rating ? model : max, vespaModels[0]);
+    if (vespaModels.length === 0) return { name: 'Bilinmiyor' };
+    
+    return vespaModels.reduce((max, model) => {
+      if (!model || !max) return model || max;
+      return (model.rating || 0) > (max.rating || 0) ? model : max;
+    }, vespaModels[0] || { name: 'Bilinmiyor' });
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
+        <Text textAlign="center" fontSize="lg">Veriler yükleniyor...</Text>
+      </Box>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
+        <Alert status="error" mb="20px" borderRadius="12px">
+          <AlertIcon />
+          <Box>
+            <AlertTitle>Veri Yükleme Hatası!</AlertTitle>
+            <AlertDescription>
+              {error} - Lütfen sayfayı yenileyin veya sistem yöneticisine başvurun.
+            </AlertDescription>
+          </Box>
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
@@ -350,7 +320,7 @@ export default function VespaModels() {
             <Icon as={MdStar} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
           }
           name="En Popüler"
-          value={getTopRatedModel().name.split(' ')[1]}
+          value={getTopRatedModel()?.name?.split(' ')[1] || 'Bilinmiyor'}
         />
       </SimpleGrid>
 
@@ -417,89 +387,93 @@ export default function VespaModels() {
 
               {/* Models Grid */}
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap="20px">
-                {filteredModels.map((model) => (
-                  <Card key={model.id} overflow="hidden" boxShadow="md">
-                    <Box position="relative">
-                      <Image
-                        src={model.image}
-                        alt={model.name}
-                        w="100%"
-                        h="200px"
-                        objectFit="cover"
-                        fallbackSrc="https://via.placeholder.com/300x200/4A5568/FFFFFF?text=Vespa"
-                      />
-                      <Badge
-                        position="absolute"
-                        top="10px"
-                        right="10px"
-                        colorScheme={model.inStock ? 'green' : 'red'}
-                      >
-                        {model.inStock ? 'Stokta' : 'Stok Yok'}
-                      </Badge>
-                    </Box>
-                    
-                    <Box p="6">
-                      <VStack align="start" spacing={3}>
-                        <Box w="100%">
-                          <HStack justify="space-between">
-                            <Heading size="md">{model.name}</Heading>
-                            <Badge colorScheme="brand">{model.category}</Badge>
+                {filteredModels.map((model) => {
+                  if (!model || !model.id) return null;
+                  
+                  return (
+                    <Card key={model.id} overflow="hidden" boxShadow="md">
+                      <Box position="relative">
+                        <Image
+                          src={model.image || '/api/placeholder/300/200'}
+                          alt={model.name || 'Vespa Model'}
+                          w="100%"
+                          h="200px"
+                          objectFit="cover"
+                          fallbackSrc="https://via.placeholder.com/300x200/4A5568/FFFFFF?text=Vespa"
+                        />
+                        <Badge
+                          position="absolute"
+                          top="10px"
+                          right="10px"
+                          colorScheme={model.inStock ? 'green' : 'red'}
+                        >
+                          {model.inStock ? 'Stokta' : 'Stok Yok'}
+                        </Badge>
+                      </Box>
+                      
+                      <Box p="6">
+                        <VStack align="start" spacing={3}>
+                          <Box w="100%">
+                            <HStack justify="space-between">
+                              <Heading size="md">{model.name || 'İsimsiz Model'}</Heading>
+                              <Badge colorScheme="brand">{model.category || 'Kategori Yok'}</Badge>
+                            </HStack>
+                            <HStack mt={2}>
+                              {renderStars(model.rating)}
+                              <Text fontSize="sm" color="gray.600">({model.rating || '0'})</Text>
+                            </HStack>
+                          </Box>
+
+                          <Text fontSize="sm" color="gray.600" noOfLines={2}>
+                            {model.description || 'Açıklama bulunmuyor.'}
+                          </Text>
+
+                          <HStack spacing={4} w="100%">
+                            <VStack align="start" spacing={1}>
+                              <HStack>
+                                <Icon as={MdSpeed} color="gray.500" />
+                                <Text fontSize="xs">{model.engineSize || '-'}</Text>
+                              </HStack>
+                              <HStack>
+                                <Icon as={MdLocalGasStation} color="gray.500" />
+                                <Text fontSize="xs">{model.fuelConsumption || '-'}</Text>
+                              </HStack>
+                            </VStack>
+                            <VStack align="start" spacing={1}>
+                              <HStack>
+                                <Icon as={MdColorLens} color="gray.500" />
+                                <Text fontSize="xs">{(model.colors || []).length} Renk</Text>
+                              </HStack>
+                              <HStack>
+                                <Icon as={MdBuild} color="gray.500" />
+                                <Text fontSize="xs">{(model.features || []).length} Özellik</Text>
+                              </HStack>
+                            </VStack>
                           </HStack>
-                          <HStack mt={2}>
-                            {renderStars(model.rating)}
-                            <Text fontSize="sm" color="gray.600">({model.rating})</Text>
+
+                          <Divider />
+
+                          <HStack justify="space-between" w="100%">
+                            <VStack align="start" spacing={0}>
+                              <Text fontSize="lg" fontWeight="bold" color={brandColor}>
+                                ₺{(model.price || 0).toLocaleString()}
+                              </Text>
+                              <Text fontSize="xs" color="gray.500">KDV Dahil</Text>
+                            </VStack>
+                            <Button
+                              size="sm"
+                              colorScheme="brand"
+                              leftIcon={<MdInfo />}
+                              onClick={() => handleModelDetail(model)}
+                            >
+                              Detay
+                            </Button>
                           </HStack>
-                        </Box>
-
-                        <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                          {model.description}
-                        </Text>
-
-                        <HStack spacing={4} w="100%">
-                          <VStack align="start" spacing={1}>
-                            <HStack>
-                              <Icon as={MdSpeed} color="gray.500" />
-                              <Text fontSize="xs">{model.engineSize}</Text>
-                            </HStack>
-                            <HStack>
-                              <Icon as={MdLocalGasStation} color="gray.500" />
-                              <Text fontSize="xs">{model.fuelConsumption}</Text>
-                            </HStack>
-                          </VStack>
-                          <VStack align="start" spacing={1}>
-                            <HStack>
-                              <Icon as={MdColorLens} color="gray.500" />
-                              <Text fontSize="xs">{model.colors.length} Renk</Text>
-                            </HStack>
-                            <HStack>
-                              <Icon as={MdBuild} color="gray.500" />
-                              <Text fontSize="xs">{model.features.length} Özellik</Text>
-                            </HStack>
-                          </VStack>
-                        </HStack>
-
-                        <Divider />
-
-                        <HStack justify="space-between" w="100%">
-                          <VStack align="start" spacing={0}>
-                            <Text fontSize="lg" fontWeight="bold" color={brandColor}>
-                              ₺{model.price.toLocaleString()}
-                            </Text>
-                            <Text fontSize="xs" color="gray.500">KDV Dahil</Text>
-                          </VStack>
-                          <Button
-                            size="sm"
-                            colorScheme="brand"
-                            leftIcon={<MdInfo />}
-                            onClick={() => handleModelDetail(model)}
-                          >
-                            Detay
-                          </Button>
-                        </HStack>
-                      </VStack>
-                    </Box>
-                  </Card>
-                ))}
+                        </VStack>
+                      </Box>
+                    </Card>
+                  );
+                })}
               </SimpleGrid>
 
               {filteredModels.length === 0 && (
@@ -535,22 +509,26 @@ export default function VespaModels() {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {vespaModels.map((model) => (
-                      <Tr key={model.id}>
-                        <Td fontWeight="bold">{model.name}</Td>
-                        <Td>
-                          <Badge colorScheme="brand" size="sm">
-                            {model.category}
-                          </Badge>
-                        </Td>
-                        <Td>{model.engineSize}</Td>
-                        <Td>{model.specifications.power}</Td>
-                        <Td>{model.maxSpeed}</Td>
-                        <Td>{model.fuelConsumption}</Td>
-                        <Td>{model.specifications.weight}</Td>
-                        <Td>₺{model.price.toLocaleString()}</Td>
-                      </Tr>
-                    ))}
+                    {vespaModels.map((model) => {
+                      if (!model || !model.id) return null;
+                      
+                      return (
+                        <Tr key={model.id}>
+                          <Td fontWeight="bold">{model.name || 'Bilinmiyor'}</Td>
+                          <Td>
+                            <Badge colorScheme="brand" size="sm">
+                              {model.category || 'Bilinmiyor'}
+                            </Badge>
+                          </Td>
+                          <Td>{model.engineSize || '-'}</Td>
+                          <Td>{model.specifications?.power || '-'}</Td>
+                          <Td>{model.maxSpeed || '-'}</Td>
+                          <Td>{model.fuelConsumption || '-'}</Td>
+                          <Td>{model.specifications?.weight || '-'}</Td>
+                          <Td>₺{(model.price || 0).toLocaleString()}</Td>
+                        </Tr>
+                      );
+                    })}
                   </Tbody>
                 </Table>
               </TableContainer>
@@ -564,33 +542,45 @@ export default function VespaModels() {
               
               <SimpleGrid columns={{ base: 1, md: 2 }} gap="20px">
                 {categories.map(category => {
-                  const categoryModels = vespaModels.filter(model => model.category === category);
+                  const categoryModels = vespaModels.filter(model => 
+                    model && model.category === category
+                  );
                   
                   return (
                     <Card key={category}>
                       <Text fontSize="lg" fontWeight="bold" mb="15px">{category} Modeller</Text>
                       <VStack align="stretch" spacing={3}>
-                        {categoryModels.map(model => (
-                          <Box key={model.id} p="3" borderRadius="md" bg={boxBg}>
-                            <HStack justify="space-between">
-                              <VStack align="start" spacing={1}>
-                                <Text fontWeight="bold">{model.name}</Text>
-                                <HStack>
-                                  {renderStars(model.rating)}
-                                  <Text fontSize="sm" color="gray.600">({model.rating})</Text>
-                                </HStack>
-                              </VStack>
-                              <VStack align="end" spacing={1}>
-                                <Text fontSize="lg" fontWeight="bold" color={brandColor}>
-                                  ₺{model.price.toLocaleString()}
-                                </Text>
-                                <Badge colorScheme={model.inStock ? 'green' : 'red'} size="sm">
-                                  {model.inStock ? 'Stokta' : 'Stok Yok'}
-                                </Badge>
-                              </VStack>
-                            </HStack>
-                          </Box>
-                        ))}
+                        {categoryModels.map(model => {
+                          if (!model || !model.id) return null;
+                          
+                          return (
+                            <Box key={model.id} p="3" borderRadius="md" bg={boxBg}>
+                              <HStack justify="space-between">
+                                <VStack align="start" spacing={1}>
+                                  <Text fontWeight="bold">{model.name || 'Bilinmiyor'}</Text>
+                                  <HStack>
+                                    {renderStars(model.rating)}
+                                    <Text fontSize="sm" color="gray.600">({model.rating || '-'})</Text>
+                                  </HStack>
+                                </VStack>
+                                <VStack align="end" spacing={1}>
+                                  <Text fontSize="lg" fontWeight="bold" color={brandColor}>
+                                    ₺{(model.price || 0).toLocaleString()}
+                                  </Text>
+                                  <Badge colorScheme={model.inStock ? 'green' : 'red'} size="sm">
+                                    {model.inStock ? 'Stokta' : 'Stok Yok'}
+                                  </Badge>
+                                </VStack>
+                              </HStack>
+                            </Box>
+                          );
+                        })}
+                        
+                        {categoryModels.length === 0 && (
+                          <Text fontSize="sm" color="gray.500" textAlign="center" py="4">
+                            Bu kategoride model bulunmuyor.
+                          </Text>
+                        )}
                       </VStack>
                     </Card>
                   );
@@ -603,18 +593,20 @@ export default function VespaModels() {
 
       {/* Model Detail Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            {selectedModel ? selectedModel.name : 'Yeni Model Ekle'}
+        <ModalOverlay bg={modalOverlayBg} />
+        <ModalContent bg={modalBg} borderRadius="15px" border="1px solid" borderColor={borderColor}>
+          <ModalHeader color={brandColor} borderBottom="1px solid" borderColor={borderColor}>
+            <Text fontSize="xl" fontWeight="bold">
+              {selectedModel?.name || 'Yeni Model Ekle'}
+            </Text>
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color={textColor} />
           <ModalBody>
             {selectedModel ? (
               <VStack align="stretch" spacing={4}>
                 <Image
-                  src={selectedModel.image}
-                  alt={selectedModel.name}
+                  src={selectedModel.image || '/api/placeholder/400/200'}
+                  alt={selectedModel.name || 'Vespa Model'}
                   w="100%"
                   h="200px"
                   objectFit="cover"
@@ -624,29 +616,29 @@ export default function VespaModels() {
                 
                 <HStack justify="space-between">
                   <VStack align="start" spacing={1}>
-                    <Text fontSize="xl" fontWeight="bold">{selectedModel.name}</Text>
-                    <Badge colorScheme="brand">{selectedModel.category}</Badge>
+                    <Text fontSize="xl" fontWeight="bold">{selectedModel.name || 'İsimsiz Model'}</Text>
+                    <Badge colorScheme="brand">{selectedModel.category || 'Kategori Yok'}</Badge>
                   </VStack>
                   <VStack align="end" spacing={1}>
                     <Text fontSize="2xl" fontWeight="bold" color={brandColor}>
-                      ₺{selectedModel.price.toLocaleString()}
+                      ₺{(selectedModel.price || 0).toLocaleString()}
                     </Text>
                     <HStack>
                       {renderStars(selectedModel.rating)}
-                      <Text fontSize="sm">({selectedModel.rating})</Text>
+                      <Text fontSize="sm">({selectedModel.rating || '0'})</Text>
                     </HStack>
                   </VStack>
                 </HStack>
 
-                <Text color="gray.600">{selectedModel.description}</Text>
+                <Text color="gray.600">{selectedModel.description || 'Açıklama bulunmuyor.'}</Text>
 
                 <Box>
                   <Text fontSize="lg" fontWeight="bold" mb="10px">Teknik Özellikler</Text>
                   <SimpleGrid columns={2} gap="10px">
-                    {Object.entries(selectedModel.specifications).map(([key, value]) => (
+                    {Object.entries(selectedModel.specifications || {}).map(([key, value]) => (
                       <HStack key={key} justify="space-between">
                         <Text fontSize="sm" textTransform="capitalize">{key}:</Text>
-                        <Text fontSize="sm" fontWeight="bold">{value}</Text>
+                        <Text fontSize="sm" fontWeight="bold">{value || '-'}</Text>
                       </HStack>
                     ))}
                   </SimpleGrid>
@@ -655,10 +647,10 @@ export default function VespaModels() {
                 <Box>
                   <Text fontSize="lg" fontWeight="bold" mb="10px">Özellikler</Text>
                   <List spacing={2}>
-                    {selectedModel.features.map((feature, index) => (
+                    {(selectedModel.features || []).map((feature, index) => (
                       <ListItem key={index}>
                         <ListIcon as={MdCheckCircle} color="green.500" />
-                        {feature}
+                        {feature || 'Bilinmiyor'}
                       </ListItem>
                     ))}
                   </List>
@@ -667,9 +659,9 @@ export default function VespaModels() {
                 <Box>
                   <Text fontSize="lg" fontWeight="bold" mb="10px">Mevcut Renkler</Text>
                   <HStack wrap="wrap">
-                    {selectedModel.colors.map((color, index) => (
+                    {(selectedModel.colors || []).map((color, index) => (
                       <Badge key={index} colorScheme="gray" variant="outline">
-                        {color}
+                        {color || 'Bilinmiyor'}
                       </Badge>
                     ))}
                   </HStack>
@@ -694,4 +686,4 @@ export default function VespaModels() {
       </Modal>
     </Box>
   );
-} 
+}

@@ -36,17 +36,9 @@ export default function Footer() {
         }}
         mb={{ base: "20px", xl: "0px" }}>
         {" "}
-        &copy; {1900 + new Date().getYear()}
+        &copy; {new Date().getFullYear()}
         <Text as='span' fontWeight='500' ms='4px'>
-          Horizon UI. All Rights Reserved. Made with love by
-          <Link
-            mx='3px'
-            color={textColor}
-            href='https://www.simmmple.com?ref=horizon-chakra-free'
-            target='_blank'
-            fontWeight='700'>
-            Simmmple!
-          </Link>
+          MotoEtiler Vespa Bayisi. Tüm hakları saklıdır.
         </Text>
       </Text>
       <List display='flex'>
@@ -58,8 +50,8 @@ export default function Footer() {
           <Link
             fontWeight='500'
             color={textColor}
-            href='mailto:hello@simmmple.com'>
-            Support
+            href='mailto:destek@motoetiler.com'>
+            Destek
           </Link>
         </ListItem>
         <ListItem
@@ -70,8 +62,8 @@ export default function Footer() {
           <Link
             fontWeight='500'
             color={textColor}
-            href='https://www.simmmple.com/licenses?ref=horizon-chakra-free'>
-            License
+            href='tel:+905551234567'>
+            İletişim
           </Link>
         </ListItem>
         <ListItem
@@ -82,16 +74,16 @@ export default function Footer() {
           <Link
             fontWeight='500'
             color={textColor}
-            href='https://simmmple.com/terms-of-service?ref=horizon-chakra-free'>
-            Terms of Use
+            href='https://motoetiler.com/vespa'>
+            Vespa Modelleri
           </Link>
         </ListItem>
         <ListItem>
           <Link
             fontWeight='500'
             color={textColor}
-            href='https://www.blog.simmmple.com/?ref=horizon-chakra-free'>
-            Blog
+            href='https://motoetiler.com/servis'>
+            Servis
           </Link>
         </ListItem>
       </List>

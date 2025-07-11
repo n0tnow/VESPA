@@ -1,0 +1,737 @@
+import React, { useState } from 'react';
+import {
+  Box,
+  Button,
+  Flex,
+  Text,
+  useColorModeValue,
+  SimpleGrid,
+  Icon,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  TableContainer,
+  Badge,
+  IconButton,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Input,
+  Select,
+  Textarea,
+  Stack,
+  InputGroup,
+  InputLeftElement,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Progress,
+} from '@chakra-ui/react';
+import { 
+  MdAdd, 
+  MdEdit, 
+  MdDelete, 
+  MdSearch, 
+  MdWarning, 
+  MdInventory,
+  MdTrendingUp,
+  MdTrendingDown,
+  MdStore,
+  MdLocalShipping
+} from 'react-icons/md';
+import Card from 'components/card/Card';
+import MiniStatistics from 'components/card/MiniStatistics';
+
+export default function StockManagement() {
+  const brandColor = useColorModeValue('brand.500', 'white');
+  const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [activeTab, setActiveTab] = useState(0);
+
+  // Sample stock data
+  const [stockItems, setStockItems] = useState([
+    {
+      id: 1,
+      name: 'Fren Balata Seti',
+      category: 'Fren Sistemi',
+      partNumber: 'FB-001',
+      currentStock: 5,
+      minStock: 10,
+      maxStock: 50,
+      price: 150,
+      supplier: 'MotoEtiler Yetkili Bayi',
+      lastUpdated: '2024-01-15',
+      status: 'low'
+    },
+    {
+      id: 2,
+      name: 'Motor Yağı 10W-40',
+      category: 'Motor',
+      partNumber: 'MY-002',
+      currentStock: 25,
+      minStock: 15,
+      maxStock: 100,
+      price: 75,
+      supplier: 'Mobil Türkiye',
+      lastUpdated: '2024-01-20',
+      status: 'normal'
+    },
+    {
+      id: 3,
+      name: 'Lastik Seti 120/70',
+      category: 'Lastik',
+      partNumber: 'LS-003',
+      currentStock: 8,
+      minStock: 6,
+      maxStock: 30,
+      price: 450,
+      supplier: 'Michelin',
+      lastUpdated: '2024-01-25',
+      status: 'normal'
+    },
+    {
+      id: 4,
+      name: 'Amortisör Takımı',
+      category: 'Süspansiyon',
+      partNumber: 'AM-004',
+      currentStock: 2,
+      minStock: 4,
+      maxStock: 20,
+      price: 800,
+      supplier: 'MotoEtiler Yetkili Bayi',
+      lastUpdated: '2024-01-10',
+      status: 'critical'
+    },
+    {
+      id: 5,
+      name: 'Debriyaj Takımı',
+      category: 'Transmisyon',
+      partNumber: 'DT-005',
+      currentStock: 12,
+      minStock: 8,
+      maxStock: 25,
+      price: 350,
+      supplier: 'Vespa Türkiye',
+      lastUpdated: '2024-01-28',
+      status: 'normal'
+    },
+  ]);
+
+  const [suppliers, setSuppliers] = useState([
+    {
+      id: 1,
+      name: 'Vespa Türkiye',
+      contact: 'info@vespa.com.tr',
+      phone: '+90 212 123 45 67',
+      address: 'İstanbul, Türkiye',
+      rating: 5
+    },
+    {
+      id: 2,
+      name: 'Mobil Türkiye',
+      contact: 'info@mobil.com.tr',
+      phone: '+90 212 987 65 43',
+      address: 'Ankara, Türkiye',
+      rating: 4
+    },
+    {
+      id: 3,
+      name: 'Michelin',
+      contact: 'info@michelin.com.tr',
+      phone: '+90 212 456 78 90',
+      address: 'İzmir, Türkiye',
+      rating: 5
+    },
+    {
+      id: 4,
+      name: 'MotoEtiler Yetkili Bayi',
+      contact: 'info@motoetiler.com',
+      phone: '+90 212 345 67 89',
+      address: 'Etiler, İstanbul, Türkiye',
+      rating: 5
+    },
+  ]);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    category: '',
+    partNumber: '',
+    currentStock: 0,
+    minStock: 0,
+    maxStock: 0,
+    price: 0,
+    supplier: '',
+    notes: ''
+  });
+
+  const categories = [
+    'Motor', 'Fren Sistemi', 'Lastik', 'Süspansiyon', 'Transmisyon', 
+    'Elektrik', 'Gövde', 'Aksesuar', 'Bakım'
+  ];
+
+  const filteredItems = stockItems.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         item.partNumber.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const lowStockItems = stockItems.filter(item => item.currentStock <= item.minStock);
+  const criticalStockItems = stockItems.filter(item => item.currentStock < item.minStock * 0.5);
+
+  const handleAddItem = () => {
+    setSelectedItem(null);
+    setFormData({
+      name: '',
+      category: '',
+      partNumber: '',
+      currentStock: 0,
+      minStock: 0,
+      maxStock: 0,
+      price: 0,
+      supplier: '',
+      notes: ''
+    });
+    onOpen();
+  };
+
+  const handleEditItem = (item) => {
+    setSelectedItem(item);
+    setFormData({
+      name: item.name,
+      category: item.category,
+      partNumber: item.partNumber,
+      currentStock: item.currentStock,
+      minStock: item.minStock,
+      maxStock: item.maxStock,
+      price: item.price,
+      supplier: item.supplier,
+      notes: item.notes || ''
+    });
+    onOpen();
+  };
+
+  const handleSaveItem = () => {
+    const updatedItem = {
+      ...formData,
+      lastUpdated: new Date().toISOString().split('T')[0],
+      status: getStockStatus(formData.currentStock, formData.minStock)
+    };
+
+    if (selectedItem) {
+      setStockItems(stockItems.map(item =>
+        item.id === selectedItem.id
+          ? { ...item, ...updatedItem }
+          : item
+      ));
+    } else {
+      const newItem = {
+        ...updatedItem,
+        id: Date.now()
+      };
+      setStockItems([...stockItems, newItem]);
+    }
+    onClose();
+  };
+
+  const handleDeleteItem = (itemId) => {
+    setStockItems(stockItems.filter(item => item.id !== itemId));
+  };
+
+  const getStockStatus = (current, min) => {
+    if (current < min * 0.5) return 'critical';
+    if (current <= min) return 'low';
+    return 'normal';
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'normal': return 'green';
+      case 'low': return 'yellow';
+      case 'critical': return 'red';
+      default: return 'gray';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'normal': return 'Normal';
+      case 'low': return 'Düşük';
+      case 'critical': return 'Kritik';
+      default: return 'Bilinmiyor';
+    }
+  };
+
+  const calculateStockValue = () => {
+    return stockItems.reduce((total, item) => total + (item.currentStock * item.price), 0);
+  };
+
+  const getStockPercentage = (current, max) => {
+    return max > 0 ? (current / max) * 100 : 0;
+  };
+
+  return (
+    <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
+      {/* Statistics Cards */}
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap="20px" mb="20px">
+        <MiniStatistics
+          startContent={
+            <Icon as={MdInventory} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
+          }
+          name="Toplam Ürün"
+          value={stockItems.length.toString()}
+        />
+        <MiniStatistics
+          startContent={
+            <Icon as={MdWarning} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
+          }
+          name="Düşük Stok"
+          value={lowStockItems.length.toString()}
+        />
+        <MiniStatistics
+          startContent={
+            <Icon as={MdStore} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
+          }
+          name="Stok Değeri"
+          value={`₺${calculateStockValue().toLocaleString()}`}
+        />
+        <MiniStatistics
+          startContent={
+            <Icon as={MdLocalShipping} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
+          }
+          name="Tedarikçi"
+          value={suppliers.length.toString()}
+        />
+      </SimpleGrid>
+
+      {/* Critical Stock Alert */}
+      {criticalStockItems.length > 0 && (
+        <Alert status="error" mb="20px" borderRadius="12px">
+          <AlertIcon />
+          <Box>
+            <AlertTitle>Kritik Stok Durumu!</AlertTitle>
+            <AlertDescription>
+              {criticalStockItems.length} ürünün stoğu kritik seviyede. Acil tedarik gerekiyor.
+            </AlertDescription>
+          </Box>
+        </Alert>
+      )}
+
+      {/* Low Stock Alert */}
+      {lowStockItems.length > 0 && (
+        <Alert status="warning" mb="20px" borderRadius="12px">
+          <AlertIcon />
+          <Box>
+            <AlertTitle>Düşük Stok Uyarısı!</AlertTitle>
+            <AlertDescription>
+              {lowStockItems.length} ürünün stoğu minimum seviyede veya altında.
+            </AlertDescription>
+          </Box>
+        </Alert>
+      )}
+
+      {/* Main Content */}
+      <Card>
+        <Tabs index={activeTab} onChange={setActiveTab}>
+          <TabList>
+            <Tab>Stok Yönetimi</Tab>
+            <Tab>Tedarikçiler</Tab>
+            <Tab>Stok Analizi</Tab>
+          </TabList>
+
+          <TabPanels>
+            {/* Stock Management Tab */}
+            <TabPanel>
+              <Flex justify="space-between" align="center" mb="20px">
+                <Text fontSize="2xl" fontWeight="bold" color={brandColor}>
+                  Stok Yönetimi
+                </Text>
+                <Button
+                  leftIcon={<MdAdd />}
+                  colorScheme="brand"
+                  onClick={handleAddItem}
+                >
+                  Yeni Ürün Ekle
+                </Button>
+              </Flex>
+
+              {/* Search and Filter */}
+              <Stack direction={{ base: 'column', md: 'row' }} spacing={4} mb="20px">
+                <InputGroup>
+                  <InputLeftElement pointerEvents="none">
+                    <Icon as={MdSearch} color="gray.300" />
+                  </InputLeftElement>
+                  <Input
+                    placeholder="Ürün ara..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </InputGroup>
+                <Select
+                  placeholder="Kategori filtresi"
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  w={{ base: '100%', md: '200px' }}
+                >
+                  <option value="all">Tümü</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </Select>
+              </Stack>
+
+              {/* Stock Table */}
+              <TableContainer>
+                <Table variant="simple">
+                  <Thead>
+                    <Tr>
+                      <Th>Ürün Adı</Th>
+                      <Th>Kategori</Th>
+                      <Th>Parça No</Th>
+                      <Th>Mevcut Stok</Th>
+                      <Th>Min/Max</Th>
+                      <Th>Fiyat</Th>
+                      <Th>Tedarikçi</Th>
+                      <Th>Durum</Th>
+                      <Th>İşlemler</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {filteredItems.map((item) => (
+                      <Tr key={item.id}>
+                        <Td>
+                          <Box>
+                            <Text fontWeight="bold">{item.name}</Text>
+                            <Text fontSize="sm" color="gray.500">
+                              Son güncelleme: {item.lastUpdated}
+                            </Text>
+                          </Box>
+                        </Td>
+                        <Td>{item.category}</Td>
+                        <Td>{item.partNumber}</Td>
+                        <Td>
+                          <Box>
+                            <Text fontWeight="bold">{item.currentStock}</Text>
+                            <Progress
+                              value={getStockPercentage(item.currentStock, item.maxStock)}
+                              colorScheme={getStatusColor(item.status)}
+                              size="sm"
+                              w="60px"
+                            />
+                          </Box>
+                        </Td>
+                        <Td>{item.minStock} / {item.maxStock}</Td>
+                        <Td>₺{item.price.toLocaleString()}</Td>
+                        <Td>{item.supplier}</Td>
+                        <Td>
+                          <Badge colorScheme={getStatusColor(item.status)}>
+                            {getStatusText(item.status)}
+                          </Badge>
+                        </Td>
+                        <Td>
+                          <Stack direction="row" spacing={1}>
+                            <IconButton
+                              icon={<MdEdit />}
+                              size="sm"
+                              colorScheme="blue"
+                              onClick={() => handleEditItem(item)}
+                            />
+                            <IconButton
+                              icon={<MdDelete />}
+                              size="sm"
+                              colorScheme="red"
+                              onClick={() => handleDeleteItem(item.id)}
+                            />
+                          </Stack>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+
+              {filteredItems.length === 0 && (
+                <Box textAlign="center" py="40px">
+                  <Text fontSize="lg" color="gray.500">
+                    {searchTerm || filterCategory !== 'all' 
+                      ? 'Arama kriterlerinize uygun ürün bulunamadı.'
+                      : 'Henüz ürün eklenmemiş.'
+                    }
+                  </Text>
+                </Box>
+              )}
+            </TabPanel>
+
+            {/* Suppliers Tab */}
+            <TabPanel>
+              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
+                Tedarikçiler
+              </Text>
+              
+              <TableContainer>
+                <Table variant="simple">
+                  <Thead>
+                    <Tr>
+                      <Th>Tedarikçi Adı</Th>
+                      <Th>İletişim</Th>
+                      <Th>Telefon</Th>
+                      <Th>Adres</Th>
+                      <Th>Değerlendirme</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {suppliers.map((supplier) => (
+                      <Tr key={supplier.id}>
+                        <Td fontWeight="bold">{supplier.name}</Td>
+                        <Td>{supplier.contact}</Td>
+                        <Td>{supplier.phone}</Td>
+                        <Td>{supplier.address}</Td>
+                        <Td>
+                          <Badge colorScheme={supplier.rating >= 4 ? 'green' : 'yellow'}>
+                            {supplier.rating}/5
+                          </Badge>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            </TabPanel>
+
+            {/* Stock Analysis Tab */}
+            <TabPanel>
+              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
+                Stok Analizi
+              </Text>
+              
+              <SimpleGrid columns={{ base: 1, md: 2 }} gap="20px">
+                <Card>
+                  <Text fontSize="lg" fontWeight="bold" mb="10px">Kategori Bazlı Stok Dağılımı</Text>
+                  {categories.map(category => {
+                    const categoryItems = stockItems.filter(item => item.category === category);
+                    const categoryValue = categoryItems.reduce((sum, item) => sum + (item.currentStock * item.price), 0);
+                    const totalValue = calculateStockValue();
+                    const percentage = totalValue > 0 ? (categoryValue / totalValue) * 100 : 0;
+                    
+                    return (
+                      <Box key={category} mb="10px">
+                        <Flex justify="space-between" mb="5px">
+                          <Text fontSize="sm">{category}</Text>
+                          <Text fontSize="sm">₺{categoryValue.toLocaleString()}</Text>
+                        </Flex>
+                        <Progress value={percentage} colorScheme="brand" size="sm" />
+                      </Box>
+                    );
+                  })}
+                </Card>
+
+                <Card>
+                  <Text fontSize="lg" fontWeight="bold" mb="10px">Stok Durumu Özeti</Text>
+                  <Stack spacing={4}>
+                    <Box>
+                      <Flex justify="space-between">
+                        <Text>Normal Stok</Text>
+                        <Text fontWeight="bold" color="green.500">
+                          {stockItems.filter(item => item.status === 'normal').length}
+                        </Text>
+                      </Flex>
+                    </Box>
+                    <Box>
+                      <Flex justify="space-between">
+                        <Text>Düşük Stok</Text>
+                        <Text fontWeight="bold" color="yellow.500">
+                          {stockItems.filter(item => item.status === 'low').length}
+                        </Text>
+                      </Flex>
+                    </Box>
+                    <Box>
+                      <Flex justify="space-between">
+                        <Text>Kritik Stok</Text>
+                        <Text fontWeight="bold" color="red.500">
+                          {stockItems.filter(item => item.status === 'critical').length}
+                        </Text>
+                      </Flex>
+                    </Box>
+                    <Box>
+                      <Flex justify="space-between">
+                        <Text>Toplam Stok Değeri</Text>
+                        <Text fontWeight="bold" color={brandColor}>
+                          ₺{calculateStockValue().toLocaleString()}
+                        </Text>
+                      </Flex>
+                    </Box>
+                  </Stack>
+                </Card>
+              </SimpleGrid>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </Card>
+
+      {/* Add/Edit Item Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            {selectedItem ? 'Ürün Düzenle' : 'Yeni Ürün Ekle'}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Stack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel>Ürün Adı</FormLabel>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  placeholder="Ürün adını girin"
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Kategori</FormLabel>
+                <Select
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  placeholder="Kategori seçin"
+                >
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Parça Numarası</FormLabel>
+                <Input
+                  value={formData.partNumber}
+                  onChange={(e) => setFormData({...formData, partNumber: e.target.value})}
+                  placeholder="Parça numarasını girin"
+                />
+              </FormControl>
+
+              <Stack direction="row" spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Mevcut Stok</FormLabel>
+                  <NumberInput
+                    value={formData.currentStock}
+                    onChange={(value) => setFormData({...formData, currentStock: parseInt(value) || 0})}
+                    min={0}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>Min Stok</FormLabel>
+                  <NumberInput
+                    value={formData.minStock}
+                    onChange={(value) => setFormData({...formData, minStock: parseInt(value) || 0})}
+                    min={0}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+              </Stack>
+
+              <Stack direction="row" spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Max Stok</FormLabel>
+                  <NumberInput
+                    value={formData.maxStock}
+                    onChange={(value) => setFormData({...formData, maxStock: parseInt(value) || 0})}
+                    min={0}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>Fiyat (₺)</FormLabel>
+                  <NumberInput
+                    value={formData.price}
+                    onChange={(value) => setFormData({...formData, price: parseFloat(value) || 0})}
+                    min={0}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+              </Stack>
+
+              <FormControl isRequired>
+                <FormLabel>Tedarikçi</FormLabel>
+                <Select
+                  value={formData.supplier}
+                  onChange={(e) => setFormData({...formData, supplier: e.target.value})}
+                  placeholder="Tedarikçi seçin"
+                >
+                  {suppliers.map(supplier => (
+                    <option key={supplier.id} value={supplier.name}>{supplier.name}</option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Notlar</FormLabel>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  placeholder="Ürün hakkında notlar"
+                  rows={3}
+                />
+              </FormControl>
+            </Stack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose}>
+              İptal
+            </Button>
+            <Button colorScheme="brand" onClick={handleSaveItem}>
+              {selectedItem ? 'Güncelle' : 'Ekle'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Box>
+  );
+} 

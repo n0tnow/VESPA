@@ -1,0 +1,754 @@
+{
+  "parts": {
+    "e9fe573b": {
+      "name": "Aks Rulmanı",
+      "category": "Genel",
+      "price": 500.0,
+      "url": "https://www.motopit.com.tr/urun/aks-rulman",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "217213c4": {
+      "name": "Aks Somun Sigorta Kapak Pimi/ Kopilyası",
+      "category": "Genel",
+      "price": 56.0,
+      "url": "https://www.motopit.com.tr/urun/aks-somun-sigorta-kapak-pimi-kopilyas",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "93659de9": {
+      "name": "Amblem Varyatör/ Amblem Debriyaj",
+      "category": "Genel",
+      "price": 653.0,
+      "url": "https://www.motopit.com.tr/urun/amblem-varyatr-amblem-debriyaj",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "aafff02c": {
+      "name": "Amortisör Takozu Arka Üst (adet fiyatıdır)",
+      "category": "Genel",
+      "price": 171.0,
+      "url": "https://www.motopit.com.tr/urun/amortisr-takozu-arka-st-adet-fiyatdr",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "3522bcc7": {
+      "name": "Ampül Sinyal Sarı 12V - 6W",
+      "category": "Genel",
+      "price": 637.0,
+      "url": "https://www.motopit.com.tr/urun/ampl-sinyal-sar-12v-6w",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "44b3dc13": {
+      "name": "Ana Sehpa Yayı - İnce Olan",
+      "category": "Genel",
+      "price": 444.0,
+      "url": "https://www.motopit.com.tr/urun/ana-sehpa-yay-ince-olan",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "7fd91427": {
+      "name": "Ana Sehpa Yayı/ Kalın Olan",
+      "category": "Genel",
+      "price": 361.0,
+      "url": "https://www.motopit.com.tr/urun/ana-sehpa-yay-kaln-olan",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "4330577a": {
+      "name": "Ayna SAĞ",
+      "category": "Genel",
+      "price": 375.0,
+      "url": "https://www.motopit.com.tr/urun/ayna-sa",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "8ae12743": {
+      "name": "Bağlantı Plastik Klips ADET FİYATIDIR",
+      "category": "Genel",
+      "price": 23.0,
+      "url": "https://www.motopit.com.tr/urun/balant-plastik-klips-adet-fiyatidir",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "d2ac1e4d": {
+      "name": "Benzin Pompa Üst Plastik Somunu",
+      "category": "Genel",
+      "price": 434.0,
+      "url": "https://www.motopit.com.tr/urun/benzin-pompa-st-plastik-somunu",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "19652429": {
+      "name": "Beyin/ CDI",
+      "category": "Genel",
+      "price": 467.0,
+      "url": "https://www.motopit.com.tr/urun/beyin-cdi",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "23b77662": {
+      "name": "Buji",
+      "category": "Genel",
+      "price": 764.0,
+      "url": "https://www.motopit.com.tr/urun/buji",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "6dc55720": {
+      "name": "Cam/Siperlik/ KISA TİP15",
+      "category": "Genel",
+      "price": 745.0,
+      "url": "https://www.motopit.com.tr/urun/camsiperlik-kisa-tip15",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "33707939": {
+      "name": "Cam/Siperlik/ KISA TİP/ Spor-Karartılmış Cam15",
+      "category": "Genel",
+      "price": 745.0,
+      "url": "https://www.motopit.com.tr/urun/camsiperlik-kisa-tip-sporkarartlm-cam15",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "71a9f226": {
+      "name": "Cam/Siperlik/ UZUN TİP20",
+      "category": "Genel",
+      "price": 651.0,
+      "url": "https://www.motopit.com.tr/urun/camsiperlik-uzun-tip20",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "ea0dc2ee": {
+      "name": "Civata Özel M6x35",
+      "category": "Genel",
+      "price": 3547.0,
+      "url": "https://www.motopit.com.tr/urun/civata-zel-m6x35",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "e91de340": {
+      "name": "Çanta Aparatı Krom20",
+      "category": "Genel",
+      "price": 983.0,
+      "url": "https://www.motopit.com.tr/urun/anta-aparat-krom20",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "58961d82": {
+      "name": "Çıkartma Seti 75",
+      "category": "Genel",
+      "price": 792.0,
+      "url": "https://www.motopit.com.tr/urun/kartma-seti-75",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "54e15fd0": {
+      "name": "Çıkartma Seti Sprint Sport",
+      "category": "Genel",
+      "price": 218.0,
+      "url": "https://www.motopit.com.tr/urun/kartma-seti-sprint-sport",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "a6141148": {
+      "name": "Debriyaj Balata Somunu/ Varyatör Somunu Dış",
+      "category": "Genel",
+      "price": 521.0,
+      "url": "https://www.motopit.com.tr/urun/debriyaj-balata-somunu-varyatr-somunu-d",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "b1bcfa09": {
+      "name": "Debriyaj Varyatör Kapak Rulman",
+      "category": "Genel",
+      "price": 194.0,
+      "url": "https://www.motopit.com.tr/urun/debriyaj-varyatr-kapak-rulman",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "22946865": {
+      "name": "Denge Sensörü/ Devrilme Kesicisi",
+      "category": "Genel",
+      "price": 683.0,
+      "url": "https://www.motopit.com.tr/urun/denge-sensr-devrilme-kesicisi",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "a866a681": {
+      "name": "Depo/ Sele Açma Kolu",
+      "category": "Genel",
+      "price": 331.0,
+      "url": "https://www.motopit.com.tr/urun/depo-sele-ama-kolu",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "fa116a70": {
+      "name": "Egzoz Manifold Contasi - Silindire Geçen",
+      "category": "Genel",
+      "price": 357.0,
+      "url": "https://www.motopit.com.tr/urun/egzoz-manifold-contasi-silindire-geen",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "138f58df": {
+      "name": "Eksantrik Gergi Contasi",
+      "category": "Genel",
+      "price": 190.0,
+      "url": "https://www.motopit.com.tr/urun/eksantrik-gergi-contasi",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "b6a606ee": {
+      "name": "Eksantrik Mili Kafa Ağırlığı",
+      "category": "Genel",
+      "price": 575.0,
+      "url": "https://www.motopit.com.tr/urun/eksantrik-mili-kafa-arl",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "23f7c245": {
+      "name": "Eksantrik Zincir Papucu SABIT/ FIRSAT ÜRÜNÜ30",
+      "category": "Genel",
+      "price": 502.0,
+      "url": "https://www.motopit.com.tr/urun/eksantrik-zincir-papucu-sabit-firsat-rn30",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "725df2d6": {
+      "name": "Elcik Lastiği SAĞ/ Gaz Kolu Lastiği",
+      "category": "Genel",
+      "price": 712.0,
+      "url": "https://www.motopit.com.tr/urun/elcik-lastii-sa-gaz-kolu-lastii",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "f34a8284": {
+      "name": "Far Primavera/ FIRSAT ÜRÜNÜ25",
+      "category": "Genel",
+      "price": 698.0,
+      "url": "https://www.motopit.com.tr/urun/far-primavera-firsat-rn25",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "9d9cd454": {
+      "name": "Fren Diski ÖN/ Abs li Araç İçin",
+      "category": "Genel",
+      "price": 312.0,
+      "url": "https://www.motopit.com.tr/urun/fren-diski-n-abs-li-ara-iin",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "eee0cf7e": {
+      "name": "Fren Kolu Sağ ( Sol )/ Fren Maneti Sağ ( Sol )",
+      "category": "Genel",
+      "price": 491.0,
+      "url": "https://www.motopit.com.tr/urun/fren-kolu-sa-sol-fren-maneti-sa-sol",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "71e666e0": {
+      "name": "Fren Kütüğü SOL Komple",
+      "category": "Genel",
+      "price": 52.0,
+      "url": "https://www.motopit.com.tr/urun/fren-kt-sol-komple",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "9c12b852": {
+      "name": "Fren Müşürü/ Ayrı Fiş Tip (DİKKAT ÜRÜN AÇIKLAMASI!)",
+      "category": "Genel",
+      "price": 288.0,
+      "url": "https://www.motopit.com.tr/urun/fren-mr-ayr-fi-tip-dikkat-rn-aiklamasi",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "faf2200f": {
+      "name": "Fren Teli ARKA Komple",
+      "category": "Genel",
+      "price": 148.0,
+      "url": "https://www.motopit.com.tr/urun/fren-teli-arka-komple",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "c1322b1c": {
+      "name": "Gaz Kolu Komple/ Gaz Kütüklügü Komple/ FIRSAT ÜRÜNÜ!",
+      "category": "Genel",
+      "price": 737.0,
+      "url": "https://www.motopit.com.tr/urun/gaz-kolu-komple-gaz-ktklg-komple-firsat-rn",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "f94378ba": {
+      "name": "Gaz Teli İç Dış AÇMA/ FIRSAT ÜRÜNÜ20",
+      "category": "Genel",
+      "price": 774.0,
+      "url": "https://www.motopit.com.tr/urun/gaz-teli-i-d-ama-firsat-rn20",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "b9efc7d5": {
+      "name": "Gaz Teli İç Dış KAPAMA",
+      "category": "Genel",
+      "price": 504.0,
+      "url": "https://www.motopit.com.tr/urun/gaz-teli-i-d-kapama",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "ab09b383": {
+      "name": "Gidon Demiri",
+      "category": "Genel",
+      "price": 670.0,
+      "url": "https://www.motopit.com.tr/urun/gidon-demiri",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "aa535f51": {
+      "name": "Gidon Paneli ALT/ Ledsiz Farlı Model İçin/ FIRSAT ÜRÜNÜ30",
+      "category": "Genel",
+      "price": 703.0,
+      "url": "https://www.motopit.com.tr/urun/gidon-paneli-alt-ledsiz-farl-model-iin-firsat-rn30",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "ae3aa5a1": {
+      "name": "Gidon Paneli ÜST/ Ledsiz Far Model İçin/ FIRSAT ÜRÜNÜ40",
+      "category": "Genel",
+      "price": 269.0,
+      "url": "https://www.motopit.com.tr/urun/gidon-paneli-st-ledsiz-far-model-iin-firsat-rn40",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "032ab458": {
+      "name": "Hararet Müşürü",
+      "category": "Genel",
+      "price": 481.0,
+      "url": "https://www.motopit.com.tr/urun/hararet-mr",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "4c1ce401": {
+      "name": "Hava Filitresi/ SÜNGER TİP",
+      "category": "Genel",
+      "price": 584.0,
+      "url": "https://www.motopit.com.tr/urun/hava-filitresi-snger-tip",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "5884d944": {
+      "name": "Kam Mili Flanş Civatası",
+      "category": "Genel",
+      "price": 23.0,
+      "url": "https://www.motopit.com.tr/urun/kam-mili-flan-civatas",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "237560c8": {
+      "name": "Karter Ara Conta",
+      "category": "Genel",
+      "price": 940.0,
+      "url": "https://www.motopit.com.tr/urun/karter-ara-conta",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "73c651f3": {
+      "name": "Kelepçe Özel Ufak Tip",
+      "category": "Genel",
+      "price": 23.0,
+      "url": "https://www.motopit.com.tr/urun/kelepe-zel-ufak-tip",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "1d8ea6f9": {
+      "name": "Kilometre Dişlisi/ Adaptörü",
+      "category": "Genel",
+      "price": 473.0,
+      "url": "https://www.motopit.com.tr/urun/kilometre-dilisi-adaptr",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "5873ced8": {
+      "name": "Kontak Kilit Segmanı",
+      "category": "Genel",
+      "price": 100.0,
+      "url": "https://www.motopit.com.tr/urun/kontak-kilit-segman",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "a4db3a57": {
+      "name": "Kontak Kilit Yuva Demiri",
+      "category": "Genel",
+      "price": 309.0,
+      "url": "https://www.motopit.com.tr/urun/kontak-kilit-yuva-demiri",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "cb0c1487": {
+      "name": "Kontak Şalteri/ Kontak Termiği",
+      "category": "Genel",
+      "price": 197.0,
+      "url": "https://www.motopit.com.tr/urun/kontak-alteri-kontak-termii",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "529a5b3f": {
+      "name": "Kontak Şalteri Segmanı",
+      "category": "Genel",
+      "price": 121.0,
+      "url": "https://www.motopit.com.tr/urun/kontak-alteri-segman",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "6a19d831": {
+      "name": "Krank Keçe Kapagi SOL Komple",
+      "category": "Genel",
+      "price": 812.0,
+      "url": "https://www.motopit.com.tr/urun/krank-kee-kapagi-sol-komple",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "a351be46": {
+      "name": "Krank Komple",
+      "category": "Genel",
+      "price": 486.0,
+      "url": "https://www.motopit.com.tr/urun/krank-komple",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "3e4447ff": {
+      "name": "Külbütör Kapak Civata Pulu/ ADET FİYATIDIR",
+      "category": "Genel",
+      "price": 52.0,
+      "url": "https://www.motopit.com.tr/urun/klbtr-kapak-civata-pulu-adet-fiyatidir",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "4e6b42d8": {
+      "name": "Manyeto Kapak Keçesi",
+      "category": "Genel",
+      "price": 411.0,
+      "url": "https://www.motopit.com.tr/urun/manyeto-kapak-keesi",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "98cfcf27": {
+      "name": "Manyeto Volanı/ Tası - Marş Fliber Dişli Rulmanı",
+      "category": "Genel",
+      "price": 583.0,
+      "url": "https://www.motopit.com.tr/urun/manyeto-volan-tas-mar-fliber-dili-rulman",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "f3b153d8": {
+      "name": "Marş Rölesi - 12 Volt 80 Amper",
+      "category": "Genel",
+      "price": 764.0,
+      "url": "https://www.motopit.com.tr/urun/mar-rlesi-12-volt-80-amper",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "31790b23": {
+      "name": "Maşa Komple/ Furş Komple",
+      "category": "Genel",
+      "price": 531.0,
+      "url": "https://www.motopit.com.tr/urun/maa-komple-fur-komple",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "1f2d85d0": {
+      "name": "Maşa Nikelaj Panel/ Furş Panel Nikelajı",
+      "category": "Genel",
+      "price": 275.0,
+      "url": "https://www.motopit.com.tr/urun/maa-nikelaj-panel-fur-panel-nikelaj",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "3e410e3a": {
+      "name": "Motor Beşik Demiri KISA",
+      "category": "Genel",
+      "price": 963.0,
+      "url": "https://www.motopit.com.tr/urun/motor-beik-demiri-kisa",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "82819da1": {
+      "name": "Motor Takoz Bağlantı Demiri/ FIRSAT ÜRÜNÜ50",
+      "category": "Genel",
+      "price": 252.0,
+      "url": "https://www.motopit.com.tr/urun/motor-takoz-balant-demiri-firsat-rn50",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "53c483fb": {
+      "name": "Motor Taşıma - Beşik Rulmanı/ ADET FİYATIDIR",
+      "category": "Genel",
+      "price": 318.0,
+      "url": "https://www.motopit.com.tr/urun/motor-tama-beik-rulman-adet-fiyatidir",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "521035c0": {
+      "name": "Oksijen Sensörü",
+      "category": "Genel",
+      "price": 841.0,
+      "url": "https://www.motopit.com.tr/urun/oksijen-sensr",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "6c0de404": {
+      "name": "Ön Amortisör Dekor Kapak/ Maşa Grenajı",
+      "category": "Genel",
+      "price": 603.0,
+      "url": "https://www.motopit.com.tr/urun/n-amortisr-dekor-kapak-maa-grenaj",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "7ba9d615": {
+      "name": "Ön Çamurluk/ Led Farsız Eski Model İçin",
+      "category": "Genel",
+      "price": 767.0,
+      "url": "https://www.motopit.com.tr/urun/n-amurluk-led-farsz-eski-model-iin",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "16672ccc": {
+      "name": "Ön Teker Furs Pimi/ FIRSAT ÜRÜNÜ50",
+      "category": "Genel",
+      "price": 325.0,
+      "url": "https://www.motopit.com.tr/urun/n-teker-furs-pimi-firsat-rn50",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "d9e50a88": {
+      "name": "Panel Alt Küçük SAĞ",
+      "category": "Genel",
+      "price": 858.0,
+      "url": "https://www.motopit.com.tr/urun/panel-alt-kk-sa",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "481cd12b": {
+      "name": "Panel Alt Küçük SOL",
+      "category": "Genel",
+      "price": 869.0,
+      "url": "https://www.motopit.com.tr/urun/panel-alt-kk-sol",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    },
+    "72ad4bd6": {
+      "name": "Panel Çıtası Orta Siyah Notte/ FIRSAT ÜRÜNÜ30",
+      "category": "Genel",
+      "price": 59.0,
+      "url": "https://www.motopit.com.tr/urun/panel-tas-orta-siyah-notte-firsat-rn30",
+      "images": {
+        "thumbnail": null,
+        "main": null,
+        "gallery": []
+      }
+    }
+  },
+  "total_parts": 68,
+  "generated_at": "2025-07-11 03:10:33"
+}

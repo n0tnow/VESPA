@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -49,52 +49,112 @@ export default function CustomerManagement() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const inputBg = useColorModeValue('white', 'gray.800');
+  const inputText = useColorModeValue('gray.800', 'white');
+  const labelColor = useColorModeValue('gray.700', 'gray.200');
 
   // MotoEtiler müşteri verileri
-  const [customers, setCustomers] = useState([
-    {
-      id: 1,
-      name: 'Ahmet Yılmaz',
-      email: 'ahmet@email.com',
-      phone: '+90 532 123 45 67',
-      vespaModel: 'Vespa Primavera 150',
-      lastService: '2024-01-15',
-      nextService: '2024-04-15',
-      status: 'active',
-      totalSpent: 15000,
-      servicesCount: 8,
-      registrationDate: '2022-03-10',
-      notes: 'MotoEtiler\'den satın aldı, düzenli müşteri'
-    },
-    {
-      id: 2,
-      name: 'Elif Kaya',
-      email: 'elif@email.com',
-      phone: '+90 533 987 65 43',
-      vespaModel: 'Vespa GTS 300',
-      lastService: '2024-02-20',
-      nextService: '2024-05-20',
-      status: 'pending',
-      totalSpent: 25000,
-      servicesCount: 12,
-      registrationDate: '2021-08-15',
-      notes: 'Premium müşteri, MotoEtiler VIP üyesi'
-    },
-    {
-      id: 3,
-      name: 'Mehmet Özkan',
-      email: 'mehmet@email.com',
-      phone: '+90 534 456 78 90',
-      vespaModel: 'Vespa Sprint 150',
-      lastService: '2023-12-10',
-      nextService: '2024-03-10',
-      status: 'overdue',
-      totalSpent: 8500,
-      servicesCount: 5,
-      registrationDate: '2023-01-20',
-      notes: 'Servis hatırlatması gönderildi'
-    },
-  ]);
+  const [customers, setCustomers] = useState(() => {
+    const saved = localStorage.getItem('customers');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return [
+          {
+            id: 1,
+            name: 'Ahmet Yılmaz',
+            email: 'ahmet@email.com',
+            phone: '+90 532 123 45 67',
+            vespaModel: 'Vespa Primavera 150',
+            lastService: '2024-01-15',
+            nextService: '2024-04-15',
+            status: 'active',
+            totalSpent: 15000,
+            servicesCount: 8,
+            registrationDate: '2022-03-10',
+            notes: 'MotoEtiler\'den satın aldı, düzenli müşteri'
+          },
+          {
+            id: 2,
+            name: 'Elif Kaya',
+            email: 'elif@email.com',
+            phone: '+90 533 987 65 43',
+            vespaModel: 'Vespa GTS 300',
+            lastService: '2024-02-20',
+            nextService: '2024-05-20',
+            status: 'pending',
+            totalSpent: 25000,
+            servicesCount: 12,
+            registrationDate: '2021-08-15',
+            notes: 'Premium müşteri, MotoEtiler VIP üyesi'
+          },
+          {
+            id: 3,
+            name: 'Mehmet Özkan',
+            email: 'mehmet@email.com',
+            phone: '+90 534 456 78 90',
+            vespaModel: 'Vespa Sprint 150',
+            lastService: '2023-12-10',
+            nextService: '2024-03-10',
+            status: 'overdue',
+            totalSpent: 8500,
+            servicesCount: 5,
+            registrationDate: '2023-01-20',
+            notes: 'Servis hatırlatması gönderildi'
+          },
+        ];
+      }
+    }
+    return [
+      {
+        id: 1,
+        name: 'Ahmet Yılmaz',
+        email: 'ahmet@email.com',
+        phone: '+90 532 123 45 67',
+        vespaModel: 'Vespa Primavera 150',
+        lastService: '2024-01-15',
+        nextService: '2024-04-15',
+        status: 'active',
+        totalSpent: 15000,
+        servicesCount: 8,
+        registrationDate: '2022-03-10',
+        notes: 'MotoEtiler\'den satın aldı, düzenli müşteri'
+      },
+      {
+        id: 2,
+        name: 'Elif Kaya',
+        email: 'elif@email.com',
+        phone: '+90 533 987 65 43',
+        vespaModel: 'Vespa GTS 300',
+        lastService: '2024-02-20',
+        nextService: '2024-05-20',
+        status: 'pending',
+        totalSpent: 25000,
+        servicesCount: 12,
+        registrationDate: '2021-08-15',
+        notes: 'Premium müşteri, MotoEtiler VIP üyesi'
+      },
+      {
+        id: 3,
+        name: 'Mehmet Özkan',
+        email: 'mehmet@email.com',
+        phone: '+90 534 456 78 90',
+        vespaModel: 'Vespa Sprint 150',
+        lastService: '2023-12-10',
+        nextService: '2024-03-10',
+        status: 'overdue',
+        totalSpent: 8500,
+        servicesCount: 5,
+        registrationDate: '2023-01-20',
+        notes: 'Servis hatırlatması gönderildi'
+      },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('customers', JSON.stringify(customers));
+  }, [customers]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -367,39 +427,47 @@ export default function CustomerManagement() {
           <ModalBody>
             <Stack spacing={4}>
               <FormControl isRequired>
-                <FormLabel>Müşteri Adı</FormLabel>
+                <FormLabel color={labelColor}>Müşteri Adı</FormLabel>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   placeholder="Müşteri adını girin"
+                  bg={inputBg}
+                  color={inputText}
                 />
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>E-posta</FormLabel>
+                <FormLabel color={labelColor}>E-posta</FormLabel>
                 <Input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   placeholder="E-posta adresini girin"
+                  bg={inputBg}
+                  color={inputText}
                 />
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Telefon</FormLabel>
+                <FormLabel color={labelColor}>Telefon</FormLabel>
                 <Input
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   placeholder="Telefon numarasını girin"
+                  bg={inputBg}
+                  color={inputText}
                 />
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Vespa Modeli</FormLabel>
+                <FormLabel color={labelColor}>Vespa Modeli</FormLabel>
                 <Select
                   value={formData.vespaModel}
                   onChange={(e) => setFormData({...formData, vespaModel: e.target.value})}
                   placeholder="Vespa modelini seçin"
+                  bg={inputBg}
+                  color={inputText}
                 >
                   <option value="Vespa Primavera 150">Vespa Primavera 150</option>
                   <option value="Vespa GTS 300">Vespa GTS 300</option>
@@ -410,10 +478,12 @@ export default function CustomerManagement() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Durum</FormLabel>
+                <FormLabel color={labelColor}>Durum</FormLabel>
                 <Select
                   value={formData.status}
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
+                  bg={inputBg}
+                  color={inputText}
                 >
                   <option value="active">Aktif</option>
                   <option value="pending">Beklemede</option>
@@ -422,12 +492,14 @@ export default function CustomerManagement() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Notlar</FormLabel>
+                <FormLabel color={labelColor}>Notlar</FormLabel>
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({...formData, notes: e.target.value})}
                   placeholder="Müşteri hakkında notlar"
                   rows={3}
+                  bg={inputBg}
+                  color={inputText}
                 />
               </FormControl>
             </Stack>

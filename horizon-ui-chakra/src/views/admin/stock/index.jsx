@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -96,13 +96,34 @@ export default function StockManagement() {
   }
 
   // Gerçek parça datası ile stokItems oluştur
-  const [stockItems, setStockItems] = useState(
-    Object.entries(partsData.parts).map(([id, part]) => ({
+  const [stockItems, setStockItems] = useState(() => {
+    const saved = localStorage.getItem('stockItems');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return Object.entries(partsData.parts).map(([id, part]) => ({
+          id,
+          name: part.name,
+          category: part.category || '-',
+          partNumber: id,
+          currentStock: part.currentStock || Math.floor(Math.random() * 100),
+          minStock: part.minStock || 5,
+          maxStock: part.maxStock || 100,
+          price: part.price || 0,
+          supplier: part.supplier || '-',
+          lastUpdated: part.lastUpdated || '2024-01-01',
+          status: 'normal',
+          image: part.images?.thumbnail || part.images?.main || '',
+        }));
+      }
+    }
+    return Object.entries(partsData.parts).map(([id, part]) => ({
       id,
       name: part.name,
       category: part.category || '-',
       partNumber: id,
-      currentStock: part.currentStock || Math.floor(Math.random() * 100), // örnek stok
+      currentStock: part.currentStock || Math.floor(Math.random() * 100),
       minStock: part.minStock || 5,
       maxStock: part.maxStock || 100,
       price: part.price || 0,
@@ -110,8 +131,12 @@ export default function StockManagement() {
       lastUpdated: part.lastUpdated || '2024-01-01',
       status: 'normal',
       image: part.images?.thumbnail || part.images?.main || '',
-    }))
-  );
+    }));
+  });
+
+  useEffect(() => {
+    localStorage.setItem('stockItems', JSON.stringify(stockItems));
+  }, [stockItems]);
 
   const [suppliers, setSuppliers] = useState([
     {

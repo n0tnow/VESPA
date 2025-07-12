@@ -1,0 +1,29 @@
+@media print {
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    box-shadow: none !important;
+    color: black !important;
+    font-size: 12pt !important;
+  }
+  .print-fatura {
+    display: block !important;
+    position: static !important;
+    width: 100vw !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  #root > *:not(.print-fatura) {
+    display: none !important;
+  }
+}
+@page {
+  size: A4;
+  margin: 1.5cm;
+} 

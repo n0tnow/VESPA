@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box,
+  Box as CBox,
   Button,
-  Flex,
-  Text,
+  Flex as CFlex,
+  Text as CText,
   useColorModeValue,
   SimpleGrid,
   Icon,
@@ -53,6 +53,12 @@ import {
   Divider,
   Heading,
   Image,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
 } from '@chakra-ui/react';
 import { 
   MdAdd, 
@@ -68,12 +74,16 @@ import {
   MdPerson,
   MdDirectionsBike,
   MdCheck,
-  MdClose
+  MdClose,
+  MdReceipt
 } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
 import partsData from 'data/parts.json';
 import modelsData from 'data/models.json';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { PDFDownloadLink, Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 
 export default function ServiceTracking() {
   const brandColor = useColorModeValue('brand.500', 'white');
@@ -87,78 +97,168 @@ export default function ServiceTracking() {
   const blueBg = useColorModeValue('blue.50', 'blue.900');
   const grayBg = useColorModeValue('gray.50', 'gray.900');
   const greenBg = useColorModeValue('green.50', 'green.900');
+
+  // Fatura popup renkleri (Invoice modal colors)
+  const invoiceModalBg = useColorModeValue('white', 'gray.900');
+  const invoiceBorderColor = useColorModeValue('gray.200', 'gray.700');
+  const invoiceTextColor = useColorModeValue('gray.900', 'gray.100');
+  const invoiceSubTextColor = useColorModeValue('gray.500', 'gray.400');
+  const invoiceTableHeaderColor = useColorModeValue('gray.700', 'gray.200');
+  const invoiceTableRowBorder = useColorModeValue('gray.100', 'gray.800');
+  const invoiceTotalColor = useColorModeValue('brand.700', 'brand.200');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedService, setSelectedService] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeTab, setActiveTab] = useState(0);
+  const [invoiceService, setInvoiceService] = useState(null);
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [printInvoiceService, setPrintInvoiceService] = useState(null);
 
   // MotoEtiler servis kayıtları
-  const [serviceRecords, setServiceRecords] = useState([
-    {
-      id: 1,
-      customerId: 1,
-      customerName: 'Ahmet Yılmaz',
-      vespaModel: 'Vespa Primavera 150',
-      plateNumber: '34 ABC 123',
-      serviceDate: '2024-01-15',
-      serviceType: 'Rutin Bakım',
-      technician: 'Mehmet Usta (MotoEtiler)',
-      status: 'completed',
-      totalCost: 2750,
-      laborCost: 2500,
-      partsCost: 250,
-      description: 'MotoEtiler Rutin Bakım - Yağ değişimi, fren kontrolü, lastik kontrolü',
-      usedParts: [
-        { name: 'Motor Yağı 10W-40', quantity: 1, cost: 75 },
-        { name: 'Yağ Filtresi', quantity: 1, cost: 45 },
-        { name: 'Fren Balata Seti', quantity: 1, cost: 130 }
-      ],
-      nextServiceDate: '2024-04-15',
-      mileage: 15000
-    },
-    {
-      id: 2,
-      customerId: 2,
-      customerName: 'Elif Kaya',
-      vespaModel: 'Vespa GTS 300',
-      plateNumber: '06 DEF 456',
-      serviceDate: '2024-02-20',
-      serviceType: 'Ağır Bakım',
-      technician: 'Ali Teknisyen (MotoEtiler)',
-      status: 'in_progress',
-      totalCost: 8050,
-      laborCost: 7500,
-      partsCost: 550,
-      description: 'MotoEtiler Ağır Bakım - Kayış değişimi, yağ, yağ filtresi, hava filtresi',
-      usedParts: [
-        { name: 'Amortisör Takımı', quantity: 1, cost: 400 },
-        { name: 'Fren Balata Seti', quantity: 1, cost: 150 }
-      ],
-      nextServiceDate: '2024-05-20',
-      mileage: 22000
-    },
-    {
-      id: 3,
-      customerId: 3,
-      customerName: 'Mehmet Özkan',
-      vespaModel: 'Vespa Sprint 150',
-      plateNumber: '35 GHI 789',
-      serviceDate: '2024-01-10',
-      serviceType: 'Kayış Değişimi',
-      technician: 'Hasan Usta (MotoEtiler)',
-      status: 'pending',
-      totalCost: 3670,
-      laborCost: 3500,
-      partsCost: 170,
-      description: 'MotoEtiler Kayış Değişimi - Transmisyon kayışı ve akü değişimi',
-      usedParts: [
-        { name: 'Akü 12V', quantity: 1, cost: 170 }
-      ],
-      nextServiceDate: '2024-03-10',
-      mileage: 8500
+  const [serviceRecords, setServiceRecords] = useState(() => {
+    const saved = localStorage.getItem('serviceRecords');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return [
+          {
+            id: 1,
+            customerId: 1,
+            customerName: 'Ahmet Yılmaz',
+            vespaModel: 'Vespa Primavera 150',
+            plateNumber: '34 ABC 123',
+            serviceDate: '2024-01-15',
+            serviceType: 'Rutin Bakım',
+            technician: 'Mehmet Usta (MotoEtiler)',
+            status: 'completed',
+            totalCost: 2750,
+            laborCost: 2500,
+            partsCost: 250,
+            description: 'MotoEtiler Rutin Bakım - Yağ değişimi, fren kontrolü, lastik kontrolü',
+            usedParts: [
+              { name: 'Motor Yağı 10W-40', quantity: 1, cost: 75 },
+              { name: 'Yağ Filtresi', quantity: 1, cost: 45 },
+              { name: 'Fren Balata Seti', quantity: 1, cost: 130 }
+            ],
+            nextServiceDate: '2024-04-15',
+            mileage: 15000
+          },
+          {
+            id: 2,
+            customerId: 2,
+            customerName: 'Elif Kaya',
+            vespaModel: 'Vespa GTS 300',
+            plateNumber: '06 DEF 456',
+            serviceDate: '2024-02-20',
+            serviceType: 'Ağır Bakım',
+            technician: 'Ali Teknisyen (MotoEtiler)',
+            status: 'in_progress',
+            totalCost: 8050,
+            laborCost: 7500,
+            partsCost: 550,
+            description: 'MotoEtiler Ağır Bakım - Kayış değişimi, yağ, yağ filtresi, hava filtresi',
+            usedParts: [
+              { name: 'Amortisör Takımı', quantity: 1, cost: 400 },
+              { name: 'Fren Balata Seti', quantity: 1, cost: 150 }
+            ],
+            nextServiceDate: '2024-05-20',
+            mileage: 22000
+          },
+          {
+            id: 3,
+            customerId: 3,
+            customerName: 'Mehmet Özkan',
+            vespaModel: 'Vespa Sprint 150',
+            plateNumber: '35 GHI 789',
+            serviceDate: '2024-01-10',
+            serviceType: 'Kayış Değişimi',
+            technician: 'Hasan Usta (MotoEtiler)',
+            status: 'pending',
+            totalCost: 3670,
+            laborCost: 3500,
+            partsCost: 170,
+            description: 'MotoEtiler Kayış Değişimi - Transmisyon kayışı ve akü değişimi',
+            usedParts: [
+              { name: 'Akü 12V', quantity: 1, cost: 170 }
+            ],
+            nextServiceDate: '2024-03-10',
+            mileage: 8500
+          }
+        ];
+      }
     }
-  ]);
+    return [
+      {
+        id: 1,
+        customerId: 1,
+        customerName: 'Ahmet Yılmaz',
+        vespaModel: 'Vespa Primavera 150',
+        plateNumber: '34 ABC 123',
+        serviceDate: '2024-01-15',
+        serviceType: 'Rutin Bakım',
+        technician: 'Mehmet Usta (MotoEtiler)',
+        status: 'completed',
+        totalCost: 2750,
+        laborCost: 2500,
+        partsCost: 250,
+        description: 'MotoEtiler Rutin Bakım - Yağ değişimi, fren kontrolü, lastik kontrolü',
+        usedParts: [
+          { name: 'Motor Yağı 10W-40', quantity: 1, cost: 75 },
+          { name: 'Yağ Filtresi', quantity: 1, cost: 45 },
+          { name: 'Fren Balata Seti', quantity: 1, cost: 130 }
+        ],
+        nextServiceDate: '2024-04-15',
+        mileage: 15000
+      },
+      {
+        id: 2,
+        customerId: 2,
+        customerName: 'Elif Kaya',
+        vespaModel: 'Vespa GTS 300',
+        plateNumber: '06 DEF 456',
+        serviceDate: '2024-02-20',
+        serviceType: 'Ağır Bakım',
+        technician: 'Ali Teknisyen (MotoEtiler)',
+        status: 'in_progress',
+        totalCost: 8050,
+        laborCost: 7500,
+        partsCost: 550,
+        description: 'MotoEtiler Ağır Bakım - Kayış değişimi, yağ, yağ filtresi, hava filtresi',
+        usedParts: [
+          { name: 'Amortisör Takımı', quantity: 1, cost: 400 },
+          { name: 'Fren Balata Seti', quantity: 1, cost: 150 }
+        ],
+        nextServiceDate: '2024-05-20',
+        mileage: 22000
+      },
+      {
+        id: 3,
+        customerId: 3,
+        customerName: 'Mehmet Özkan',
+        vespaModel: 'Vespa Sprint 150',
+        plateNumber: '35 GHI 789',
+        serviceDate: '2024-01-10',
+        serviceType: 'Kayış Değişimi',
+        technician: 'Hasan Usta (MotoEtiler)',
+        status: 'pending',
+        totalCost: 3670,
+        laborCost: 3500,
+        partsCost: 170,
+        description: 'MotoEtiler Kayış Değişimi - Transmisyon kayışı ve akü değişimi',
+        usedParts: [
+          { name: 'Akü 12V', quantity: 1, cost: 170 }
+        ],
+        nextServiceDate: '2024-03-10',
+        mileage: 8500
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('serviceRecords', JSON.stringify(serviceRecords));
+  }, [serviceRecords]);
 
   const [serviceTypes] = useState([
     'Rutin Bakım',
@@ -220,40 +320,52 @@ export default function ServiceTracking() {
   }, []);
 
   // Müşteri verileri
-  const [customers] = useState([
-    {
-      id: 1,
-      name: 'Ahmet Yılmaz',
-      email: 'ahmet@email.com',
-      phone: '+90 532 123 45 67',
-      vespaModel: 'Vespa Primavera 150 3v',
-      plateNumber: '34 ABC 123'
-    },
-    {
-      id: 2,
-      name: 'Elif Kaya',
-      email: 'elif@email.com',
-      phone: '+90 533 987 65 43',
-      vespaModel: 'Vespa GTS 300',
-      plateNumber: '06 DEF 456'
-    },
-    {
-      id: 3,
-      name: 'Mehmet Özkan',
-      email: 'mehmet@email.com',
-      phone: '+90 534 456 78 90',
-      vespaModel: 'Vespa Sprint 125',
-      plateNumber: '35 GHI 789'
-    },
-    {
-      id: 4,
-      name: 'Ayşe Demir',
-      email: 'ayse@email.com',
-      phone: '+90 535 555 66 77',
-      vespaModel: 'Vespa ET4 150',
-      plateNumber: '16 XYZ 456'
+  const [customers, setCustomers] = useState(() => {
+    const saved = localStorage.getItem('customers');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
     }
-  ]);
+    return [
+      {
+        id: 1,
+        name: 'Ahmet Yılmaz',
+        email: 'ahmet@email.com',
+        phone: '+90 532 123 45 67',
+        vespaModel: 'Vespa Primavera 150 3v',
+        plateNumber: '34 ABC 123'
+      },
+      {
+        id: 2,
+        name: 'Elif Kaya',
+        email: 'elif@email.com',
+        phone: '+90 533 987 65 43',
+        vespaModel: 'Vespa GTS 300',
+        plateNumber: '06 DEF 456'
+      },
+      {
+        id: 3,
+        name: 'Mehmet Özkan',
+        email: 'mehmet@email.com',
+        phone: '+90 534 456 78 90',
+        vespaModel: 'Vespa Sprint 125',
+        plateNumber: '35 GHI 789'
+      },
+      {
+        id: 4,
+        name: 'Ayşe Demir',
+        email: 'ayse@email.com',
+        phone: '+90 535 555 66 77',
+        vespaModel: 'Vespa ET4 150',
+        plateNumber: '16 XYZ 456'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('customers', JSON.stringify(customers));
+  }, [customers]);
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerServiceHistory, setCustomerServiceHistory] = useState([]);
@@ -418,8 +530,23 @@ export default function ServiceTracking() {
     onClose();
   };
 
-  const handleDeleteService = (serviceId) => {
-    setServiceRecords(serviceRecords.filter(service => service.id !== serviceId));
+  // Silme onayı için state
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+  const cancelRef = React.useRef();
+
+  const handleDeleteClick = (id) => {
+    setDeleteId(id);
+    setIsDeleteOpen(true);
+  };
+  const handleDeleteConfirm = () => {
+    setServiceRecords(serviceRecords.filter(service => service.id !== deleteId));
+    setIsDeleteOpen(false);
+    setDeleteId(null);
+  };
+  const handleDeleteCancel = () => {
+    setIsDeleteOpen(false);
+    setDeleteId(null);
   };
 
   const getStatusColor = (status) => {
@@ -572,13 +699,202 @@ export default function ServiceTracking() {
     return serviceCost + workCost + partsCost + laborCost;
   };
 
+  const handlePrintInvoice = () => {
+    setPrintInvoiceService(invoiceService);
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => setPrintInvoiceService(null), 1000);
+    }, 100);
+  };
+
+  // PDF fatura oluşturma fonksiyonu
+  const generateInvoicePDF = (invoice, customer) => {
+    const doc = new jsPDF();
+    // Firma Bilgileri
+    doc.setFontSize(16);
+    doc.text('MOTOETİLER VESPA SERVİS', 14, 20);
+    doc.setFontSize(10);
+    doc.text('Adres: Nispetiye Mah. X Cad. No:1, Beşiktaş/İstanbul', 14, 26);
+    doc.text('Tel: 0212 000 00 00', 14, 31);
+    doc.text('Vergi Dairesi: Beşiktaş', 14, 36);
+    doc.text('Vergi No: 1234567890', 14, 41);
+    // Fatura Başlığı ve Bilgileri
+    doc.setFontSize(14);
+    doc.text('SERVİS FATURASI', 150, 20, { align: 'right' });
+    doc.setFontSize(10);
+    doc.text(`Fatura No: 2024-0001`, 150, 26, { align: 'right' });
+    doc.text(`Tarih: ${invoice.serviceDate || new Date().toLocaleDateString()}`, 150, 31, { align: 'right' });
+    // Müşteri ve Araç Bilgileri
+    doc.setFontSize(11);
+    doc.text(`Müşteri: ${invoice.customerName}`, 14, 50);
+    doc.text(`Telefon: ${customer?.phone || ''}`, 14, 55);
+    doc.text(`Email: ${customer?.email || ''}`, 14, 60);
+    doc.text(`Araç: ${invoice.vespaModel} - ${invoice.plateNumber}`, 14, 65);
+    doc.text(`Kilometre: ${invoice.mileage} km`, 14, 70);
+    // Tablo
+    const tableBody = [
+      ...(invoice.usedParts || []).map((part, idx) => [
+        idx + 1,
+        part.name,
+        part.quantity,
+        `₺${part.price}`,
+        '%20',
+        `₺${part.cost * part.quantity}`,
+      ]),
+      [
+        (invoice.usedParts?.length || 0) + 1,
+        'İşçilik Bedeli',
+        1,
+        `₺${invoice.laborCost}`,
+        '%20',
+        `₺${invoice.laborCost}`,
+      ],
+    ];
+    autoTable(doc, {
+      head: [['Sıra', 'Açıklama', 'Miktar', 'Birim Fiyat', 'KDV', 'Tutar']],
+      body: tableBody,
+      startY: 80,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+      styles: { fontSize: 10 },
+    });
+    // Toplamlar
+    let finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text(`Mal Hizmet Toplamı: ₺${invoice.totalCost}`, 150, finalY, { align: 'right' });
+    doc.text(`KDV (%20): ₺${invoice.totalCost * 0.20}`, 150, finalY + 7, { align: 'right' });
+    doc.setFontSize(14);
+    doc.text(`Genel Toplam: ₺${invoice.totalCost * 1.20}`, 150, finalY + 15, { align: 'right' });
+    // İmza Alanları
+    doc.setFontSize(10);
+    doc.text('Düzenleyen (Servis Yetkilisi):', 14, finalY + 30);
+    doc.text('_________________________', 14, finalY + 35);
+    doc.text('Müşteri (Araç Sahibi):', 120, finalY + 30);
+    doc.text('_________________________', 120, finalY + 35);
+    // Dipnot
+    doc.setFontSize(9);
+    doc.text('Teşekkür ederiz. Faturanızı e-arşivden sorgulayabilirsiniz.', 14, finalY + 50);
+    doc.text('Banka: VAKIFBANK IBAN: TR00 0000 0000 0000 0000 0000 00', 14, finalY + 55);
+    doc.save('fatura.pdf');
+  };
+
+  const invoiceStyles = StyleSheet.create({
+    page: { padding: 32, fontSize: 11, fontFamily: 'Helvetica' },
+    header: { fontSize: 18, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
+    section: { marginBottom: 12 },
+    row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
+    label: { fontWeight: 'bold' },
+    table: { display: 'table', width: 'auto', marginVertical: 8 },
+    tableRow: { flexDirection: 'row' },
+    tableColHeader: { width: '16%', border: '1px solid #222', backgroundColor: '#eee', padding: 4, fontWeight: 'bold', textAlign: 'center' },
+    tableCol: { width: '16%', border: '1px solid #222', padding: 4, textAlign: 'center' },
+    tableColWide: { width: '36%', border: '1px solid #222', padding: 4, textAlign: 'left' },
+    totalRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
+    totalLabel: { fontWeight: 'bold', fontSize: 12, marginRight: 8 },
+    totalValue: { fontWeight: 'bold', fontSize: 12 },
+    signatureRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 32 },
+    signatureBox: { width: '40%', textAlign: 'center' },
+    signatureLine: { borderBottom: '1px solid #222', marginVertical: 16, height: 1 },
+    note: { fontSize: 9, marginTop: 16, color: '#444' },
+  });
+
+  const InvoicePDF = ({ invoice, customer }) => (
+    <Document>
+      <Page size="A4" style={invoiceStyles.page}>
+        <Text style={invoiceStyles.header}>MOTOETİLER VESPA SERVİS FATURASI</Text>
+        <View style={invoiceStyles.section}>
+          <Text>Adres: Nispetiye Mah. X Cad. No:1, Beşiktaş/İstanbul</Text>
+          <Text>Tel: 0212 000 00 00</Text>
+          <Text>Vergi Dairesi: Beşiktaş</Text>
+          <Text>Vergi No: 1234567890</Text>
+        </View>
+        <View style={invoiceStyles.section}>
+          <View style={invoiceStyles.row}>
+            <Text style={invoiceStyles.label}>Fatura No:</Text>
+            <Text>2024-0001</Text>
+          </View>
+          <View style={invoiceStyles.row}>
+            <Text style={invoiceStyles.label}>Tarih:</Text>
+            <Text>{invoice?.serviceDate || new Date().toLocaleDateString()}</Text>
+          </View>
+        </View>
+        <View style={invoiceStyles.section}>
+          <Text style={invoiceStyles.label}>Müşteri Bilgileri</Text>
+          <Text>Ad: {invoice?.customerName}</Text>
+          <Text>Telefon: {customer?.phone || ''}</Text>
+          <Text>Email: {customer?.email || ''}</Text>
+        </View>
+        <View style={invoiceStyles.section}>
+          <Text style={invoiceStyles.label}>Araç Bilgileri</Text>
+          <Text>Model: {invoice?.vespaModel}</Text>
+          <Text>Plaka: {invoice?.plateNumber}</Text>
+          <Text>Kilometre: {invoice?.mileage} km</Text>
+        </View>
+        <View style={invoiceStyles.table}>
+          <View style={invoiceStyles.tableRow}>
+            <Text style={invoiceStyles.tableColHeader}>Sıra</Text>
+            <Text style={invoiceStyles.tableColWide}>Açıklama</Text>
+            <Text style={invoiceStyles.tableColHeader}>Miktar</Text>
+            <Text style={invoiceStyles.tableColHeader}>Birim Fiyat</Text>
+            <Text style={invoiceStyles.tableColHeader}>KDV</Text>
+            <Text style={invoiceStyles.tableColHeader}>Tutar</Text>
+          </View>
+          {(invoice?.usedParts || []).map((part, idx) => (
+            <View style={invoiceStyles.tableRow} key={idx}>
+              <Text style={invoiceStyles.tableCol}>{idx + 1}</Text>
+              <Text style={invoiceStyles.tableColWide}>{part.name}</Text>
+              <Text style={invoiceStyles.tableCol}>{part.quantity}</Text>
+              <Text style={invoiceStyles.tableCol}>₺{part.price}</Text>
+              <Text style={invoiceStyles.tableCol}>%20</Text>
+              <Text style={invoiceStyles.tableCol}>₺{part.cost * part.quantity}</Text>
+            </View>
+          ))}
+          <View style={invoiceStyles.tableRow}>
+            <Text style={invoiceStyles.tableCol}>{(invoice?.usedParts?.length || 0) + 1}</Text>
+            <Text style={invoiceStyles.tableColWide}>İşçilik Bedeli</Text>
+            <Text style={invoiceStyles.tableCol}>1</Text>
+            <Text style={invoiceStyles.tableCol}>₺{invoice?.laborCost}</Text>
+            <Text style={invoiceStyles.tableCol}>%20</Text>
+            <Text style={invoiceStyles.tableCol}>₺{invoice?.laborCost}</Text>
+          </View>
+        </View>
+        <View style={invoiceStyles.totalRow}>
+          <Text style={invoiceStyles.totalLabel}>Mal Hizmet Toplamı:</Text>
+          <Text style={invoiceStyles.totalValue}>₺{invoice?.totalCost}</Text>
+        </View>
+        <View style={invoiceStyles.totalRow}>
+          <Text style={invoiceStyles.totalLabel}>KDV (%20):</Text>
+          <Text style={invoiceStyles.totalValue}>₺{(invoice?.totalCost * 0.20).toLocaleString()}</Text>
+        </View>
+        <View style={invoiceStyles.totalRow}>
+          <Text style={[invoiceStyles.totalLabel, { fontSize: 14 }]}>Genel Toplam:</Text>
+          <Text style={[invoiceStyles.totalValue, { fontSize: 14 }]}>₺{(invoice?.totalCost * 1.20).toLocaleString()}</Text>
+        </View>
+        <View style={invoiceStyles.signatureRow}>
+          <View style={invoiceStyles.signatureBox}>
+            <Text>Düzenleyen (Servis Yetkilisi):</Text>
+            <View style={invoiceStyles.signatureLine} />
+            <Text>Ad Soyad / İmza</Text>
+          </View>
+          <View style={invoiceStyles.signatureBox}>
+            <Text>Müşteri (Araç Sahibi):</Text>
+            <View style={invoiceStyles.signatureLine} />
+            <Text>Ad Soyad / İmza</Text>
+          </View>
+        </View>
+        <Text style={invoiceStyles.note}>Teşekkür ederiz. Faturanızı e-arşivden sorgulayabilirsiniz.</Text>
+        <Text style={invoiceStyles.note}>Banka: VAKIFBANK IBAN: TR00 0000 0000 0000 0000 0000 00</Text>
+      </Page>
+    </Document>
+  );
+
   return (
-    <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
+    <CBox pt={{ base: '130px', md: '80px', xl: '80px' }}>
       {/* Header */}
-      <Flex justify="space-between" align="center" mb="20px">
-        <Text fontSize="2xl" fontWeight="bold" color={brandColor}>
+      <CFlex justify="space-between" align="center" mb="20px">
+        <CText fontSize="2xl" fontWeight="bold" color={brandColor}>
           MotoEtiler Servis Yönetimi
-        </Text>
+        </CText>
         <Button
           leftIcon={<MdAttachMoney />}
           colorScheme="green"
@@ -586,7 +902,7 @@ export default function ServiceTracking() {
         >
           Fiyat Listesi
         </Button>
-      </Flex>
+      </CFlex>
 
       {/* Statistics Cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap="20px" mb="20px">
@@ -624,12 +940,12 @@ export default function ServiceTracking() {
       {getPendingServices() > 0 && (
         <Alert status="info" mb="20px" borderRadius="12px">
           <AlertIcon />
-          <Box>
+          <CBox>
             <AlertTitle>Bekleyen Servisler</AlertTitle>
             <AlertDescription>
               {getPendingServices()} servis işlemi beklemede. Teknisyen ataması yapılması gerekiyor.
             </AlertDescription>
-          </Box>
+          </CBox>
         </Alert>
       )}
 
@@ -645,10 +961,10 @@ export default function ServiceTracking() {
           <TabPanels>
             {/* Service Records Tab */}
             <TabPanel>
-              <Flex justify="space-between" align="center" mb="20px">
-                <Text fontSize="2xl" fontWeight="bold" color={brandColor}>
+              <CFlex justify="space-between" align="center" mb="20px">
+                <CText fontSize="2xl" fontWeight="bold" color={brandColor}>
                   Servis Takibi
-                </Text>
+                </CText>
                 <Button
                   leftIcon={<MdAdd />}
                   colorScheme="brand"
@@ -656,7 +972,7 @@ export default function ServiceTracking() {
                 >
                   Yeni Servis Ekle
                 </Button>
-              </Flex>
+              </CFlex>
 
               {/* Search and Filter */}
               <Stack direction={{ base: 'column', md: 'row' }} spacing={4} mb="20px">
@@ -703,20 +1019,20 @@ export default function ServiceTracking() {
                     {filteredServices.map((service) => (
                       <Tr key={service.id}>
                         <Td>
-                          <Box>
-                            <Text fontWeight="bold">{service.customerName}</Text>
-                            <Text fontSize="sm" color="gray.500">
+                          <CBox>
+                            <CText fontWeight="bold">{service.customerName}</CText>
+                            <CText fontSize="sm" color="gray.500">
                               {service.plateNumber}
-                            </Text>
-                          </Box>
+                            </CText>
+                          </CBox>
                         </Td>
                         <Td>
-                          <Box>
-                            <Text>{service.vespaModel}</Text>
-                            <Text fontSize="sm" color="gray.500">
+                          <CBox>
+                            <CText>{service.vespaModel}</CText>
+                            <CText fontSize="sm" color="gray.500">
                               {service.mileage} km
-                            </Text>
-                          </Box>
+                            </CText>
+                          </CBox>
                         </Td>
                         <Td>{service.serviceType}</Td>
                         <Td>{service.technician}</Td>
@@ -739,8 +1055,17 @@ export default function ServiceTracking() {
                               icon={<MdDelete />}
                               size="sm"
                               colorScheme="red"
-                              onClick={() => handleDeleteService(service.id)}
+                              onClick={() => handleDeleteClick(service.id)}
                             />
+                            {service.status === 'completed' && (
+                              <IconButton
+                                icon={<MdReceipt />}
+                                size="sm"
+                                colorScheme="green"
+                                onClick={() => { setInvoiceService(service); setIsInvoiceOpen(true); }}
+                                title="Fatura Görüntüle"
+                              />
+                            )}
                           </Stack>
                         </Td>
                       </Tr>
@@ -750,22 +1075,22 @@ export default function ServiceTracking() {
               </TableContainer>
 
               {filteredServices.length === 0 && (
-                <Box textAlign="center" py="40px">
-                  <Text fontSize="lg" color="gray.500">
+                <CBox textAlign="center" py="40px">
+                  <CText fontSize="lg" color="gray.500">
                     {searchTerm || filterStatus !== 'all' 
                       ? 'Arama kriterlerinize uygun servis bulunamadı.'
                       : 'Henüz servis kaydı eklenmemiş.'
                     }
-                  </Text>
-                </Box>
+                  </CText>
+                </CBox>
               )}
             </TabPanel>
 
             {/* Technician Performance Tab */}
             <TabPanel>
-              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
+              <CText fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
                 Teknisyen Performansı
-              </Text>
+              </CText>
               
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap="20px">
                 {technicians.map(technician => {
@@ -775,23 +1100,23 @@ export default function ServiceTracking() {
                   
                   return (
                     <Card key={technician}>
-                      <Box p="6">
+                      <CBox p="6">
                         <Heading size="md" mb="4">{technician}</Heading>
                         <Stack spacing={2}>
                           <HStack justify="space-between">
-                            <Text>Toplam Servis:</Text>
-                            <Text fontWeight="bold">{techServices.length}</Text>
+                            <CText>Toplam Servis:</CText>
+                            <CText fontWeight="bold">{techServices.length}</CText>
                           </HStack>
                           <HStack justify="space-between">
-                            <Text>Tamamlanan:</Text>
-                            <Text fontWeight="bold" color="green.500">{completedServices.length}</Text>
+                            <CText>Tamamlanan:</CText>
+                            <CText fontWeight="bold" color="green.500">{completedServices.length}</CText>
                           </HStack>
                           <HStack justify="space-between">
-                            <Text>Toplam Gelir:</Text>
-                            <Text fontWeight="bold" color={brandColor}>₺{totalRevenue.toLocaleString()}</Text>
+                            <CText>Toplam Gelir:</CText>
+                            <CText fontWeight="bold" color={brandColor}>₺{totalRevenue.toLocaleString()}</CText>
                           </HStack>
                         </Stack>
-                      </Box>
+                      </CBox>
                     </Card>
                   );
                 })}
@@ -800,13 +1125,13 @@ export default function ServiceTracking() {
 
             {/* Service Analysis Tab */}
             <TabPanel>
-              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
+              <CText fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
                 Servis Analizi
-              </Text>
+              </CText>
               
               <SimpleGrid columns={{ base: 1, md: 2 }} gap="20px">
                 <Card>
-                  <Text fontSize="lg" fontWeight="bold" mb="10px">Servis Türü Dağılımı</Text>
+                  <CText fontSize="lg" fontWeight="bold" mb="10px">Servis Türü Dağılımı</CText>
                   {serviceTypes.map(type => {
                     const typeServices = serviceRecords.filter(service => service.serviceType === type);
                     const typeRevenue = typeServices.reduce((sum, service) => sum + service.totalCost, 0);
@@ -814,60 +1139,60 @@ export default function ServiceTracking() {
                     const percentage = totalRevenue > 0 ? (typeRevenue / totalRevenue) * 100 : 0;
                     
                     return (
-                      <Box key={type} mb="10px">
-                        <Flex justify="space-between" mb="5px">
-                          <Text fontSize="sm">{type}</Text>
-                          <Text fontSize="sm">₺{typeRevenue.toLocaleString()}</Text>
-                        </Flex>
-                        <Box bg="gray.200" borderRadius="md" h="8px">
-                          <Box 
+                      <CBox key={type} mb="10px">
+                        <CFlex justify="space-between" mb="5px">
+                          <CText fontSize="sm">{type}</CText>
+                          <CText fontSize="sm">₺{typeRevenue.toLocaleString()}</CText>
+                        </CFlex>
+                        <CBox bg="gray.200" borderRadius="md" h="8px">
+                          <CBox 
                             bg={brandColor} 
                             h="100%" 
                             borderRadius="md" 
                             width={`${percentage}%`}
                           />
-                        </Box>
-                      </Box>
+                        </CBox>
+                      </CBox>
                     );
                   })}
                 </Card>
 
                 <Card>
-                  <Text fontSize="lg" fontWeight="bold" mb="10px">Servis Durumu Özeti</Text>
+                  <CText fontSize="lg" fontWeight="bold" mb="10px">Servis Durumu Özeti</CText>
                   <Stack spacing={4}>
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Bekleyen Servisler</Text>
-                        <Text fontWeight="bold" color="yellow.500">
+                    <CBox>
+                      <CFlex justify="space-between">
+                        <CText>Bekleyen Servisler</CText>
+                        <CText fontWeight="bold" color="yellow.500">
                           {getPendingServices()}
-                        </Text>
-                      </Flex>
-                    </Box>
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Devam Eden Servisler</Text>
-                        <Text fontWeight="bold" color="blue.500">
+                        </CText>
+                      </CFlex>
+                    </CBox>
+                    <CBox>
+                      <CFlex justify="space-between">
+                        <CText>Devam Eden Servisler</CText>
+                        <CText fontWeight="bold" color="blue.500">
                           {getInProgressServices()}
-                        </Text>
-                      </Flex>
-                    </Box>
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Tamamlanan Servisler</Text>
-                        <Text fontWeight="bold" color="green.500">
+                        </CText>
+                      </CFlex>
+                    </CBox>
+                    <CBox>
+                      <CFlex justify="space-between">
+                        <CText>Tamamlanan Servisler</CText>
+                        <CText fontWeight="bold" color="green.500">
                           {getCompletedServices()}
-                        </Text>
-                      </Flex>
-                    </Box>
+                        </CText>
+                      </CFlex>
+                    </CBox>
                     <Divider />
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Toplam Gelir</Text>
-                        <Text fontWeight="bold" color={brandColor}>
+                    <CBox>
+                      <CFlex justify="space-between">
+                        <CText>Toplam Gelir</CText>
+                        <CText fontWeight="bold" color={brandColor}>
                           ₺{calculateTotalRevenue().toLocaleString()}
-                        </Text>
-                      </Flex>
-                    </Box>
+                        </CText>
+                      </CFlex>
+                    </CBox>
                   </Stack>
                 </Card>
               </SimpleGrid>
@@ -881,9 +1206,9 @@ export default function ServiceTracking() {
         <ModalOverlay bg={modalOverlayBg} />
         <ModalContent bg={modalBg} borderRadius="15px" border="1px solid" borderColor={borderColor}>
           <ModalHeader color={brandColor} borderBottom="1px solid" borderColor={borderColor}>
-            <Text fontSize="xl" fontWeight="bold">
+            <CText fontSize="xl" fontWeight="bold">
               {selectedService ? 'Servis Düzenle' : 'Yeni Servis Ekle'}
-            </Text>
+            </CText>
           </ModalHeader>
           <ModalCloseButton color={textColor} />
           <ModalBody>
@@ -906,32 +1231,32 @@ export default function ServiceTracking() {
 
               {/* Müşteri Bilgileri */}
               {selectedCustomer && (
-                <Box p="4" bg={blueBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
-                  <Text fontWeight="bold" mb="2" color={brandColor}>Müşteri Bilgileri:</Text>
+                <CBox p="4" bg={blueBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                  <CText fontWeight="bold" mb="2" color={brandColor}>Müşteri Bilgileri:</CText>
                   <Stack spacing={1}>
-                    <Text color={textColor}><strong>Ad:</strong> {selectedCustomer.name}</Text>
-                    <Text color={textColor}><strong>Telefon:</strong> {selectedCustomer.phone}</Text>
-                    <Text color={textColor}><strong>Model:</strong> {selectedCustomer.vespaModel}</Text>
-                    <Text color={textColor}><strong>Plaka:</strong> {selectedCustomer.plateNumber}</Text>
+                    <CText color={textColor}><strong>Ad:</strong> {selectedCustomer.name}</CText>
+                    <CText color={textColor}><strong>Telefon:</strong> {selectedCustomer.phone}</CText>
+                    <CText color={textColor}><strong>Model:</strong> {selectedCustomer.vespaModel}</CText>
+                    <CText color={textColor}><strong>Plaka:</strong> {selectedCustomer.plateNumber}</CText>
                   </Stack>
-                </Box>
+                </CBox>
               )}
 
               {/* Müşteri Servis Geçmişi */}
               {customerServiceHistory.length > 0 && (
-                <Box p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
-                  <Text fontWeight="bold" mb="2" color={brandColor}>Servis Geçmişi:</Text>
+                <CBox p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                  <CText fontWeight="bold" mb="2" color={brandColor}>Servis Geçmişi:</CText>
                   <Stack spacing={2}>
                     {customerServiceHistory.slice(-3).map(service => (
-                      <Box key={service.id} p="2" bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
-                        <Text fontSize="sm" color={textColor}>
+                      <CBox key={service.id} p="2" bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                        <CText fontSize="sm" color={textColor}>
                           <strong>{service.serviceDate}</strong> - {service.serviceType} - {service.technician}
-                        </Text>
-                        <Text fontSize="xs" color={secondaryTextColor}>{service.description}</Text>
-                      </Box>
+                        </CText>
+                        <CText fontSize="xs" color={secondaryTextColor}>{service.description}</CText>
+                      </CBox>
                     ))}
                   </Stack>
-                </Box>
+                </CBox>
               )}
 
               <Stack direction="row" spacing={4}>
@@ -991,10 +1316,10 @@ export default function ServiceTracking() {
               {/* Yapılacak İşlemler */}
               <FormControl>
                 <FormLabel color={textColor}>Yapılacak İşlemler</FormLabel>
-                <Box border="1px" borderColor={borderColor} p="4" borderRadius="md" bg={cardBg}>
-                  <Text fontSize="sm" mb="3" color={secondaryTextColor}>
+                <CBox border="1px" borderColor={borderColor} p="4" borderRadius="md" bg={cardBg}>
+                  <CText fontSize="sm" mb="3" color={secondaryTextColor}>
                     Yapılacak işlemleri seçin:
-                  </Text>
+                  </CText>
                   <SimpleGrid columns={2} spacing={2}>
                     {workTypes.map(workType => (
                       <Button
@@ -1015,17 +1340,17 @@ export default function ServiceTracking() {
                       </Button>
                     ))}
                   </SimpleGrid>
-                </Box>
+                </CBox>
               </FormControl>
 
               {/* Seçilen İşlemler */}
               {workItems.length > 0 && (
-                <Box p="4" bg={greenBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
-                  <Text fontWeight="bold" mb="2" color={brandColor}>Seçilen İşlemler:</Text>
+                <CBox p="4" bg={greenBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                  <CText fontWeight="bold" mb="2" color={brandColor}>Seçilen İşlemler:</CText>
                   <Stack spacing={2}>
                     {workItems.map(item => (
                       <HStack key={item.name} justify="space-between">
-                        <Text color={textColor}>{item.name}</Text>
+                        <CText color={textColor}>{item.name}</CText>
                         <HStack>
                           <NumberInput
                             size="sm"
@@ -1036,7 +1361,7 @@ export default function ServiceTracking() {
                           >
                             <NumberInputField />
                           </NumberInput>
-                          <Text>₺{(item.basePrice * item.quantity).toLocaleString()}</Text>
+                          <CText>₺{(item.basePrice * item.quantity).toLocaleString()}</CText>
                           <IconButton
                             size="sm"
                             icon={<MdDelete />}
@@ -1048,7 +1373,7 @@ export default function ServiceTracking() {
                       </HStack>
                     ))}
                   </Stack>
-                </Box>
+                </CBox>
               )}
 
               <FormControl>
@@ -1091,7 +1416,7 @@ export default function ServiceTracking() {
 
               <FormControl>
                 <FormLabel>Kullanılan Parçalar ({selectedCustomer ? selectedCustomer.vespaModel : 'Müşteri Seç'})</FormLabel>
-                <Box border="1px" borderColor="gray.200" p="4" borderRadius="md" maxH="300px" overflowY="auto">
+                <CBox border="1px" borderColor="gray.200" p="4" borderRadius="md" maxH="300px" overflowY="auto">
                   {selectedCustomer ? (
                     <VStack align="start" spacing={2}>
                       {getPartsForModel(selectedCustomer.vespaModel).map(part => {
@@ -1114,8 +1439,8 @@ export default function ServiceTracking() {
                                   mr="2"
                                   fallbackSrc="https://via.placeholder.com/32x32?text=No+Image" />
                                 <VStack align="start" spacing={0}>
-                                  <Text fontWeight="medium">{part.name}</Text>
-                                  <Text fontSize="sm" color="gray.600">₺{part.price?.toLocaleString()}</Text>
+                                  <CText fontWeight="medium">{part.name}</CText>
+                                  <CText fontSize="sm" color="gray.600">₺{part.price?.toLocaleString()}</CText>
                                 </VStack>
                               </HStack>
                             </Checkbox>
@@ -1139,9 +1464,9 @@ export default function ServiceTracking() {
                       })}
                     </VStack>
                   ) : (
-                    <Text color="gray.500">Önce müşteri seçiniz</Text>
+                    <CText color="gray.500">Önce müşteri seçiniz</CText>
                   )}
-                </Box>
+                </CBox>
               </FormControl>
 
               <FormControl>
@@ -1154,35 +1479,35 @@ export default function ServiceTracking() {
               </FormControl>
 
               {/* Maliyet Hesaplama */}
-              <Box p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
-                <Text fontWeight="bold" mb="2" color={brandColor}>Maliyet Özeti:</Text>
+              <CBox p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                <CText fontWeight="bold" mb="2" color={brandColor}>Maliyet Özeti:</CText>
                 <Stack spacing={1}>
                   <HStack justify="space-between">
-                    <Text color={textColor}>Servis Ücreti:</Text>
-                    <Text color={textColor}>₺{(servicePrices[formData.serviceType] || 0).toLocaleString()}</Text>
+                    <CText color={textColor}>Servis Ücreti:</CText>
+                    <CText color={textColor}>₺{(servicePrices[formData.serviceType] || 0).toLocaleString()}</CText>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text color={textColor}>İşlemler:</Text>
-                    <Text color={textColor}>₺{workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0).toLocaleString()}</Text>
+                    <CText color={textColor}>İşlemler:</CText>
+                    <CText color={textColor}>₺{workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0).toLocaleString()}</CText>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text color={textColor}>Parçalar:</Text>
-                    <Text color={textColor}>₺{selectedParts.reduce((sum, part) => sum + part.cost, 0).toLocaleString()}</Text>
+                    <CText color={textColor}>Parçalar:</CText>
+                    <CText color={textColor}>₺{selectedParts.reduce((sum, part) => sum + part.cost, 0).toLocaleString()}</CText>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text color={textColor}>Ek İşçilik:</Text>
-                    <Text color={textColor}>₺{(formData.laborCost || 0).toLocaleString()}</Text>
+                    <CText color={textColor}>Ek İşçilik:</CText>
+                    <CText color={textColor}>₺{(formData.laborCost || 0).toLocaleString()}</CText>
                   </HStack>
                   <Divider borderColor={borderColor} />
                   <HStack justify="space-between">
-                    <Text fontWeight="bold" fontSize="lg" color={brandColor}>Toplam:</Text>
-                    <Text fontWeight="bold" fontSize="lg" color={brandColor}>₺{calculateTotalCost().toLocaleString()}</Text>
+                    <CText fontWeight="bold" fontSize="lg" color={brandColor}>Toplam:</CText>
+                    <CText fontWeight="bold" fontSize="lg" color={brandColor}>₺{calculateTotalCost().toLocaleString()}</CText>
                   </HStack>
                 </Stack>
-              </Box>
+              </CBox>
               {selectedParts.length > 0 && (
-                <Box mt="2">
-                  <Text fontWeight="bold" mb="1">Seçilen Parçalar:</Text>
+                <CBox mt="2">
+                  <CText fontWeight="bold" mb="1">Seçilen Parçalar:</CText>
                   <Stack spacing={1} direction="row" flexWrap="wrap">
                     {selectedParts.map(part => (
                       <HStack key={part.id} spacing={2} border="1px solid" borderColor={borderColor} borderRadius="md" p="1">
@@ -1193,11 +1518,11 @@ export default function ServiceTracking() {
                           objectFit="contain"
                           borderRadius="md"
                           fallbackSrc="https://via.placeholder.com/24x24?text=No+Image" />
-                        <Text fontSize="sm">{part.name} x{part.quantity}</Text>
+                        <CText fontSize="sm">{part.name} x{part.quantity}</CText>
                       </HStack>
                     ))}
                   </Stack>
-                </Box>
+                </CBox>
               )}
             </Stack>
           </ModalBody>
@@ -1240,16 +1565,16 @@ export default function ServiceTracking() {
               </InputGroup>
 
               {/* Fiyat Listesi */}
-              <Box maxH="400px" overflowY="auto">
+              <CBox maxH="400px" overflowY="auto">
                 <Stack spacing={3}>
                   {filteredPrices.map(([serviceType, price]) => (
-                    <Box key={serviceType} p="4" border="1px solid" borderColor={borderColor} borderRadius="md" bg={cardBg}>
+                    <CBox key={serviceType} p="4" border="1px solid" borderColor={borderColor} borderRadius="md" bg={cardBg}>
                       <HStack justify="space-between" align="center">
                         <VStack align="start" spacing={1}>
-                          <Text fontWeight="bold" color={textColor}>{serviceType}</Text>
-                          <Text color={price > 0 ? 'green.500' : 'orange.500'} fontSize="lg" fontWeight="bold">
+                          <CText fontWeight="bold" color={textColor}>{serviceType}</CText>
+                          <CText color={price > 0 ? 'green.500' : 'orange.500'} fontSize="lg" fontWeight="bold">
                             {price > 0 ? `₺${price.toLocaleString()}` : 'Özel Fiyat'}
-                          </Text>
+                          </CText>
                         </VStack>
                         {editingPrice === serviceType ? (
                           <HStack>
@@ -1295,10 +1620,10 @@ export default function ServiceTracking() {
                           />
                         )}
                       </HStack>
-                    </Box>
+                    </CBox>
                   ))}
                 </Stack>
-              </Box>
+              </CBox>
             </Stack>
           </ModalBody>
 
@@ -1309,6 +1634,240 @@ export default function ServiceTracking() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Box>
+
+      {/* Fatura Modalı */}
+      <Modal isOpen={isInvoiceOpen} onClose={() => setIsInvoiceOpen(false)} size="xl" isCentered>
+        <ModalOverlay />
+        <ModalContent bg={invoiceModalBg} borderRadius="lg" boxShadow="xl" maxW="600px" p={0} sx={{ '@media print': { display: 'none !important' } }}>
+          <ModalCloseButton top={4} right={4} color="gray.700" />
+          <ModalBody px={10} py={6} bg={invoiceModalBg}>
+            {(printInvoiceService || invoiceService) && (
+              <>
+                {/* Üst başlık ve tarih */}
+                <CFlex justify="space-between" align="center" mb={4}>
+                  <CText fontWeight="bold" fontSize="2xl">Servis Faturası</CText>
+                  <CText fontSize="md" color={invoiceSubTextColor}>{new Date().toLocaleDateString()}</CText>
+                </CFlex>
+                {/* Müşteri ve Araç Bilgileri */}
+                <CFlex mb={2} gap={8} flexWrap="wrap">
+                  <CBox minW="180px">
+                    <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Müşteri</CText>
+                    <CText color={invoiceTextColor}>{printInvoiceService?.customerName || invoiceService?.customerName}</CText>
+                  </CBox>
+                  <CBox minW="180px">
+                    <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Araç</CText>
+                    <CText color={invoiceTextColor}>Model: <b>{printInvoiceService?.vespaModel || invoiceService?.vespaModel}</b></CText>
+                    <CText color={invoiceTextColor}>Plaka: <b>{printInvoiceService?.plateNumber || invoiceService?.plateNumber}</b></CText>
+                    <CText color={invoiceTextColor}>Kilometre: <b>{printInvoiceService?.mileage || invoiceService?.mileage} km</b></CText>
+                  </CBox>
+                </CFlex>
+                {/* Servis Bilgileri */}
+                <CBox mb={2}>
+                  <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Servis</CText>
+                  <CText color={invoiceTextColor}>Tarih: <b>{printInvoiceService?.serviceDate || invoiceService?.serviceDate}</b></CText>
+                  <CText color={invoiceTextColor}>Tür: <b>{printInvoiceService?.serviceType || invoiceService?.serviceType}</b></CText>
+                  <CText color={invoiceTextColor}>Teknisyen: <b>{printInvoiceService?.technician || invoiceService?.technician}</b></CText>
+                </CBox>
+                {/* İşlemler Tablosu */}
+                <CText fontWeight="bold" fontSize="lg" mt={4} mb={2}>İşlemler</CText>
+                <Table size="sm" variant="simple" mb={4}>
+                  <Thead>
+                    <Tr>
+                      <Th>İŞLEM</Th>
+                      <Th>ADET</Th>
+                      <Th isNumeric>TUTAR</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {(printInvoiceService?.workItems || invoiceService?.workItems || []).map((item, idx) => (
+                      <Tr key={idx}>
+                        <Td>{item.name}</Td>
+                        <Td>{item.quantity}</Td>
+                        <Td isNumeric>₺{(item.basePrice * item.quantity).toLocaleString()}</Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+                {/* Parçalar Tablosu */}
+                <CText fontWeight="bold" fontSize="lg" mt={4} mb={2}>Parçalar</CText>
+                <Table size="sm" variant="simple" mb={4}>
+                  <Thead>
+                    <Tr>
+                      <Th>PARÇA</Th>
+                      <Th>ADET</Th>
+                      <Th isNumeric>TUTAR</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {(printInvoiceService?.usedParts || invoiceService?.usedParts || []).map((part, idx) => (
+                      <Tr key={idx}>
+                        <Td>{part.name}</Td>
+                        <Td>{part.quantity}</Td>
+                        <Td isNumeric>₺{(part.cost * part.quantity).toLocaleString()}</Td>
+                      </Tr>
+                    ))}
+                    {/* İşçilik satırı */}
+                    <Tr>
+                      <Td fontWeight="medium">İşçilik</Td>
+                      <Td></Td>
+                      <Td fontWeight="bold" isNumeric>₺{(printInvoiceService?.laborCost || invoiceService?.laborCost || 0).toLocaleString()}</Td>
+                    </Tr>
+                  </Tbody>
+                </Table>
+                {/* Toplam */}
+                <Divider my={2} />
+                <CFlex justify="center" align="center" mt={2} mb={2}>
+                  <CText fontWeight="bold" fontSize="2xl" color={invoiceTotalColor} mr={4}>Toplam</CText>
+                  <CText fontWeight="extrabold" fontSize="2xl" color={invoiceTotalColor}>
+                    ₺{(printInvoiceService?.totalCost || invoiceService?.totalCost || 0).toLocaleString()}
+                  </CText>
+                </CFlex>
+                <Button onClick={handlePrintInvoice} colorScheme="blue" size="md" mt={2}>
+                  Yazdır
+                </Button>
+                {invoiceService && (
+                  <PDFDownloadLink document={<InvoicePDF invoice={invoiceService} customer={selectedCustomer} />} fileName="fatura.pdf">
+                    {({ loading }) => loading ? 'Hazırlanıyor...' : 'Faturayı PDF Olarak İndir'}
+                  </PDFDownloadLink>
+                )}
+              </>
+            )}
+          </ModalBody>
+          <ModalFooter borderTop="2px solid" borderColor={invoiceBorderColor} bg={invoiceModalBg} borderBottomRadius="lg">
+            <Button onClick={() => setIsInvoiceOpen(false)} colorScheme="brand" borderRadius="lg" fontWeight="bold" w="100%">
+              Kapat
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Kurumsal fatura sadece yazdırmada, tam sayfa ve profesyonel görünümde */}
+      <CBox
+        className="print-fatura"
+        style={{ display: 'none' }}
+        sx={{ '@media print': { display: 'block !important' } }}
+      >
+        {(printInvoiceService || invoiceService) && (
+          <CBox p={0} m={0} w="100%" h="100%">
+            <CFlex justify="space-between" align="flex-start" mb={2}>
+              <CBox>
+                {/* Logo sadece varsa göster */}
+                {/* {logoUrl && <Image src={logoUrl} h="40px" mb={1} />} */}
+                <CText fontWeight="bold" fontSize="lg">MOTOETİLER VESPA SERVİS</CText>
+                <CText fontSize="sm">Adres: Nispetiye Mah. X Cad. No:1, Beşiktaş/İstanbul</CText>
+                <CText fontSize="sm">Tel: 0212 000 00 00</CText>
+                <CText fontSize="sm">Vergi Dairesi: Beşiktaş</CText>
+                <CText fontSize="sm">Vergi No: 1234567890</CText>
+              </CBox>
+              <CBox textAlign="right">
+                <CText fontWeight="bold" fontSize="xl">SERVİS FATURASI</CText>
+                <CText fontSize="sm">Fatura No: 2024-0001</CText>
+                <CText fontSize="sm">Tarih: {printInvoiceService?.serviceDate || invoiceService?.serviceDate || new Date().toLocaleDateString()}</CText>
+                <CText fontSize="sm">Senaryo: SATIS</CText>
+                <CText fontSize="sm">VKN: 1234567890</CText>
+                <CText fontSize="sm">Mersis No: 1234567890123456</CText>
+                <CText fontSize="sm">ETTN: 123e4567-e89b-12d3-a456-426614174000</CText>
+              </CBox>
+            </CFlex>
+            <Divider my={2} />
+            <CFlex mb={2} gap={8} align="flex-start">
+              <CBox minW="180px">
+                <CText fontWeight="bold" fontSize="md" mb={1}>Müşteri Bilgileri</CText>
+                <CText><b>Ad:</b> {printInvoiceService?.customerName || invoiceService?.customerName}</CText>
+                <CText><b>Telefon:</b> {selectedCustomer?.phone}</CText>
+                <CText><b>Email:</b> {selectedCustomer?.email}</CText>
+              </CBox>
+              <CBox minW="180px">
+                <CText fontWeight="bold" fontSize="md" mb={1}>Araç Bilgileri</CText>
+                <CText><b>Model:</b> {printInvoiceService?.vespaModel || invoiceService?.vespaModel}</CText>
+                <CText><b>Plaka:</b> {printInvoiceService?.plateNumber || invoiceService?.plateNumber}</CText>
+                <CText><b>Kilometre:</b> {printInvoiceService?.mileage || invoiceService?.mileage} km</CText>
+              </CBox>
+            </CFlex>
+            <Divider my={2} />
+            <Table variant="simple" size="sm" borderWidth="1px" borderColor="#444" sx={{ '@media print': { border: '1px solid #444' } }}>
+              <Thead>
+                <Tr>
+                  <Th>Sıra</Th>
+                  <Th>Açıklama</Th>
+                  <Th>Miktar</Th>
+                  <Th>Birim Fiyat</Th>
+                  <Th>KDV</Th>
+                  <Th isNumeric>Tutar</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {(printInvoiceService?.usedParts || invoiceService?.usedParts || []).map((part, idx) => (
+                  <Tr key={idx}>
+                    <Td>{idx + 1}</Td>
+                    <Td>{part.name}</Td>
+                    <Td>{part.quantity}</Td>
+                    <Td>₺{part.price?.toLocaleString()}</Td>
+                    <Td>%20</Td>
+                    <Td isNumeric>₺{(part.cost * part.quantity).toLocaleString()}</Td>
+                  </Tr>
+                ))}
+                <Tr>
+                  <Td>{(printInvoiceService?.usedParts?.length || invoiceService?.usedParts?.length || 0) + 1}</Td>
+                  <Td>İşçilik Bedeli</Td>
+                  <Td>1</Td>
+                  <Td>₺{(printInvoiceService?.laborCost || invoiceService?.laborCost || 0).toLocaleString()}</Td>
+                  <Td>%20</Td>
+                  <Td isNumeric>₺{(printInvoiceService?.laborCost || invoiceService?.laborCost || 0).toLocaleString()}</Td>
+                </Tr>
+              </Tbody>
+            </Table>
+            <CBox mt={2} mb={2} textAlign="right">
+              <CText>Mal Hizmet Toplamı: <b>₺{(printInvoiceService?.totalCost || invoiceService?.totalCost || 0).toLocaleString()}</b></CText>
+              <CText>KDV (%20): <b>₺{((printInvoiceService?.totalCost || invoiceService?.totalCost || 0) * 0.20).toLocaleString()}</b></CText>
+              <CText fontSize="lg">Genel Toplam: <b>₺{((printInvoiceService?.totalCost || invoiceService?.totalCost || 0) * 1.20).toLocaleString()}</b></CText>
+            </CBox>
+            <Divider my={2} />
+            <CFlex mt={6} mb={2} justify="space-between">
+              <CBox textAlign="center" w="40%">
+                <CText fontWeight="bold">Düzenleyen (Servis Yetkilisi)</CText>
+                <CBox borderBottom="1px solid #333" w="80%" mx="auto" mt={6} mb={2} />
+                <CText fontSize="sm">Ad Soyad / İmza</CText>
+              </CBox>
+              <CBox textAlign="center" w="40%">
+                <CText fontWeight="bold">Müşteri (Araç Sahibi)</CText>
+                <CBox borderBottom="1px solid #333" w="80%" mx="auto" mt={6} mb={2} />
+                <CText fontSize="sm">Ad Soyad / İmza</CText>
+              </CBox>
+            </CFlex>
+            <CBox fontSize="sm" color="gray.700" mt={4} textAlign="left">
+              <CText>Teşekkür ederiz. Faturanızı e-arşivden sorgulayabilirsiniz.</CText>
+              <CText>Banka: VAKIFBANK IBAN: TR00 0000 0000 0000 0000 0000 00</CText>
+            </CBox>
+          </CBox>
+        )}
+      </CBox>
+
+      {/* Silme Onayı Dialogu */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={handleDeleteCancel}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Silme Onayı
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={handleDeleteCancel}>
+                İptal
+              </Button>
+              <Button colorScheme="red" onClick={handleDeleteConfirm} ml={3}>
+                Sil
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+    </CBox>
   );
 } 

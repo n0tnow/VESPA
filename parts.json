@@ -1935,21 +1935,6 @@
         ]
       }
     },
-    "db2bbfa3": {
-      "name": "Paspas15",
-      "category": "Genel",
-      "price": 4256.0,
-      "url": "https://www.motopit.com.tr/urun/paspas15",
-      "images": {
-        "thumbnail": null,
-        "main": "https://www.motopit.com.tr/UserFiles/ProductImages/6/1a024412r/orj/aks-rulmani-164244.JPG",
-        "gallery": [
-          "https://www.motopit.com.tr/UserFiles/ProductImages/6/1a024412r/orj/aks-rulmani-164244.JPG",
-          "https://www.motopit.com.tr/UserFiles/ProductImages/0/012789/orj/aks-somun-sigorta-kapak-pimi--kopilyasi-76244.jpg",
-          "https://www.motopit.com.tr/UserFiles/ProductImages/1/cm166001/orj/amblem-varyator--amblem-debriyaj-130682.jpg"
-        ]
-      }
-    },
     "d99be6d7": {
       "name": "Piston Sekman SET/ B",
       "category": "Genel",
@@ -2000,6 +1985,21 @@
       "category": "Genel",
       "price": 679.0,
       "url": "https://www.motopit.com.tr/urun/reflektr-kedi-gz-panel-plaka-iin",
+      "images": {
+        "thumbnail": null,
+        "main": "https://www.motopit.com.tr/UserFiles/ProductImages/6/1a024412r/orj/aks-rulmani-164244.JPG",
+        "gallery": [
+          "https://www.motopit.com.tr/UserFiles/ProductImages/6/1a024412r/orj/aks-rulmani-164244.JPG",
+          "https://www.motopit.com.tr/UserFiles/ProductImages/0/012789/orj/aks-somun-sigorta-kapak-pimi--kopilyasi-76244.jpg",
+          "https://www.motopit.com.tr/UserFiles/ProductImages/1/cm166001/orj/amblem-varyator--amblem-debriyaj-130682.jpg"
+        ]
+      }
+    },
+    "1d72f63f": {
+      "name": "Röle GUILERA",
+      "category": "Genel",
+      "price": 3172.0,
+      "url": "https://www.motopit.com.tr/urun/rle-guilera",
       "images": {
         "thumbnail": null,
         "main": "https://www.motopit.com.tr/UserFiles/ProductImages/6/1a024412r/orj/aks-rulmani-164244.JPG",
@@ -2927,5 +2927,5 @@
     }
   },
   "total_parts": 195,
-  "generated_at": "2025-07-11 10:22:35"
+  "generated_at": "2025-07-11 16:07:55"
 }

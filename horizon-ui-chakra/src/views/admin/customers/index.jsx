@@ -41,6 +41,7 @@ import {
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdNotifications, MdDirectionsBike } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
+import customersJson from 'data/customers.json';
 
 export default function CustomerManagement() {
   const brandColor = useColorModeValue('brand.500', 'white');
@@ -53,103 +54,23 @@ export default function CustomerManagement() {
   const inputText = useColorModeValue('gray.800', 'white');
   const labelColor = useColorModeValue('gray.700', 'gray.200');
 
-  // MotoEtiler müşteri verileri
+  // Müşteri verilerini hem localStorage hem customers.json'dan birleştir
   const [customers, setCustomers] = useState(() => {
-    const saved = localStorage.getItem('customers');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return [
-          {
-            id: 1,
-            name: 'Ahmet Yılmaz',
-            email: 'ahmet@email.com',
-            phone: '+90 532 123 45 67',
-            vespaModel: 'Vespa Primavera 150',
-            lastService: '2024-01-15',
-            nextService: '2024-04-15',
-            status: 'active',
-            totalSpent: 15000,
-            servicesCount: 8,
-            registrationDate: '2022-03-10',
-            notes: 'MotoEtiler\'den satın aldı, düzenli müşteri'
-          },
-          {
-            id: 2,
-            name: 'Elif Kaya',
-            email: 'elif@email.com',
-            phone: '+90 533 987 65 43',
-            vespaModel: 'Vespa GTS 300',
-            lastService: '2024-02-20',
-            nextService: '2024-05-20',
-            status: 'pending',
-            totalSpent: 25000,
-            servicesCount: 12,
-            registrationDate: '2021-08-15',
-            notes: 'Premium müşteri, MotoEtiler VIP üyesi'
-          },
-          {
-            id: 3,
-            name: 'Mehmet Özkan',
-            email: 'mehmet@email.com',
-            phone: '+90 534 456 78 90',
-            vespaModel: 'Vespa Sprint 150',
-            lastService: '2023-12-10',
-            nextService: '2024-03-10',
-            status: 'overdue',
-            totalSpent: 8500,
-            servicesCount: 5,
-            registrationDate: '2023-01-20',
-            notes: 'Servis hatırlatması gönderildi'
-          },
-        ];
+    let local = [];
+    try {
+      const saved = localStorage.getItem('customers');
+      if (saved) local = JSON.parse(saved);
+    } catch (e) {}
+    // customers.json'daki veriler
+    const jsonCustomers = Object.values(customersJson.customers || {});
+    // localStorage'da olmayanları ekle
+    const merged = [...local];
+    jsonCustomers.forEach(jsonCust => {
+      if (!local.find(lc => lc.id === jsonCust.id)) {
+        merged.push(jsonCust);
       }
-    }
-    return [
-      {
-        id: 1,
-        name: 'Ahmet Yılmaz',
-        email: 'ahmet@email.com',
-        phone: '+90 532 123 45 67',
-        vespaModel: 'Vespa Primavera 150',
-        lastService: '2024-01-15',
-        nextService: '2024-04-15',
-        status: 'active',
-        totalSpent: 15000,
-        servicesCount: 8,
-        registrationDate: '2022-03-10',
-        notes: 'MotoEtiler\'den satın aldı, düzenli müşteri'
-      },
-      {
-        id: 2,
-        name: 'Elif Kaya',
-        email: 'elif@email.com',
-        phone: '+90 533 987 65 43',
-        vespaModel: 'Vespa GTS 300',
-        lastService: '2024-02-20',
-        nextService: '2024-05-20',
-        status: 'pending',
-        totalSpent: 25000,
-        servicesCount: 12,
-        registrationDate: '2021-08-15',
-        notes: 'Premium müşteri, MotoEtiler VIP üyesi'
-      },
-      {
-        id: 3,
-        name: 'Mehmet Özkan',
-        email: 'mehmet@email.com',
-        phone: '+90 534 456 78 90',
-        vespaModel: 'Vespa Sprint 150',
-        lastService: '2023-12-10',
-        nextService: '2024-03-10',
-        status: 'overdue',
-        totalSpent: 8500,
-        servicesCount: 5,
-        registrationDate: '2023-01-20',
-        notes: 'Servis hatırlatması gönderildi'
-      },
-    ];
+    });
+    return merged;
   });
 
   useEffect(() => {
@@ -353,6 +274,9 @@ export default function CustomerManagement() {
                 <Th>Sonraki Servis</Th>
                 <Th>Durum</Th>
                 <Th>Toplam Harcama</Th>
+                <Th>Servis Sayısı</Th>
+                <Th>Notlar</Th>
+                <Th>Kayıt Tarihi</Th>
                 <Th>İşlemler</Th>
               </Tr>
             </Thead>
@@ -362,9 +286,6 @@ export default function CustomerManagement() {
                   <Td>
                     <Box>
                       <Text fontWeight="bold">{customer.name}</Text>
-                      <Text fontSize="sm" color="gray.500">
-                        Kayıt: {customer.registrationDate}
-                      </Text>
                     </Box>
                   </Td>
                   <Td>
@@ -381,7 +302,10 @@ export default function CustomerManagement() {
                       {getStatusText(customer.status)}
                     </Badge>
                   </Td>
-                  <Td>₺{customer.totalSpent.toLocaleString()}</Td>
+                  <Td>₺{(customer.totalSpent || 0).toLocaleString()}</Td>
+                  <Td>{customer.servicesCount || 0}</Td>
+                  <Td>{customer.notes || '-'}</Td>
+                  <Td>{customer.registrationDate || '-'}</Td>
                   <Td>
                     <Stack direction="row" spacing={1}>
                       <IconButton

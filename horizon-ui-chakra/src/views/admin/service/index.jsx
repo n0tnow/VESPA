@@ -59,6 +59,11 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Checkbox as ChakraCheckbox,
 } from '@chakra-ui/react';
 import { 
   MdAdd, 
@@ -83,7 +88,7 @@ import partsData from 'data/parts.json';
 import modelsData from 'data/models.json';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { PDFDownloadLink, Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 
 export default function ServiceTracking() {
   const brandColor = useColorModeValue('brand.500', 'white');
@@ -131,7 +136,7 @@ export default function ServiceTracking() {
             plateNumber: '34 ABC 123',
             serviceDate: '2024-01-15',
             serviceType: 'Rutin Bakım',
-            technician: 'Mehmet Usta (MotoEtiler)',
+
             status: 'completed',
             totalCost: 2750,
             laborCost: 2500,
@@ -153,7 +158,7 @@ export default function ServiceTracking() {
             plateNumber: '06 DEF 456',
             serviceDate: '2024-02-20',
             serviceType: 'Ağır Bakım',
-            technician: 'Ali Teknisyen (MotoEtiler)',
+
             status: 'in_progress',
             totalCost: 8050,
             laborCost: 7500,
@@ -174,7 +179,7 @@ export default function ServiceTracking() {
             plateNumber: '35 GHI 789',
             serviceDate: '2024-01-10',
             serviceType: 'Kayış Değişimi',
-            technician: 'Hasan Usta (MotoEtiler)',
+
             status: 'pending',
             totalCost: 3670,
             laborCost: 3500,
@@ -198,7 +203,7 @@ export default function ServiceTracking() {
         plateNumber: '34 ABC 123',
         serviceDate: '2024-01-15',
         serviceType: 'Rutin Bakım',
-        technician: 'Mehmet Usta (MotoEtiler)',
+
         status: 'completed',
         totalCost: 2750,
         laborCost: 2500,
@@ -220,7 +225,7 @@ export default function ServiceTracking() {
         plateNumber: '06 DEF 456',
         serviceDate: '2024-02-20',
         serviceType: 'Ağır Bakım',
-        technician: 'Ali Teknisyen (MotoEtiler)',
+
         status: 'in_progress',
         totalCost: 8050,
         laborCost: 7500,
@@ -241,7 +246,7 @@ export default function ServiceTracking() {
         plateNumber: '35 GHI 789',
         serviceDate: '2024-01-10',
         serviceType: 'Kayış Değişimi',
-        technician: 'Hasan Usta (MotoEtiler)',
+
         status: 'pending',
         totalCost: 3670,
         laborCost: 3500,
@@ -289,13 +294,7 @@ export default function ServiceTracking() {
     'Test Sürüşü': 200
   });
 
-  const [technicians] = useState([
-    'Mehmet Usta (MotoEtiler)',
-    'Ali Teknisyen (MotoEtiler)',
-    'Hasan Usta (MotoEtiler)',
-    'Fatma Teknisyen (MotoEtiler)',
-    'Emre Usta (MotoEtiler)'
-  ]);
+  // Technician selection removed as requested
 
   // Gerçek parça verilerini kullan
   const [availableParts, setAvailableParts] = useState([]);
@@ -391,7 +390,6 @@ export default function ServiceTracking() {
     plateNumber: '',
     serviceDate: '',
     serviceType: '',
-    technician: '',
     status: 'pending',
     description: '',
     usedParts: [],
@@ -431,6 +429,7 @@ export default function ServiceTracking() {
   });
 
   const handleAddService = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
     setSelectedService(null);
     setSelectedCustomer(null);
     setCustomerServiceHistory([]);
@@ -440,9 +439,8 @@ export default function ServiceTracking() {
       customerName: '',
       vespaModel: '',
       plateNumber: '',
-      serviceDate: '',
+      serviceDate: todayStr, // otomatik bugün
       serviceType: '',
-      technician: '',
       status: 'pending',
       description: '',
       usedParts: [],
@@ -472,7 +470,6 @@ export default function ServiceTracking() {
       plateNumber: service.plateNumber,
       serviceDate: service.serviceDate,
       serviceType: service.serviceType,
-      technician: service.technician,
       status: service.status,
       description: service.description,
       usedParts: service.usedParts,
@@ -702,8 +699,49 @@ export default function ServiceTracking() {
   const handlePrintInvoice = () => {
     setPrintInvoiceService(invoiceService);
     setTimeout(() => {
+      // Print stillerini ekle
+      const printStyles = `
+        <style>
+          @media print {
+            body * { visibility: hidden; }
+            .print-area, .print-area * { visibility: visible; }
+            .print-area { 
+              position: absolute; 
+              left: 0; 
+              top: 0; 
+              width: 100%; 
+              background: white !important;
+              color: black !important;
+            }
+            .chakra-modal__overlay { display: none !important; }
+            .chakra-modal__content { 
+              position: static !important; 
+              margin: 0 !important; 
+              box-shadow: none !important;
+              background: white !important;
+            }
+          }
+        </style>
+      `;
+      
+      // Mevcut head'e print stillerini ekle
+      const existingStyles = document.head.querySelector('#print-styles');
+      if (existingStyles) existingStyles.remove();
+      
+      const styleElement = document.createElement('div');
+      styleElement.id = 'print-styles';
+      styleElement.innerHTML = printStyles;
+      document.head.appendChild(styleElement);
+      
+      // Yazdırma işlemini başlat
       window.print();
-      setTimeout(() => setPrintInvoiceService(null), 1000);
+      
+      // Print işlemi bitince stilleri temizle
+      setTimeout(() => {
+        const printStylesElement = document.head.querySelector('#print-styles');
+        if (printStylesElement) printStylesElement.remove();
+        setPrintInvoiceService(null);
+      }, 1000);
     }, 100);
   };
 
@@ -860,15 +898,15 @@ export default function ServiceTracking() {
         </View>
         <View style={invoiceStyles.totalRow}>
           <Text style={invoiceStyles.totalLabel}>Mal Hizmet Toplamı:</Text>
-          <Text style={invoiceStyles.totalValue}>₺{invoice?.totalCost}</Text>
+          <Text style={invoiceStyles.totalValue}>₺{invoice.totalCost}</Text>
         </View>
         <View style={invoiceStyles.totalRow}>
           <Text style={invoiceStyles.totalLabel}>KDV (%20):</Text>
-          <Text style={invoiceStyles.totalValue}>₺{(invoice?.totalCost * 0.20).toLocaleString()}</Text>
+          <Text style={invoiceStyles.totalValue}>₺{invoice.totalCost * 0.20}</Text>
         </View>
         <View style={invoiceStyles.totalRow}>
           <Text style={[invoiceStyles.totalLabel, { fontSize: 14 }]}>Genel Toplam:</Text>
-          <Text style={[invoiceStyles.totalValue, { fontSize: 14 }]}>₺{(invoice?.totalCost * 1.20).toLocaleString()}</Text>
+          <Text style={[invoiceStyles.totalValue, { fontSize: 14 }]}>₺{invoice.totalCost * 1.20}</Text>
         </View>
         <View style={invoiceStyles.signatureRow}>
           <View style={invoiceStyles.signatureBox}>
@@ -887,6 +925,16 @@ export default function ServiceTracking() {
       </Page>
     </Document>
   );
+
+  // Tablo render'ının üstüne ekle:
+  const getServiceTotal = (service) =>
+    (service.totalCost !== undefined
+      ? service.totalCost
+      : (service.serviceCost || 0) +
+        (service.workCost || 0) +
+        (service.partsCost || 0) +
+        (service.laborCost || 0)
+    );
 
   return (
     <CBox pt={{ base: '130px', md: '80px', xl: '80px' }}>
@@ -954,7 +1002,7 @@ export default function ServiceTracking() {
         <Tabs index={activeTab} onChange={setActiveTab}>
           <TabList>
             <Tab>Servis Kayıtları</Tab>
-            <Tab>Teknisyen Performansı</Tab>
+                            <Tab>Servis Geçmişi</Tab>
             <Tab>Servis Analizi</Tab>
           </TabList>
 
@@ -1008,7 +1056,6 @@ export default function ServiceTracking() {
                       <Th>Müşteri</Th>
                       <Th>Araç</Th>
                       <Th>Servis Türü</Th>
-                      <Th>Teknisyen</Th>
                       <Th>Tarih</Th>
                       <Th>Durum</Th>
                       <Th>Tutar</Th>
@@ -1035,14 +1082,13 @@ export default function ServiceTracking() {
                           </CBox>
                         </Td>
                         <Td>{service.serviceType}</Td>
-                        <Td>{service.technician}</Td>
                         <Td>{service.serviceDate}</Td>
                         <Td>
                           <Badge colorScheme={getStatusColor(service.status)}>
                             {getStatusText(service.status)}
                           </Badge>
                         </Td>
-                        <Td>₺{service.totalCost.toLocaleString()}</Td>
+                        <Td>₺{getServiceTotal(service).toLocaleString()}</Td>
                         <Td>
                           <Stack direction="row" spacing={1}>
                             <IconButton
@@ -1086,34 +1132,36 @@ export default function ServiceTracking() {
               )}
             </TabPanel>
 
-            {/* Technician Performance Tab */}
+            {/* Service History Tab */}
             <TabPanel>
               <CText fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
-                Teknisyen Performansı
+                Servis Geçmişi
               </CText>
               
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap="20px">
-                {technicians.map(technician => {
-                  const techServices = serviceRecords.filter(service => service.technician === technician);
-                  const completedServices = techServices.filter(service => service.status === 'completed');
-                  const totalRevenue = completedServices.reduce((sum, service) => sum + service.totalCost, 0);
-                  
+                {serviceRecords.slice(-6).reverse().map(service => {
                   return (
-                    <Card key={technician}>
+                    <Card key={service.id}>
                       <CBox p="6">
-                        <Heading size="md" mb="4">{technician}</Heading>
+                        <Heading size="md" mb="4">{service.customerName}</Heading>
                         <Stack spacing={2}>
                           <HStack justify="space-between">
-                            <CText>Toplam Servis:</CText>
-                            <CText fontWeight="bold">{techServices.length}</CText>
+                            <CText>Servis Türü:</CText>
+                            <CText fontWeight="bold">{service.serviceType}</CText>
                           </HStack>
                           <HStack justify="space-between">
-                            <CText>Tamamlanan:</CText>
-                            <CText fontWeight="bold" color="green.500">{completedServices.length}</CText>
+                            <CText>Durum:</CText>
+                            <Badge colorScheme={getStatusColor(service.status)}>
+                              {getStatusText(service.status)}
+                            </Badge>
                           </HStack>
                           <HStack justify="space-between">
-                            <CText>Toplam Gelir:</CText>
-                            <CText fontWeight="bold" color={brandColor}>₺{totalRevenue.toLocaleString()}</CText>
+                            <CText>Tutar:</CText>
+                            <CText fontWeight="bold" color={brandColor}>₺{service.totalCost.toLocaleString()}</CText>
+                          </HStack>
+                          <HStack justify="space-between">
+                            <CText>Tarih:</CText>
+                            <CText fontSize="sm">{service.serviceDate}</CText>
                           </HStack>
                         </Stack>
                       </CBox>
@@ -1250,7 +1298,7 @@ export default function ServiceTracking() {
                     {customerServiceHistory.slice(-3).map(service => (
                       <CBox key={service.id} p="2" bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
                         <CText fontSize="sm" color={textColor}>
-                          <strong>{service.serviceDate}</strong> - {service.serviceType} - {service.technician}
+                          <strong>{service.serviceDate}</strong> - {service.serviceType} <span style={{color:'#888', fontSize:'12px'}}>({service.mileage} km)</span>
                         </CText>
                         <CText fontSize="xs" color={secondaryTextColor}>{service.description}</CText>
                       </CBox>
@@ -1299,82 +1347,92 @@ export default function ServiceTracking() {
                   </Select>
                 </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel>Teknisyen</FormLabel>
-                  <Select
-                    value={formData.technician}
-                    onChange={(e) => setFormData({...formData, technician: e.target.value})}
-                    placeholder="Teknisyen seçin"
-                  >
-                    {technicians.map(tech => (
-                      <option key={tech} value={tech}>{tech}</option>
-                    ))}
-                  </Select>
-                </FormControl>
+
               </Stack>
 
               {/* Yapılacak İşlemler */}
-              <FormControl>
+              <FormControl mb={4}>
                 <FormLabel color={textColor}>Yapılacak İşlemler</FormLabel>
-                <CBox border="1px" borderColor={borderColor} p="4" borderRadius="md" bg={cardBg}>
-                  <CText fontSize="sm" mb="3" color={secondaryTextColor}>
-                    Yapılacak işlemleri seçin:
-                  </CText>
-                  <SimpleGrid columns={2} spacing={2}>
-                    {workTypes.map(workType => (
-                      <Button
-                        key={workType.name}
-                        size="sm"
-                        variant={workItems.find(item => item.name === workType.name) ? "solid" : "outline"}
-                        colorScheme={workItems.find(item => item.name === workType.name) ? "green" : "gray"}
-                        onClick={() => {
-                          const exists = workItems.find(item => item.name === workType.name);
-                          if (exists) {
-                            handleWorkItemRemove(workType.name);
-                          } else {
-                            handleWorkItemAdd(workType);
-                          }
-                        }}
-                      >
-                        {workType.name} - ₺{workType.basePrice}
-                      </Button>
-                    ))}
-                  </SimpleGrid>
-                </CBox>
-              </FormControl>
-
-              {/* Seçilen İşlemler */}
-              {workItems.length > 0 && (
-                <CBox p="4" bg={greenBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
-                  <CText fontWeight="bold" mb="2" color={brandColor}>Seçilen İşlemler:</CText>
-                  <Stack spacing={2}>
-                    {workItems.map(item => (
-                      <HStack key={item.name} justify="space-between">
-                        <CText color={textColor}>{item.name}</CText>
-                        <HStack>
-                          <NumberInput
-                            size="sm"
-                            w="80px"
-                            value={item.quantity}
-                            onChange={(value) => handleWorkItemQuantityChange(item.name, parseInt(value) || 1)}
-                            min={1}
-                          >
-                            <NumberInputField />
-                          </NumberInput>
-                          <CText>₺{(item.basePrice * item.quantity).toLocaleString()}</CText>
-                          <IconButton
-                            size="sm"
-                            icon={<MdDelete />}
-                            colorScheme="red"
-                            variant="outline"
-                            onClick={() => handleWorkItemRemove(item.name)}
+                <Menu closeOnSelect={false} isLazy>
+                  <MenuButton
+                    as={Button}
+                    w="100%"
+                    minW={0}
+                    fontWeight="bold"
+                    borderRadius="md"
+                    bg="white"
+                    color="gray.800"
+                    borderWidth="1px"
+                    borderColor="gray.300"
+                    _hover={{ bg: "gray.100" }}
+                    _active={{ bg: "gray.200" }}
+                    _focus={{ boxShadow: "outline" }}
+                    textAlign="left"
+                    px={4}
+                    py={2}
+                    overflow="hidden"
+                    whiteSpace="nowrap"
+                  >
+                    {workItems.length === 0
+                      ? "İşlem seçin"
+                      : (
+                        <CFlex wrap="wrap" gap="2px">
+                          {workItems.map(item => (
+                            <CBox
+                              key={item.name}
+                              bg="brand.100"
+                              color="brand.700"
+                              px={2}
+                              py={0.5}
+                              borderRadius="md"
+                              fontSize="xs"
+                              mr={1}
+                              mb={1}
+                              maxW="90px"
+                              overflow="hidden"
+                              textOverflow="ellipsis"
+                              whiteSpace="nowrap"
+                            >
+                              {item.name}
+                            </CBox>
+                          ))}
+                        </CFlex>
+                      )
+                    }
+                  </MenuButton>
+                  <MenuList w="100%" minW="unset" maxH="250px" overflowY="auto" p={0}>
+                    <CBox display="flex" flexDirection="column">
+                      {(workTypes || []).map(item => (
+                        <MenuItem
+                          key={item.name}
+                          onClick={() => {
+                            const exists = workItems.find(w => w.name === item.name);
+                            if (exists) {
+                              setWorkItems(workItems.filter(w => w.name !== item.name));
+                            } else {
+                              setWorkItems([...workItems, { ...item, quantity: 1 }]);
+                            }
+                          }}
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          px={4}
+                          py={2}
+                          _hover={{ bg: "gray.100" }}
+                          _focus={{ bg: "gray.200" }}
+                        >
+                          <ChakraCheckbox
+                            isChecked={!!workItems.find(w => w.name === item.name)}
+                            pointerEvents="none"
+                            mr={2}
                           />
-                        </HStack>
-                      </HStack>
-                    ))}
-                  </Stack>
-                </CBox>
-              )}
+                          <CText flex="1">{item.name} – ₺{item.basePrice}</CText>
+                        </MenuItem>
+                      ))}
+                    </CBox>
+                  </MenuList>
+                </Menu>
+              </FormControl>
 
               <FormControl>
                 <FormLabel>Durum</FormLabel>
@@ -1508,20 +1566,20 @@ export default function ServiceTracking() {
               {selectedParts.length > 0 && (
                 <CBox mt="2">
                   <CText fontWeight="bold" mb="1">Seçilen Parçalar:</CText>
-                  <Stack spacing={1} direction="row" flexWrap="wrap">
+                  <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={2}>
                     {selectedParts.map(part => (
-                      <HStack key={part.id} spacing={2} border="1px solid" borderColor={borderColor} borderRadius="md" p="1">
+                      <HStack key={part.id} spacing={2} border="1px solid" borderColor={borderColor} borderRadius="md" p="2" minH="48px" bg={cardBg}>
                         <Image
                           src={part.images?.thumbnail || part.images?.main || 'https://via.placeholder.com/24x24?text=No+Image'}
                           alt={part.name}
-                          boxSize="24px"
+                          boxSize="32px"
                           objectFit="contain"
                           borderRadius="md"
                           fallbackSrc="https://via.placeholder.com/24x24?text=No+Image" />
                         <CText fontSize="sm">{part.name} x{part.quantity}</CText>
                       </HStack>
                     ))}
-                  </Stack>
+                  </SimpleGrid>
                 </CBox>
               )}
             </Stack>
@@ -1635,39 +1693,45 @@ export default function ServiceTracking() {
         </ModalContent>
       </Modal>
 
-      {/* Fatura Modalı */}
-      <Modal isOpen={isInvoiceOpen} onClose={() => setIsInvoiceOpen(false)} size="xl" isCentered>
-        <ModalOverlay />
-        <ModalContent bg={invoiceModalBg} borderRadius="lg" boxShadow="xl" maxW="600px" p={0} sx={{ '@media print': { display: 'none !important' } }}>
-          <ModalCloseButton top={4} right={4} color="gray.700" />
-          <ModalBody px={10} py={6} bg={invoiceModalBg}>
-            {(printInvoiceService || invoiceService) && (
+      {/* Fatura Modal */}
+      <Modal isOpen={isInvoiceOpen} onClose={() => setIsInvoiceOpen(false)} size="xl">
+        <ModalOverlay bg={modalOverlayBg} />
+        <ModalContent bg={invoiceModalBg} borderRadius="15px" border="1px solid" borderColor={invoiceBorderColor} className="print-area">
+          <ModalHeader color={brandColor} borderBottom="1px solid" borderColor={invoiceBorderColor}>
+            <CText fontSize="xl" fontWeight="bold">
+              Servis Faturası
+            </CText>
+          </ModalHeader>
+          <ModalCloseButton color={textColor} />
+          <ModalBody className="print-area">
+            {/* Fatura içeriği */}
+            {invoiceService && (
               <>
-                {/* Üst başlık ve tarih */}
-                <CFlex justify="space-between" align="center" mb={4}>
-                  <CText fontWeight="bold" fontSize="2xl">Servis Faturası</CText>
-                  <CText fontSize="md" color={invoiceSubTextColor}>{new Date().toLocaleDateString()}</CText>
-                </CFlex>
-                {/* Müşteri ve Araç Bilgileri */}
-                <CFlex mb={2} gap={8} flexWrap="wrap">
-                  <CBox minW="180px">
-                    <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Müşteri</CText>
-                    <CText color={invoiceTextColor}>{printInvoiceService?.customerName || invoiceService?.customerName}</CText>
-                  </CBox>
-                  <CBox minW="180px">
-                    <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Araç</CText>
-                    <CText color={invoiceTextColor}>Model: <b>{printInvoiceService?.vespaModel || invoiceService?.vespaModel}</b></CText>
-                    <CText color={invoiceTextColor}>Plaka: <b>{printInvoiceService?.plateNumber || invoiceService?.plateNumber}</b></CText>
-                    <CText color={invoiceTextColor}>Kilometre: <b>{printInvoiceService?.mileage || invoiceService?.mileage} km</b></CText>
-                  </CBox>
-                </CFlex>
-                {/* Servis Bilgileri */}
-                <CBox mb={2}>
-                  <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Servis</CText>
-                  <CText color={invoiceTextColor}>Tarih: <b>{printInvoiceService?.serviceDate || invoiceService?.serviceDate}</b></CText>
-                  <CText color={invoiceTextColor}>Tür: <b>{printInvoiceService?.serviceType || invoiceService?.serviceType}</b></CText>
-                  <CText color={invoiceTextColor}>Teknisyen: <b>{printInvoiceService?.technician || invoiceService?.technician}</b></CText>
+                {/* Şirket Bilgileri */}
+                <CBox mb={4} textAlign="center">
+                  <Heading size="lg" color={invoiceTextColor}>MotoEtiler</Heading>
+                  <CText color={invoiceSubTextColor}>Vespa Servis & Yedek Parça</CText>
+                  <CText color={invoiceSubTextColor}>Etiler Mah. Nispetiye Cad. No:15 Beşiktaş/İstanbul</CText>
+                  <CText color={invoiceSubTextColor}>Tel: +90 212 123 45 67 | Email: info@motoetiler.com</CText>
                 </CBox>
+                
+                <Divider borderColor={invoiceBorderColor} mb={4} />
+                
+                {/* Müşteri ve Servis Bilgileri */}
+                <SimpleGrid columns={2} spacing={4} mb={4}>
+                  <CBox>
+                    <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Müşteri</CText>
+                    <CText color={invoiceTextColor}>Ad: <b>{invoiceService.customerName}</b></CText>
+                    <CText color={invoiceTextColor}>Araç: <b>{invoiceService.vespaModel}</b></CText>
+                    <CText color={invoiceTextColor}>Plaka: <b>{invoiceService.plateNumber}</b></CText>
+                  </CBox>
+                  <CBox>
+                    <CText fontWeight="bold" fontSize="md" mb={1} color={invoiceTextColor}>Servis</CText>
+                    <CText color={invoiceTextColor}>Tarih: <b>{printInvoiceService?.serviceDate || invoiceService?.serviceDate}</b></CText>
+                    <CText color={invoiceTextColor}>Tür: <b>{printInvoiceService?.serviceType || invoiceService?.serviceType}</b></CText>
+                  </CBox>
+                </SimpleGrid>
+                
                 {/* İşlemler Tablosu */}
                 <CText fontWeight="bold" fontSize="lg" mt={4} mb={2}>İşlemler</CText>
                 <Table size="sm" variant="simple" mb={4}>
@@ -1688,6 +1752,7 @@ export default function ServiceTracking() {
                     ))}
                   </Tbody>
                 </Table>
+                
                 {/* Parçalar Tablosu */}
                 <CText fontWeight="bold" fontSize="lg" mt={4} mb={2}>Parçalar</CText>
                 <Table size="sm" variant="simple" mb={4}>
@@ -1714,6 +1779,7 @@ export default function ServiceTracking() {
                     </Tr>
                   </Tbody>
                 </Table>
+                
                 {/* Toplam */}
                 <Divider my={2} />
                 <CFlex justify="center" align="center" mt={2} mb={2}>
@@ -1725,19 +1791,9 @@ export default function ServiceTracking() {
                 <Button onClick={handlePrintInvoice} colorScheme="blue" size="md" mt={2}>
                   Yazdır
                 </Button>
-                {invoiceService && (
-                  <PDFDownloadLink document={<InvoicePDF invoice={invoiceService} customer={selectedCustomer} />} fileName="fatura.pdf">
-                    {({ loading }) => loading ? 'Hazırlanıyor...' : 'Faturayı PDF Olarak İndir'}
-                  </PDFDownloadLink>
-                )}
               </>
             )}
           </ModalBody>
-          <ModalFooter borderTop="2px solid" borderColor={invoiceBorderColor} bg={invoiceModalBg} borderBottomRadius="lg">
-            <Button onClick={() => setIsInvoiceOpen(false)} colorScheme="brand" borderRadius="lg" fontWeight="bold" w="100%">
-              Kapat
-            </Button>
-          </ModalFooter>
         </ModalContent>
       </Modal>
 

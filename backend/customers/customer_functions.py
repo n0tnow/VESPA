@@ -192,3 +192,108 @@ def search_customers(search_term):
         })
     
     return customers
+
+
+def create_customer_vespa(customer_id, vespa_data):
+    """Create customer vespa record"""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    
+    # Insert customer vespa
+    insert_query = """
+    INSERT INTO customer_vespas (
+        customer_id, vespa_model_id, license_plate, chassis_number,
+        purchase_date, current_mileage, service_interval_km, notes
+    ) 
+    OUTPUT INSERTED.id
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    
+    cursor.execute(insert_query, (
+        customer_id,
+        vespa_data['vespa_model_id'],
+        vespa_data['license_plate'],
+        vespa_data.get('chassis_number', ''),
+        vespa_data.get('purchase_date'),
+        vespa_data.get('current_mileage', 0),
+        vespa_data.get('service_interval_km', 5000),
+        vespa_data.get('vespa_notes', '')
+    ))
+    
+    vespa_id = cursor.fetchone()[0]
+    connection.commit()
+    connection.close()
+    
+    return vespa_id
+
+
+def get_vespa_models():
+    """Get all available Vespa models"""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    
+    query = """
+    SELECT id, model_code, model_name, model_year, engine_size, category
+    FROM vespa_models 
+    WHERE is_active = 1
+    ORDER BY model_name
+    """
+    
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    connection.close()
+    
+    models = []
+    for row in rows:
+        models.append({
+            'id': row[0],
+            'model_code': row[1],
+            'model_name': row[2],
+            'model_year': row[3],
+            'engine_size': row[4],
+            'category': row[5]
+        })
+    
+    return models
+
+
+def get_customer_vespas(customer_id):
+    """Get customer's Vespa motorcycles"""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    
+    query = """
+    SELECT 
+        cv.id, cv.license_plate, cv.chassis_number, cv.purchase_date,
+        cv.current_mileage, cv.last_service_date, cv.next_service_date,
+        cv.service_interval_km, cv.notes, cv.is_active,
+        vm.model_name, vm.model_year, vm.engine_size
+    FROM customer_vespas cv
+    INNER JOIN vespa_models vm ON cv.vespa_model_id = vm.id
+    WHERE cv.customer_id = ? AND cv.is_active = 1
+    ORDER BY cv.created_date DESC
+    """
+    
+    cursor.execute(query, (customer_id,))
+    rows = cursor.fetchall()
+    connection.close()
+    
+    vespas = []
+    for row in rows:
+        vespas.append({
+            'id': row[0],
+            'license_plate': row[1],
+            'chassis_number': row[2],
+            'purchase_date': row[3],
+            'current_mileage': row[4],
+            'last_service_date': row[5],
+            'next_service_date': row[6],
+            'service_interval_km': row[7],
+            'notes': row[8],
+            'is_active': row[9],
+            'model_name': row[10],
+            'model_year': row[11],
+            'engine_size': row[12]
+        })
+    
+    return vespas

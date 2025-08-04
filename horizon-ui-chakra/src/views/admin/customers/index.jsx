@@ -36,6 +36,12 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
+  Divider,
 } from '@chakra-ui/react';
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdNotifications, MdDirectionsBike } from 'react-icons/md';
 import Card from 'components/card/Card';
@@ -52,6 +58,18 @@ export default function CustomerManagement() {
   const inputBg = useColorModeValue('white', 'gray.800');
   const inputText = useColorModeValue('gray.800', 'white');
   const labelColor = useColorModeValue('gray.700', 'gray.200');
+  
+  // Additional color mode values for form elements
+  const modalBg = useColorModeValue('white', 'gray.800');
+  const modalHeaderColor = useColorModeValue('gray.700', 'white');
+  const modalCloseColor = useColorModeValue('gray.500', 'gray.300');
+  const modalFooterBg = useColorModeValue('gray.50', 'gray.700');
+  const borderColor = useColorModeValue('gray.300', 'gray.600');
+  const accordionBg = useColorModeValue('gray.50', 'gray.700');
+  const accordionHoverBg = useColorModeValue('gray.100', 'gray.600');
+  const optionBgLight = useColorModeValue('white', 'gray.700');
+  const optionColorLight = useColorModeValue('black', 'white');
+  const cancelButtonColor = useColorModeValue('gray.600', 'gray.300');
 
   // Customer state management with real API
   const [customers, setCustomers] = useState([]);
@@ -62,6 +80,20 @@ export default function CustomerManagement() {
   useEffect(() => {
     loadCustomers();
   }, []);
+
+  // Load Vespa models
+  const loadVespaModels = async () => {
+    try {
+      setLoadingModels(true);
+      const response = await apiService.getVespaModels();
+      setVespaModels(response.models || []);
+    } catch (error) {
+      console.error('Error loading Vespa models:', error);
+      setError('Vespa modelleri yüklenirken hata: ' + error.message);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const loadCustomers = async () => {
     try {
@@ -85,7 +117,8 @@ export default function CustomerManagement() {
         customer_type: customer.customer_type,
         notes: customer.notes,
         registrationDate: customer.created_date?.split('T')[0] || '',
-        status: customer.status || 'ACTIVE'
+        status: customer.status || 'ACTIVE',
+        vespa_count: customer.vespa_count || 0
       })) || [];
       
       setCustomers(transformedCustomers);
@@ -108,8 +141,33 @@ export default function CustomerManagement() {
     tax_number: '',
     customer_type: 'INDIVIDUAL',
     notes: '',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    // Vespa data (optional)
+    vespa: {
+      vespa_model_id: '',
+      license_plate: '',
+      chassis_number: '',
+      purchase_date: '',
+      current_mileage: 0,
+      service_interval_km: 5000,
+      vespa_notes: ''
+    }
   });
+
+  // Vespa models state
+  const [vespaModels, setVespaModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  // Helper function to update vespa data
+  const updateVespaData = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      vespa: {
+        ...prev.vespa,
+        [field]: value
+      }
+    }));
+  };
 
   const filteredCustomers = customers.filter(customer => {
     const searchableText = [
@@ -141,8 +199,19 @@ export default function CustomerManagement() {
       tax_number: '',
       customer_type: 'INDIVIDUAL',
       notes: '',
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      vespa: {
+        vespa_model_id: '',
+        license_plate: '',
+        chassis_number: '',
+        purchase_date: '',
+        current_mileage: 0,
+        service_interval_km: 5000,
+        vespa_notes: ''
+      }
     });
+    // Load Vespa models when opening form
+    loadVespaModels();
     onOpen();
   };
 
@@ -159,8 +228,19 @@ export default function CustomerManagement() {
       tax_number: customer.tax_number || '',
       customer_type: customer.customer_type || 'INDIVIDUAL',
       notes: customer.notes || '',
-      status: customer.status?.toUpperCase() || 'ACTIVE'
+      status: customer.status?.toUpperCase() || 'ACTIVE',
+      vespa: {
+        vespa_model_id: '',
+        license_plate: '',
+        chassis_number: '',
+        purchase_date: '',
+        current_mileage: 0,
+        service_interval_km: 5000,
+        vespa_notes: ''
+      }
     });
+    // Load Vespa models when opening form
+    loadVespaModels();
     onOpen();
   };
 
@@ -181,12 +261,25 @@ export default function CustomerManagement() {
         notes: formData.notes,
         status: formData.status
       };
+
+      // Add Vespa data if provided (only for new customers)
+      if (!selectedCustomer && formData.vespa.vespa_model_id && formData.vespa.license_plate) {
+        customerData.vespa = {
+          vespa_model_id: parseInt(formData.vespa.vespa_model_id),
+          license_plate: formData.vespa.license_plate,
+          chassis_number: formData.vespa.chassis_number,
+          purchase_date: formData.vespa.purchase_date || null,
+          current_mileage: parseInt(formData.vespa.current_mileage) || 0,
+          service_interval_km: parseInt(formData.vespa.service_interval_km) || 5000,
+          vespa_notes: formData.vespa.vespa_notes
+        };
+      }
       
       if (selectedCustomer) {
-        // Update existing customer
+        // Update existing customer (without Vespa - that's handled separately)
         await apiService.updateCustomer(selectedCustomer.id, customerData);
       } else {
-        // Add new customer
+        // Add new customer (with optional Vespa)
         await apiService.createCustomer(customerData);
       }
       
@@ -331,18 +424,18 @@ export default function CustomerManagement() {
             w={{ base: '100%', md: '200px' }}
             bg={inputBg}
             color={inputText}
-            borderColor={useColorModeValue('gray.300', 'gray.600')}
+            borderColor={borderColor}
           >
-            <option value="all" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+            <option value="all" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
               Tümü
             </option>
-            <option value="ACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+            <option value="ACTIVE" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
               Aktif
             </option>
-            <option value="INACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+            <option value="INACTIVE" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
               Pasif
             </option>
-            <option value="PENDING" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+            <option value="PENDING" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
               Beklemede
             </option>
           </Select>
@@ -372,9 +465,9 @@ export default function CustomerManagement() {
                 <Th>İletişim</Th>
                 <Th>Adres Bilgileri</Th>
                 <Th>TC/Vergi No</Th>
+                <Th>Motor Sayısı</Th>
                 <Th>Müşteri Tipi</Th>
                 <Th>Durum</Th>
-                <Th>Notlar</Th>
                 <Th>Kayıt Tarihi</Th>
                 <Th>İşlemler</Th>
               </Tr>
@@ -407,6 +500,14 @@ export default function CustomerManagement() {
                   <Td>{customer.tax_number || '-'}</Td>
                   <Td>
                     <Badge 
+                      colorScheme={customer.vespa_count > 0 ? 'green' : 'gray'}
+                      variant="solid"
+                    >
+                      {customer.vespa_count || 0} Motor
+                    </Badge>
+                  </Td>
+                  <Td>
+                    <Badge 
                       colorScheme={customer.customer_type === 'CORPORATE' ? 'purple' : 'blue'}
                       variant="subtle"
                     >
@@ -417,11 +518,6 @@ export default function CustomerManagement() {
                     <Badge colorScheme={getStatusColor(customer.status)}>
                       {getStatusText(customer.status)}
                     </Badge>
-                  </Td>
-                  <Td>
-                    <Text fontSize="sm" noOfLines={2}>
-                      {customer.notes || '-'}
-                    </Text>
                   </Td>
                   <Td>{customer.registrationDate || '-'}</Td>
                   <Td>
@@ -462,11 +558,11 @@ export default function CustomerManagement() {
       {/* Add/Edit Customer Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
-        <ModalContent bg={useColorModeValue('white', 'gray.800')}>
-          <ModalHeader color={useColorModeValue('gray.700', 'white')}>
+        <ModalContent bg={modalBg}>
+          <ModalHeader color={modalHeaderColor}>
             {selectedCustomer ? 'Müşteri Düzenle' : 'Yeni Müşteri Ekle'}
           </ModalHeader>
-          <ModalCloseButton color={useColorModeValue('gray.500', 'gray.300')} />
+          <ModalCloseButton color={modalCloseColor} />
           <ModalBody>
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
               {/* Personal Information */}
@@ -478,7 +574,7 @@ export default function CustomerManagement() {
                   placeholder="Adı girin"
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -490,7 +586,7 @@ export default function CustomerManagement() {
                   placeholder="Soyadı girin"
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -503,7 +599,7 @@ export default function CustomerManagement() {
                   placeholder="E-posta adresini girin"
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -515,7 +611,7 @@ export default function CustomerManagement() {
                   placeholder="Telefon numarasını girin"
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -527,7 +623,7 @@ export default function CustomerManagement() {
                   placeholder="TC Kimlik No veya Vergi No"
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -538,12 +634,12 @@ export default function CustomerManagement() {
                   onChange={(e) => setFormData({...formData, customer_type: e.target.value})}
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 >
-                  <option value="INDIVIDUAL" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                  <option value="INDIVIDUAL" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
                     Bireysel
                   </option>
-                  <option value="CORPORATE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                  <option value="CORPORATE" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
                     Kurumsal
                   </option>
                 </Select>
@@ -559,7 +655,7 @@ export default function CustomerManagement() {
                   rows={2}
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -571,7 +667,7 @@ export default function CustomerManagement() {
                   placeholder="İlçe"
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -583,7 +679,7 @@ export default function CustomerManagement() {
                   placeholder="Şehir"
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
 
@@ -594,12 +690,12 @@ export default function CustomerManagement() {
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 >
-                  <option value="ACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                  <option value="ACTIVE" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
                     Aktif
                   </option>
-                  <option value="INACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                  <option value="INACTIVE" style={{backgroundColor: optionBgLight, color: optionColorLight}}>
                     Pasif
                   </option>
                 </Select>
@@ -614,18 +710,156 @@ export default function CustomerManagement() {
                   rows={3}
                   bg={inputBg}
                   color={inputText}
-                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                  borderColor={borderColor}
                 />
               </FormControl>
             </SimpleGrid>
+
+            {/* Vespa Information (Only for new customers) */}
+            {!selectedCustomer && (
+              <>
+                <Divider my={6} />
+                <Accordion allowToggle>
+                  <AccordionItem border="none">
+                    <AccordionButton
+                      bg={accordionBg}
+                      borderRadius="md"
+                      _hover={{ bg: accordionHoverBg }}
+                    >
+                      <Box flex="1" textAlign="left">
+                        <Text fontWeight="bold" color={labelColor}>
+                          🏍️ Vespa Motor Bilgileri (İsteğe Bağlı)
+                        </Text>
+                        <Text fontSize="sm" color="gray.500">
+                          Müşteriyle birlikte motor bilgilerini de kaydedin
+                        </Text>
+                      </Box>
+                      <AccordionIcon color={labelColor} />
+                    </AccordionButton>
+                    <AccordionPanel pb={4}>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        <FormControl>
+                          <FormLabel color={labelColor}>Vespa Modeli</FormLabel>
+                          <Select
+                            value={formData.vespa.vespa_model_id}
+                            onChange={(e) => updateVespaData('vespa_model_id', e.target.value)}
+                            placeholder="Vespa modelini seçin"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                            disabled={loadingModels}
+                          >
+                            {vespaModels.map((model) => (
+                              <option 
+                                key={model.id} 
+                                value={model.id}
+                                style={{
+                                  backgroundColor: optionBgLight,
+                                  color: optionColorLight
+                                }}
+                              >
+                                {model.model_name} ({model.engine_size})
+                              </option>
+                            ))}
+                          </Select>
+                          {loadingModels && (
+                            <Text fontSize="xs" color="gray.500" mt={1}>
+                              Modeller yükleniyor...
+                            </Text>
+                          )}
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel color={labelColor}>Plaka</FormLabel>
+                          <Input
+                            value={formData.vespa.license_plate}
+                            onChange={(e) => updateVespaData('license_plate', e.target.value.toUpperCase())}
+                            placeholder="34 ABC 123"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                          />
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel color={labelColor}>Şasi Numarası</FormLabel>
+                          <Input
+                            value={formData.vespa.chassis_number}
+                            onChange={(e) => updateVespaData('chassis_number', e.target.value)}
+                            placeholder="Şasi numarası (opsiyonel)"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                          />
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel color={labelColor}>Satın Alma Tarihi</FormLabel>
+                          <Input
+                            type="date"
+                            value={formData.vespa.purchase_date}
+                            onChange={(e) => updateVespaData('purchase_date', e.target.value)}
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                          />
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel color={labelColor}>Mevcut KM</FormLabel>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={formData.vespa.current_mileage}
+                            onChange={(e) => updateVespaData('current_mileage', e.target.value)}
+                            placeholder="0"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                          />
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel color={labelColor}>Servis Aralığı (KM)</FormLabel>
+                          <Input
+                            type="number"
+                            min="1000"
+                            step="1000"
+                            value={formData.vespa.service_interval_km}
+                            onChange={(e) => updateVespaData('service_interval_km', e.target.value)}
+                            placeholder="5000"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                          />
+                        </FormControl>
+
+                        <FormControl gridColumn={{ base: 1, md: 'span 2' }}>
+                          <FormLabel color={labelColor}>Motor Notları</FormLabel>
+                          <Textarea
+                            value={formData.vespa.vespa_notes}
+                            onChange={(e) => updateVespaData('vespa_notes', e.target.value)}
+                            placeholder="Motor hakkında notlar"
+                            rows={2}
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                          />
+                        </FormControl>
+                      </SimpleGrid>
+                    </AccordionPanel>
+                  </AccordionItem>
+                </Accordion>
+              </>
+            )}
           </ModalBody>
 
-          <ModalFooter bg={useColorModeValue('gray.50', 'gray.700')}>
+          <ModalFooter bg={modalFooterBg}>
             <Button 
               variant="ghost" 
               mr={3} 
               onClick={onClose}
-              color={useColorModeValue('gray.600', 'gray.300')}
+              color={cancelButtonColor}
             >
               İptal
             </Button>

@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .auth_functions import authenticate_user_with_jwt, get_user_by_id
-from .customer_functions import get_all_customers, get_customer_by_id, create_customer, update_customer, search_customers
+from .customer_functions import get_all_customers, get_customer_by_id, create_customer, update_customer, search_customers, get_vespa_models, create_customer_vespa, get_customer_vespas
 
 
 # ===== AUTHENTICATION VIEWS =====
@@ -118,9 +118,17 @@ class CustomersView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def post(self, request):
-        """Create new customer"""
+        """Create new customer with optional Vespa"""
         try:
+            # Create customer
             customer_id = create_customer(request.data)
+            
+            # If Vespa data provided, create customer vespa
+            vespa_data = request.data.get('vespa')
+            if vespa_data and vespa_data.get('vespa_model_id') and vespa_data.get('license_plate'):
+                create_customer_vespa(customer_id, vespa_data)
+            
+            # Get complete customer data
             customer = get_customer_by_id(customer_id)
             
             return Response({
@@ -175,4 +183,42 @@ class CustomerDetailView(APIView):
         except Exception as e:
             return Response({
                 'error': f'Failed to update customer: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ===== VESPA VIEWS =====
+
+class VespaModelsView(APIView):
+    """Vespa models management"""
+    
+    def get(self, request):
+        """Get all Vespa models"""
+        try:
+            models = get_vespa_models()
+            return Response({
+                'models': models,
+                'count': len(models)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to get Vespa models: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CustomerVespasView(APIView):
+    """Customer's Vespa motorcycles"""
+    
+    def get(self, request, customer_id):
+        """Get customer's Vespas"""
+        try:
+            vespas = get_customer_vespas(customer_id)
+            return Response({
+                'vespas': vespas,
+                'count': len(vespas)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to get customer Vespas: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -80,6 +80,11 @@ export default function StockManagement() {
   const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
   const buttonBg = useColorModeValue('brand.500', 'brand.400');
   
+  // Additional dark mode fixes
+  const cancelButtonHoverBg = useColorModeValue('gray.100', 'gray.700');
+  const optionTextColor = useColorModeValue('black', 'white');
+  const selectBg = useColorModeValue('white', 'gray.700');
+  
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -376,6 +381,9 @@ export default function StockManagement() {
                     placeholder="Ürün ara..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
                   />
                 </InputGroup>
                 <Select
@@ -383,10 +391,13 @@ export default function StockManagement() {
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
                   w={{ base: '100%', md: '200px' }}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
                 >
-                  <option value="all">Tümü</option>
+                  <option value="all" style={{ backgroundColor: selectBg, color: optionTextColor }}>Tümü</option>
                   {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat} style={{ backgroundColor: selectBg, color: optionTextColor }}>{cat}</option>
                   ))}
                 </Select>
               </Stack>
@@ -653,7 +664,7 @@ export default function StockManagement() {
                   _placeholder={{ color: 'gray.400' }}
                 >
                   {categories.map(cat => (
-                    <option key={cat} value={cat} style={{ color: 'black' }}>{cat}</option>
+                    <option key={cat} value={cat} style={{ backgroundColor: selectBg, color: optionTextColor }}>{cat}</option>
                   ))}
                 </Select>
               </FormControl>
@@ -747,7 +758,7 @@ export default function StockManagement() {
                   _placeholder={{ color: 'gray.400' }}
                 >
                   {suppliers.map(supplier => (
-                    <option key={supplier.id} value={supplier.name} style={{ color: 'black' }}>{supplier.name}</option>
+                    <option key={supplier.id} value={supplier.name} style={{ backgroundColor: selectBg, color: optionTextColor }}>{supplier.name}</option>
                   ))}
                 </Select>
               </FormControl>
@@ -769,7 +780,7 @@ export default function StockManagement() {
           </ModalBody>
 
           <ModalFooter bg={modalBg} borderBottomRadius="2xl">
-            <Button variant="ghost" mr={3} onClick={onClose} color={buttonTextColor} bg="transparent" _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}>
+            <Button variant="ghost" mr={3} onClick={onClose} color={buttonTextColor} bg="transparent" _hover={{ bg: cancelButtonHoverBg }}>
               İptal
             </Button>
             <Button

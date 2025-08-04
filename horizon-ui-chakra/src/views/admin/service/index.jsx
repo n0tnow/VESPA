@@ -53,6 +53,7 @@ import {
   Divider,
   Heading,
   Image,
+  Progress,
   AlertDialog,
   AlertDialogBody,
   AlertDialogFooter,
@@ -110,6 +111,32 @@ export default function ServiceTracking() {
   const invoiceTableHeaderColor = useColorModeValue('gray.700', 'gray.200');
   const invoiceTableRowBorder = useColorModeValue('gray.100', 'gray.800');
   const invoiceTotalColor = useColorModeValue('brand.700', 'brand.200');
+  
+  // Additional dark mode color definitions
+  const inputBg = useColorModeValue('white', 'gray.700');
+  const inputTextColor = useColorModeValue('gray.800', 'gray.100');
+  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
+  const selectBg = useColorModeValue('white', 'gray.700');
+  const optionBg = useColorModeValue('white', 'gray.700');
+  const optionTextColor = useColorModeValue('black', 'white');
+  const menuButtonHoverBg = useColorModeValue("gray.100", "gray.600");
+  const menuButtonActiveBg = useColorModeValue("gray.200", "gray.500");
+  const cancelButtonColor = useColorModeValue('gray.600', 'gray.300');
+  const cancelButtonHoverBg = useColorModeValue('gray.100', 'gray.700');
+  
+  // Progress bar colors for analysis tab
+  const progressBarBg = useColorModeValue("gray.200", "gray.700");
+  
+  // Status card colors
+  const yellowCardBg = useColorModeValue("yellow.50", "yellow.900");
+  const yellowCardBorder = useColorModeValue("yellow.200", "yellow.700");
+  const blueCardBg = useColorModeValue("blue.50", "blue.900");
+  const blueCardBorder = useColorModeValue("blue.200", "blue.700");
+  const greenCardBg = useColorModeValue("green.50", "green.900");
+  const greenCardBorder = useColorModeValue("green.200", "green.700");
+  const brandCardBg = useColorModeValue("brand.50", "brand.900");
+  const brandCardBorder = useColorModeValue("brand.200", "brand.700");
+  
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedService, setSelectedService] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1052,6 +1079,9 @@ export default function ServiceTracking() {
                     placeholder="Servis ara..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
                   />
                 </InputGroup>
                 <Select
@@ -1059,12 +1089,15 @@ export default function ServiceTracking() {
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   w={{ base: '100%', md: '200px' }}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
                 >
-                  <option value="all">Tümü</option>
-                  <option value="pending">Beklemede</option>
-                  <option value="in_progress">Devam Ediyor</option>
-                  <option value="completed">Tamamlandı</option>
-                  <option value="cancelled">İptal Edildi</option>
+                  <option value="all" style={{ backgroundColor: optionBg, color: optionTextColor }}>Tümü</option>
+                  <option value="pending" style={{ backgroundColor: optionBg, color: optionTextColor }}>Beklemede</option>
+                  <option value="in_progress" style={{ backgroundColor: optionBg, color: optionTextColor }}>Devam Ediyor</option>
+                  <option value="completed" style={{ backgroundColor: optionBg, color: optionTextColor }}>Tamamlandı</option>
+                  <option value="cancelled" style={{ backgroundColor: optionBg, color: optionTextColor }}>İptal Edildi</option>
                 </Select>
               </Stack>
 
@@ -1199,64 +1232,79 @@ export default function ServiceTracking() {
               
               <SimpleGrid columns={{ base: 1, md: 2 }} gap="20px">
                 <Card>
-                  <CText fontSize="lg" fontWeight="bold" mb="10px">Servis Türü Dağılımı</CText>
+                  <CBox mb="4">
+                    <CText fontSize="lg" fontWeight="bold" color={textColor}>Servis Türü Dağılımı</CText>
+                    <CText fontSize="sm" color={secondaryTextColor}>Gelir bazında servis türü analizi</CText>
+                  </CBox>
                   {serviceTypes.map(type => {
                     const typeServices = serviceRecords.filter(service => service.serviceType === type);
                     const typeRevenue = typeServices.reduce((sum, service) => sum + service.totalCost, 0);
                     const totalRevenue = calculateTotalRevenue();
                     const percentage = totalRevenue > 0 ? (typeRevenue / totalRevenue) * 100 : 0;
                     
+                    // Sadece gerçek data olan servis türlerini göster
+                    if (typeRevenue === 0) return null;
+                    
                     return (
                       <CBox key={type} mb="10px">
-                        <CFlex justify="space-between" mb="5px">
-                          <CText fontSize="sm">{type}</CText>
-                          <CText fontSize="sm">₺{typeRevenue.toLocaleString()}</CText>
+                        <CFlex justify="space-between" mb="2" align="center">
+                          <CText fontSize="sm" color={textColor} fontWeight="medium">{type}</CText>
+                          <CText fontSize="sm" color={textColor} fontWeight="bold">₺{typeRevenue.toLocaleString()}</CText>
                         </CFlex>
-                        <CBox bg="gray.200" borderRadius="md" h="8px">
-                          <CBox 
-                            bg={brandColor} 
-                            h="100%" 
-                            borderRadius="md" 
-                            width={`${percentage}%`}
+                        <CFlex align="center" gap="3">
+                          <Progress
+                            value={percentage}
+                            colorScheme="brand"
+                            size="sm"
+                            borderRadius="md"
+                            flex="1"
+                            maxW="200px"
+                            bg={progressBarBg}
                           />
-                        </CBox>
+                          <CText fontSize="xs" color={secondaryTextColor} minW="35px" textAlign="right">
+                            {percentage.toFixed(1)}%
+                          </CText>
+                        </CFlex>
                       </CBox>
                     );
                   })}
                 </Card>
 
                 <Card>
-                  <CText fontSize="lg" fontWeight="bold" mb="10px">Servis Durumu Özeti</CText>
+                  <CBox mb="4">
+                    <CText fontSize="lg" fontWeight="bold" color={textColor}>Servis Durumu Özeti</CText>
+                    <CText fontSize="sm" color={secondaryTextColor}>Anlık servis istatistikleri</CText>
+                  </CBox>
                   <Stack spacing={4}>
-                    <CBox>
-                      <CFlex justify="space-between">
-                        <CText>Bekleyen Servisler</CText>
-                        <CText fontWeight="bold" color="yellow.500">
+                    <CBox p="3" bg={yellowCardBg} borderRadius="md" border="1px solid" borderColor={yellowCardBorder}>
+                      <CFlex justify="space-between" align="center">
+                        <CText color={textColor} fontSize="sm">Bekleyen Servisler</CText>
+                        <CText fontWeight="bold" color="yellow.500" fontSize="lg">
                           {getPendingServices()}
                         </CText>
                       </CFlex>
                     </CBox>
-                    <CBox>
-                      <CFlex justify="space-between">
-                        <CText>Devam Eden Servisler</CText>
-                        <CText fontWeight="bold" color="blue.500">
+                    <CBox p="3" bg={blueCardBg} borderRadius="md" border="1px solid" borderColor={blueCardBorder}>
+                      <CFlex justify="space-between" align="center">
+                        <CText color={textColor} fontSize="sm">Devam Eden Servisler</CText>
+                        <CText fontWeight="bold" color="blue.500" fontSize="lg">
                           {getInProgressServices()}
                         </CText>
                       </CFlex>
                     </CBox>
-                    <CBox>
-                      <CFlex justify="space-between">
-                        <CText>Tamamlanan Servisler</CText>
-                        <CText fontWeight="bold" color="green.500">
+                    <CBox p="3" bg={greenCardBg} borderRadius="md" border="1px solid" borderColor={greenCardBorder}>
+                      <CFlex justify="space-between" align="center">
+                        <CText color={textColor} fontSize="sm">Tamamlanan Servisler</CText>
+                        <CText fontWeight="bold" color="green.500" fontSize="lg">
                           {getCompletedServices()}
                         </CText>
                       </CFlex>
                     </CBox>
-                    <Divider />
-                    <CBox>
-                      <CFlex justify="space-between">
-                        <CText>Toplam Gelir</CText>
-                        <CText fontWeight="bold" color={brandColor}>
+                    <Divider borderColor={borderColor} />
+                    <CBox p="3" bg={brandCardBg} borderRadius="md" border="1px solid" borderColor={brandCardBorder}>
+                      <CFlex justify="space-between" align="center">
+                        <CText color={textColor} fontSize="sm" fontWeight="medium">💰 Toplam Gelir</CText>
+                        <CText fontWeight="bold" color={brandColor} fontSize="xl">
                           ₺{calculateTotalRevenue().toLocaleString()}
                         </CText>
                       </CFlex>
@@ -1283,14 +1331,17 @@ export default function ServiceTracking() {
             <Stack spacing={4}>
               {/* Müşteri Seçimi */}
               <FormControl isRequired>
-                <FormLabel>Müşteri Seçimi</FormLabel>
+                <FormLabel color={textColor}>Müşteri Seçimi</FormLabel>
                 <Select
                   value={formData.customerId}
                   onChange={(e) => handleCustomerSelect(e.target.value)}
                   placeholder="Müşteri seçin"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
                 >
                   {customers.map(customer => (
-                    <option key={customer.id} value={customer.id}>
+                    <option key={customer.id} value={customer.id} style={{ backgroundColor: optionBg, color: optionTextColor }}>
                       {customer.name} - {customer.vespaModel} ({customer.plateNumber})
                     </option>
                   ))}
@@ -1329,13 +1380,13 @@ export default function ServiceTracking() {
 
               <Stack direction="row" spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Kilometre</FormLabel>
+                  <FormLabel color={textColor}>Kilometre</FormLabel>
                   <NumberInput
                     value={formData.mileage}
                     onChange={(value) => setFormData({...formData, mileage: parseInt(value) || 0})}
                     min={0}
                   >
-                    <NumberInputField />
+                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} />
                     <NumberInputStepper>
                       <NumberIncrementStepper />
                       <NumberDecrementStepper />
@@ -1344,25 +1395,31 @@ export default function ServiceTracking() {
                 </FormControl>
 
                 <FormControl isRequired>
-                  <FormLabel>Servis Tarihi</FormLabel>
+                  <FormLabel color={textColor}>Servis Tarihi</FormLabel>
                   <Input
                     type="date"
                     value={formData.serviceDate}
                     onChange={(e) => setFormData({...formData, serviceDate: e.target.value})}
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
                   />
                 </FormControl>
               </Stack>
 
               <Stack direction="row" spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Servis Türü</FormLabel>
+                  <FormLabel color={textColor}>Servis Türü</FormLabel>
                   <Select
                     value={formData.serviceType}
                     onChange={(e) => setFormData({...formData, serviceType: e.target.value})}
                     placeholder="Servis türü seçin"
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
                   >
                     {serviceTypes.map(type => (
-                      <option key={type} value={type}>{type}</option>
+                      <option key={type} value={type} style={{ backgroundColor: optionBg, color: optionTextColor }}>{type}</option>
                     ))}
                   </Select>
                 </FormControl>
@@ -1384,8 +1441,8 @@ export default function ServiceTracking() {
                     color={invoiceTextColor}
                     borderWidth="1px"
                     borderColor={invoiceBorderColor}
-                    _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}
-                    _active={{ bg: useColorModeValue("gray.200", "gray.500") }}
+                    _hover={{ bg: menuButtonHoverBg }}
+                    _active={{ bg: menuButtonActiveBg }}
                     _focus={{ boxShadow: "outline" }}
                     textAlign="left"
                     px={4}
@@ -1455,36 +1512,43 @@ export default function ServiceTracking() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Durum</FormLabel>
+                <FormLabel color={textColor}>Durum</FormLabel>
                 <Select
                   value={formData.status}
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
                 >
-                  <option value="pending">Beklemede</option>
-                  <option value="in_progress">Devam Ediyor</option>
-                  <option value="completed">Tamamlandı</option>
-                  <option value="cancelled">İptal Edildi</option>
+                  <option value="pending" style={{ backgroundColor: optionBg, color: optionTextColor }}>Beklemede</option>
+                  <option value="in_progress" style={{ backgroundColor: optionBg, color: optionTextColor }}>Devam Ediyor</option>
+                  <option value="completed" style={{ backgroundColor: optionBg, color: optionTextColor }}>Tamamlandı</option>
+                  <option value="cancelled" style={{ backgroundColor: optionBg, color: optionTextColor }}>İptal Edildi</option>
                 </Select>
               </FormControl>
 
               <FormControl>
-                <FormLabel>Açıklama</FormLabel>
+                <FormLabel color={textColor}>Açıklama</FormLabel>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                   placeholder="Servis detayları"
                   rows={3}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>İşçilik Ücreti (₺)</FormLabel>
+                <FormLabel color={textColor}>İşçilik Ücreti (₺)</FormLabel>
                 <NumberInput
                   value={formData.laborCost}
                   onChange={(value) => setFormData({...formData, laborCost: parseFloat(value) || 0})}
                   min={0}
                 >
-                  <NumberInputField />
+                  <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} />
                   <NumberInputStepper>
                     <NumberIncrementStepper />
                     <NumberDecrementStepper />
@@ -1493,8 +1557,8 @@ export default function ServiceTracking() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Kullanılan Parçalar ({selectedCustomer ? selectedCustomer.vespaModel : 'Müşteri Seç'})</FormLabel>
-                <CBox border="1px" borderColor="gray.200" p="4" borderRadius="md" maxH="300px" overflowY="auto">
+                <FormLabel color={textColor}>Kullanılan Parçalar ({selectedCustomer ? selectedCustomer.vespaModel : 'Müşteri Seç'})</FormLabel>
+                <CBox border="1px" borderColor={borderColor} p="4" borderRadius="md" maxH="300px" overflowY="auto">
                   {selectedCustomer ? (
                     <VStack align="start" spacing={2}>
                       {getPartsForModel(selectedCustomer.vespaModel).map(part => {
@@ -1548,11 +1612,14 @@ export default function ServiceTracking() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Sonraki Servis Tarihi</FormLabel>
+                <FormLabel color={textColor}>Sonraki Servis Tarihi</FormLabel>
                 <Input
                   type="date"
                   value={formData.nextServiceDate}
                   onChange={(e) => setFormData({...formData, nextServiceDate: e.target.value})}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
                 />
               </FormControl>
 
@@ -1606,7 +1673,13 @@ export default function ServiceTracking() {
           </ModalBody>
 
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
+            <Button 
+              variant="ghost" 
+              mr={3} 
+              onClick={onClose}
+              color={cancelButtonColor}
+              _hover={{ bg: cancelButtonHoverBg }}
+            >
               İptal
             </Button>
             <Button colorScheme="brand" onClick={handleSaveService}>
@@ -1635,9 +1708,9 @@ export default function ServiceTracking() {
                   placeholder="Servis türü ara..."
                   value={priceSearchTerm}
                   onChange={(e) => setPriceSearchTerm(e.target.value)}
-                  bg={cardBg}
-                  color={textColor}
-                  borderColor={borderColor}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
                   _placeholder={{ color: secondaryTextColor }}
                 />
               </InputGroup>
@@ -1662,11 +1735,8 @@ export default function ServiceTracking() {
                               value={editPrice}
                               onChange={(value) => setEditPrice(value)}
                               min={0}
-                              bg={cardBg}
-                              color={textColor}
-                              borderColor={borderColor}
                             >
-                              <NumberInputField color={textColor} borderColor={borderColor} />
+                              <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} />
                               <NumberInputStepper>
                                 <NumberIncrementStepper />
                                 <NumberDecrementStepper />
@@ -1926,15 +1996,20 @@ export default function ServiceTracking() {
         onClose={handleDeleteCancel}
       >
         <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+          <AlertDialogContent bg={modalBg} borderColor={borderColor}>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold" color={textColor}>
               Silme Onayı
             </AlertDialogHeader>
-            <AlertDialogBody>
+            <AlertDialogBody color={textColor}>
               Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
             </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={handleDeleteCancel}>
+              <Button 
+                ref={cancelRef} 
+                onClick={handleDeleteCancel}
+                color={cancelButtonColor}
+                _hover={{ bg: cancelButtonHoverBg }}
+              >
                 İptal
               </Button>
               <Button colorScheme="red" onClick={handleDeleteConfirm} ml={3}>

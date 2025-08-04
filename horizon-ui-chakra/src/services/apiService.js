@@ -205,6 +205,20 @@ class ApiService {
     });
   }
 
+  /**
+   * Get Vespa models
+   */
+  async getVespaModels() {
+    return await this.makeRequest('/customers/vespa-models/');
+  }
+
+  /**
+   * Get customer's Vespas
+   */
+  async getCustomerVespas(customerId) {
+    return await this.makeRequest(`/customers/${customerId}/vespas/`);
+  }
+
   // ===== INVENTORY ENDPOINTS =====
 
   /**

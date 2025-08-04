@@ -63,6 +63,27 @@ export default function AppointmentManagement() {
   const brandColor = useColorModeValue('brand.500', 'white');
   const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
   const appointmentBg = useColorModeValue('gray.50', 'gray.700');
+  
+  // Dark mode color definitions
+  const textColor = useColorModeValue('gray.700', 'white');
+  const secondaryTextColor = useColorModeValue('gray.600', 'gray.400');
+  const modalBg = useColorModeValue('white', 'gray.800');
+  const modalHeaderColor = useColorModeValue('brand.600', 'brand.200');
+  const inputBg = useColorModeValue('white', 'gray.700');
+  const inputTextColor = useColorModeValue('gray.800', 'gray.100');
+  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
+  const selectBg = useColorModeValue('white', 'gray.700');
+  const optionBg = useColorModeValue('white', 'gray.700');
+  const optionTextColor = useColorModeValue('black', 'white');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const tableRowHover = useColorModeValue('gray.50', 'gray.700');
+  const cancelButtonColor = useColorModeValue('gray.600', 'gray.300');
+  const cancelButtonHoverBg = useColorModeValue('gray.100', 'gray.700');
+  
+  // Time slot hover colors
+  const timeSlotHoverBg = useColorModeValue('brand.50', 'brand.900');
+  
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -332,11 +353,14 @@ export default function AppointmentManagement() {
               {/* Date Selection */}
               <Stack direction={{ base: 'column', md: 'row' }} spacing={4} mb="20px">
                 <FormControl w={{ base: '100%', md: '200px' }}>
-                  <FormLabel>Tarih Seç</FormLabel>
+                  <FormLabel color={textColor}>Tarih Seç</FormLabel>
                   <Input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
                   />
                 </FormControl>
               </Stack>
@@ -344,7 +368,7 @@ export default function AppointmentManagement() {
               {/* Loading State */}
               {loading ? (
                 <Box textAlign="center" py="40px">
-                  <Text>Randevular yükleniyor...</Text>
+                  <Text color={textColor}>Randevular yükleniyor...</Text>
                 </Box>
               ) : (
                 /* Appointments Table */
@@ -367,40 +391,43 @@ export default function AppointmentManagement() {
                         .filter(app => !selectedDate || app?.date === selectedDate)
                         .map((appointment) => (
                         <Tr key={appointment?.id || Math.random()}>
-                          <Td>{appointment?.appointmentNumber || '-'}</Td>
+                          <Td><Text color={textColor}>{appointment?.appointmentNumber || '-'}</Text></Td>
                           <Td>
                             <Box>
-                              <Text fontWeight="bold">{appointment?.customerName || 'Bilinmeyen'}</Text>
-                              <Text fontSize="sm" color="gray.500">{appointment?.customerPhone || '-'}</Text>
+                              <Text fontWeight="bold" color={textColor}>{appointment?.customerName || 'Bilinmeyen'}</Text>
+                              <Text fontSize="sm" color={secondaryTextColor}>{appointment?.customerPhone || '-'}</Text>
                             </Box>
                           </Td>
                           <Td>
                             <Box>
-                              <Text>{appointment?.vespaModel || '-'}</Text>
-                              <Text fontSize="sm" color="gray.500">{appointment?.licensePlate || '-'}</Text>
+                              <Text color={textColor}>{appointment?.vespaModel || '-'}</Text>
+                              <Text fontSize="sm" color={secondaryTextColor}>{appointment?.licensePlate || '-'}</Text>
                             </Box>
                           </Td>
                           <Td>
                             <Box>
-                              <Text>{appointment?.date || '-'}</Text>
+                              <Text color={textColor}>{appointment?.date || '-'}</Text>
                               <Text fontSize="sm" color="brand.500">{appointment?.time || '-'}</Text>
                             </Box>
                           </Td>
-                          <Td>{appointment?.serviceType || '-'}</Td>
-                          <Td>{appointment?.technician || '-'}</Td>
+                          <Td><Text color={textColor}>{appointment?.serviceType || '-'}</Text></Td>
+                          <Td><Text color={textColor}>{appointment?.technician || '-'}</Text></Td>
                           <Td>
                             <Select
                               size="sm"
                               value={appointment?.status || 'SCHEDULED'}
                               onChange={(e) => handleStatusChange(appointment?.id, e.target.value)}
                               w="140px"
+                              bg={selectBg}
+                              color={inputTextColor}
+                              borderColor={inputBorderColor}
                             >
-                              <option value="SCHEDULED">Planlandı</option>
-                              <option value="CONFIRMED">Onaylandı</option>
-                              <option value="IN_PROGRESS">Devam Ediyor</option>
-                              <option value="COMPLETED">Tamamlandı</option>
-                              <option value="CANCELLED">İptal</option>
-                              <option value="NO_SHOW">Gelmedi</option>
+                              <option value="SCHEDULED" style={{ backgroundColor: optionBg, color: optionTextColor }}>Planlandı</option>
+                              <option value="CONFIRMED" style={{ backgroundColor: optionBg, color: optionTextColor }}>Onaylandı</option>
+                              <option value="IN_PROGRESS" style={{ backgroundColor: optionBg, color: optionTextColor }}>Devam Ediyor</option>
+                              <option value="COMPLETED" style={{ backgroundColor: optionBg, color: optionTextColor }}>Tamamlandı</option>
+                              <option value="CANCELLED" style={{ backgroundColor: optionBg, color: optionTextColor }}>İptal</option>
+                              <option value="NO_SHOW" style={{ backgroundColor: optionBg, color: optionTextColor }}>Gelmedi</option>
                             </Select>
                           </Td>
                           <Td>
@@ -435,73 +462,134 @@ export default function AppointmentManagement() {
             <TabPanel>
               <Grid templateColumns="1fr 300px" gap={6}>
                 <GridItem>
-                  <Card>
-                    <Text fontSize="xl" fontWeight="bold" mb="20px">
-                      Randevu Takvimi - {selectedDate}
+                  <Card bg={cardBg}>
+                    <Text fontSize="xl" fontWeight="bold" mb="20px" color={textColor}>
+                      📅 Randevu Takvimi - {selectedDate}
                     </Text>
-                    <VStack align="stretch" spacing={2}>
+                    <VStack align="stretch" spacing={3}>
                       {(todaysAppointments || []).map((appointment) => (
                         <Box
                           key={appointment?.id || Math.random()}
-                          p={3}
-                          borderRadius="md"
+                          p={4}
+                          borderRadius="lg"
                           bg={appointmentBg}
                           borderLeft="4px solid"
                           borderColor={`${getStatusColor(appointment?.status)}.500`}
+                          border="1px solid"
+                          borderLeftColor={`${getStatusColor(appointment?.status)}.500`}
+                          borderRightColor={borderColor}
+                          borderTopColor={borderColor}
+                          borderBottomColor={borderColor}
+                          transition="all 0.2s"
+                          _hover={{ transform: 'translateY(-2px)', shadow: 'md' }}
                         >
-                          <HStack justify="space-between">
-                            <Box>
-                              <Text fontWeight="bold">{appointment?.time || '-'} - {appointment?.customerName || 'Bilinmeyen'}</Text>
-                              <Text fontSize="sm">{appointment?.serviceType || '-'}</Text>
-                              <Text fontSize="xs" color="gray.500">{appointment?.vespaModel || '-'}</Text>
+                          <HStack justify="space-between" align="flex-start">
+                            <Box flex="1">
+                              <Text fontWeight="bold" color={textColor} fontSize="lg">
+                                🕐 {appointment?.time || '-'} - {appointment?.customerName || 'Bilinmeyen'}
+                              </Text>
+                              <Text fontSize="sm" color={textColor} mt="1">
+                                🔧 {appointment?.serviceType || '-'}
+                              </Text>
+                              <Text fontSize="xs" color={secondaryTextColor} mt="1">
+                                🏍️ {appointment?.vespaModel || '-'}
+                              </Text>
                             </Box>
-                            <Badge colorScheme={getStatusColor(appointment?.status)}>
+                            <Badge colorScheme={getStatusColor(appointment?.status)} px="3" py="1" borderRadius="full">
                               {getStatusText(appointment?.status)}
                             </Badge>
                           </HStack>
                         </Box>
                       ))}
                       {(todaysAppointments || []).length === 0 && (
-                        <Text textAlign="center" color="gray.500" py="40px">
-                          Seçilen tarihte randevu bulunmuyor.
-                        </Text>
+                        <Box textAlign="center" py="40px">
+                          <Text color={secondaryTextColor} fontSize="lg">
+                            📅 Seçilen tarihte randevu bulunmuyor.
+                          </Text>
+                          <Text color={secondaryTextColor} fontSize="sm" mt="2">
+                            Yeni randevu eklemek için yukarıdaki butonu kullanın.
+                          </Text>
+                        </Box>
                       )}
                     </VStack>
                   </Card>
                 </GridItem>
                 <GridItem>
-                  <MiniCalendar />
+                  <Card bg={cardBg}>
+                    <Text fontSize="lg" fontWeight="bold" mb="3" color={textColor}>
+                      📅 Mini Takvim
+                    </Text>
+                    <MiniCalendar />
+                  </Card>
                 </GridItem>
               </Grid>
             </TabPanel>
 
             {/* Time Slots Tab */}
             <TabPanel>
-              <Text fontSize="xl" fontWeight="bold" mb="20px">
-                Müsait Zaman Slotları - {selectedDate}
-              </Text>
-              <SimpleGrid columns={{ base: 2, md: 4, lg: 6 }} spacing={4}>
+              <Box mb="6">
+                <Text fontSize="xl" fontWeight="bold" mb="2" color={textColor}>
+                  ⏰ Müsait Zaman Slotları
+                </Text>
+                <Text fontSize="md" color={secondaryTextColor}>
+                  📅 {selectedDate} - Aşağıdaki saatlerden birini seçerek hızlı randevu oluşturun
+                </Text>
+              </Box>
+              
+              <SimpleGrid columns={{ base: 2, md: 3, lg: 4, xl: 6 }} spacing={4}>
                 {(availableSlots || []).map((slot, index) => (
                   <Button
                     key={index}
                     variant="outline"
-                    h="60px"
+                    h="80px"
+                    borderRadius="lg"
+                    borderWidth="2px"
+                    borderColor={borderColor}
+                    bg={cardBg}
+                    color={textColor}
+                    _hover={{
+                      borderColor: 'brand.500',
+                      bg: timeSlotHoverBg,
+                      transform: 'translateY(-2px)',
+                      shadow: 'md'
+                    }}
+                    _active={{
+                      transform: 'translateY(0px)',
+                    }}
                     onClick={() => {
                       setFormData(prev => ({ ...prev, appointment_time: slot?.time || slot?.slot_time }));
                       handleAddAppointment();
                     }}
                   >
-                    <VStack spacing={1}>
-                      <Text fontSize="sm" fontWeight="bold">{slot?.time || slot?.slot_time || '-'}</Text>
-                      <Text fontSize="xs" color="gray.500">Müsait</Text>
+                    <VStack spacing={2}>
+                      <Text fontSize="lg" fontWeight="bold" color={textColor}>
+                        🕐 {slot?.time || slot?.slot_time || '-'}
+                      </Text>
+                      <Text fontSize="xs" color="green.500" fontWeight="medium">
+                        ✅ Müsait
+                      </Text>
                     </VStack>
                   </Button>
                 ))}
               </SimpleGrid>
+              
               {(availableSlots || []).length === 0 && (
-                <Text textAlign="center" color="gray.500" py="40px">
-                  Seçilen tarihte müsait slot bulunmuyor.
-                </Text>
+                <Box textAlign="center" py="60px">
+                  <Text color={secondaryTextColor} fontSize="lg" mb="2">
+                    ⏰ Seçilen tarihte müsait slot bulunmuyor.
+                  </Text>
+                  <Text color={secondaryTextColor} fontSize="sm">
+                    Lütfen başka bir tarih seçin veya manuel randevu oluşturun.
+                  </Text>
+                  <Button 
+                    mt="4" 
+                    colorScheme="brand" 
+                    leftIcon={<MdAdd />}
+                    onClick={handleAddAppointment}
+                  >
+                    Manuel Randevu Ekle
+                  </Button>
+                </Box>
               )}
             </TabPanel>
           </TabPanels>
@@ -511,22 +599,28 @@ export default function AppointmentManagement() {
       {/* Add/Edit Appointment Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            {selectedAppointment ? 'Randevu Düzenle' : 'Yeni Randevu Ekle'}
+        <ModalContent bg={modalBg} borderRadius="xl" border="1px solid" borderColor={borderColor}>
+          <ModalHeader color={modalHeaderColor} borderBottom="1px solid" borderColor={borderColor}>
+            <Text fontSize="xl" fontWeight="bold">
+              {selectedAppointment ? '📝 Randevu Düzenle' : '➕ Yeni Randevu Ekle'}
+            </Text>
           </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
+          <ModalCloseButton color={textColor} />
+          <ModalBody py="6">
+            <VStack spacing={5}>
               <FormControl isRequired>
-                <FormLabel>Müşteri</FormLabel>
+                <FormLabel color={textColor} fontWeight="medium">👤 Müşteri</FormLabel>
                 <Select
                   value={formData.customer_id}
                   onChange={(e) => setFormData(prev => ({ ...prev, customer_id: e.target.value }))}
                   placeholder="Müşteri seçin"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: secondaryTextColor }}
                 >
                   {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
+                    <option key={customer.id} value={customer.id} style={{ backgroundColor: optionBg, color: optionTextColor }}>
                       {customer.customer_name || `${customer.first_name} ${customer.last_name}`} - {customer.phone}
                     </option>
                   ))}
@@ -535,75 +629,110 @@ export default function AppointmentManagement() {
 
               <HStack spacing={4} w="100%">
                 <FormControl isRequired>
-                  <FormLabel>Tarih</FormLabel>
+                  <FormLabel color={textColor} fontWeight="medium">📅 Tarih</FormLabel>
                   <Input
                     type="date"
                     value={formData.appointment_date}
                     onChange={(e) => setFormData(prev => ({ ...prev, appointment_date: e.target.value }))}
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
                   />
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Saat</FormLabel>
+                  <FormLabel color={textColor} fontWeight="medium">🕐 Saat</FormLabel>
                   <Input
                     type="time"
                     value={formData.appointment_time}
                     onChange={(e) => setFormData(prev => ({ ...prev, appointment_time: e.target.value }))}
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
                   />
                 </FormControl>
               </HStack>
 
               <FormControl isRequired>
-                <FormLabel>Servis Türü</FormLabel>
+                <FormLabel color={textColor} fontWeight="medium">🔧 Servis Türü</FormLabel>
                 <Select
                   value={formData.service_type}
                   onChange={(e) => setFormData(prev => ({ ...prev, service_type: e.target.value }))}
                   placeholder="Servis türü seçin"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: secondaryTextColor }}
                 >
                   {serviceTypes.map((type) => (
-                    <option key={type} value={type}>{type}</option>
+                    <option key={type} value={type} style={{ backgroundColor: optionBg, color: optionTextColor }}>{type}</option>
                   ))}
                 </Select>
               </FormControl>
 
               <FormControl>
-                <FormLabel>Tahmini Süre (dakika)</FormLabel>
+                <FormLabel color={textColor} fontWeight="medium">⏱️ Tahmini Süre</FormLabel>
                 <Select
                   value={formData.estimated_duration}
                   onChange={(e) => setFormData(prev => ({ ...prev, estimated_duration: parseInt(e.target.value) }))}
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
                 >
-                  <option value={30}>30 dakika</option>
-                  <option value={60}>1 saat</option>
-                  <option value={90}>1.5 saat</option>
-                  <option value={120}>2 saat</option>
-                  <option value={180}>3 saat</option>
+                  <option value={30} style={{ backgroundColor: optionBg, color: optionTextColor }}>30 dakika</option>
+                  <option value={60} style={{ backgroundColor: optionBg, color: optionTextColor }}>1 saat</option>
+                  <option value={90} style={{ backgroundColor: optionBg, color: optionTextColor }}>1.5 saat</option>
+                  <option value={120} style={{ backgroundColor: optionBg, color: optionTextColor }}>2 saat</option>
+                  <option value={180} style={{ backgroundColor: optionBg, color: optionTextColor }}>3 saat</option>
                 </Select>
               </FormControl>
 
               <FormControl>
-                <FormLabel>Açıklama</FormLabel>
+                <FormLabel color={textColor} fontWeight="medium">📝 Açıklama</FormLabel>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Yapılacak işlemler..."
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: secondaryTextColor }}
+                  rows={3}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>Müşteri Notları</FormLabel>
+                <FormLabel color={textColor} fontWeight="medium">💬 Müşteri Notları</FormLabel>
                 <Textarea
                   value={formData.customer_notes}
                   onChange={(e) => setFormData(prev => ({ ...prev, customer_notes: e.target.value }))}
                   placeholder="Müşterinin özel istekleri..."
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  _placeholder={{ color: secondaryTextColor }}
+                  rows={3}
                 />
               </FormControl>
             </VStack>
           </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              İptal
+          <ModalFooter bg={modalBg} borderTop="1px solid" borderColor={borderColor} borderBottomRadius="xl">
+            <Button 
+              variant="ghost" 
+              mr={3} 
+              onClick={onClose}
+              color={cancelButtonColor}
+              _hover={{ bg: cancelButtonHoverBg }}
+            >
+              ✖️ İptal
             </Button>
-            <Button colorScheme="brand" onClick={handleSaveAppointment} isLoading={loading}>
-              {selectedAppointment ? 'Güncelle' : 'Kaydet'}
+            <Button 
+              colorScheme="brand" 
+              onClick={handleSaveAppointment} 
+              isLoading={loading}
+              px="6"
+              fontWeight="bold"
+            >
+              {selectedAppointment ? '📝 Güncelle' : '➕ Kaydet'}
             </Button>
           </ModalFooter>
         </ModalContent>

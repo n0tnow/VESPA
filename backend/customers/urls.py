@@ -12,4 +12,8 @@ urlpatterns = [
     # Customer endpoints
     path('', views.CustomersView.as_view(), name='customers'),
     path('<int:customer_id>/', views.CustomerDetailView.as_view(), name='customer-detail'),
+    
+    # Vespa endpoints
+    path('vespa-models/', views.VespaModelsView.as_view(), name='vespa-models'),
+    path('<int:customer_id>/vespas/', views.CustomerVespasView.as_view(), name='customer-vespas'),
 ]

@@ -63,23 +63,7 @@ import {
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
 
-// JSON dosyalarını güvenli şekilde import et
-let modelsData;
-let partsData;
-
-try {
-  modelsData = require('data/models.json');
-} catch (error) {
-  console.error('Models data yüklenemedi:', error);
-  modelsData = { models: {} };
-}
-
-try {
-  partsData = require('data/parts.json');
-} catch (error) {
-  console.error('Parts data yüklenemedi:', error);
-  partsData = { parts: {} };
-}
+import apiService from 'services/apiService';
 
 export default function VespaModels() {
   const brandColor = useColorModeValue('brand.500', 'white');
@@ -100,69 +84,71 @@ export default function VespaModels() {
   const [vespaModels, setVespaModels] = useState([]);
   const [modelParts, setModelParts] = useState({});
 
-  // Verileri yükle
+  // Load data from API
   useEffect(() => {
+    loadVespaModels();
+  }, []);
+
+  const loadVespaModels = async () => {
     try {
       setLoading(true);
-      
-      // Veri kontrolü
-      if (!modelsData || !modelsData.models || !partsData || !partsData.parts) {
-        throw new Error('Veri dosyaları eksik veya hatalı');
-      }
+      setError(null);
 
-      const modelsArray = Object.entries(modelsData.models)
-        .filter(([modelName, modelData]) => modelName && modelData) // Güvenlik kontrolü
-        .map(([modelName, modelData], index) => {
-          try {
-            // Güvenli veri erişimi
-            const categoriesData = modelData.categories || {};
-            const generalData = categoriesData.Genel || {};
-            const partsArray = generalData.parts || [];
-            const partCount = partsArray.length;
-            
-            const engineSize = modelName.includes('300') ? '300cc' : 
-                             modelName.includes('150') ? '150cc' : '125cc';
-            const category = modelName.includes('GTS') ? 'Touring' : 
-                           modelName.includes('Sprint') ? 'Sport' : 
-                           modelName.includes('ET4') ? 'Klasik' : 'Klasik';
-            
-            return {
-              id: index + 1,
-              name: modelName,
-              category,
-              price: modelName.includes('300') ? 125000 : 
-                     modelName.includes('150') && modelName.includes('3v') ? 85000 : 
-                     modelName.includes('150') ? 75000 : 70000,
-              currency: 'TL',
-              engineSize,
-              maxSpeed: modelName.includes('300') ? '130 km/h' : '95 km/h',
-              fuelConsumption: modelName.includes('300') ? '3.2L/100km' : '2.5L/100km',
-              colors: ['Beyaz', 'Siyah', 'Kırmızı', 'Mavi', 'Sarı'],
-              features: [
-                'LED Farlar',
-                'Dijital Gösterge',
-                'USB Şarj',
-                'Bagaj Bölmesi',
-                modelName.includes('300') ? 'ABS Fren Sistemi' : 'Anti-Slip Sistem'
-              ],
-              specifications: {
-                engine: engineSize + ' 4-stroke',
-                power: modelName.includes('300') ? '23.8 HP' : '12.9 HP',
-                torque: modelName.includes('300') ? '26 Nm' : '12.8 Nm',
-                transmission: 'CVT Otomatik',
-                fuel: modelName.includes('300') ? '9 Litre' : '7 Litre',
-                weight: modelName.includes('300') ? '158 kg' : '134 kg',
-                dimensions: '1930x745x1350 mm'
-              },
-              description: `MotoEtiler'de satışta! ${modelName}, modern teknoloji ile klasik tasarımı birleştiren ideal Vespa. ${partCount} çeşit yedek parça stokta!`,
-              inStock: true,
-              rating: 4.5,
-              image: '/api/placeholder/300/200',
-              partCount,
-              url: modelData.url || '#'
+      // Load models and parts from API
+      const [modelsResponse, partsResponse] = await Promise.all([
+        apiService.getVespaModels(),
+        apiService.getParts(1, 1000)
+      ]);
+
+      // Transform API response to match frontend format
+      const modelsArray = modelsResponse.map((model, index) => {
+        try {
+          // Use API data
+          const modelName = model.model_name;
+          const engineSize = model.engine_size || '150cc';
+          const category = model.category || 'Klasik';
+          
+          // Calculate compatible parts count from partsResponse
+          const compatibleParts = partsResponse.results?.filter(part => 
+            !part.vespa_model_id || part.vespa_model_id === model.id
+          ) || [];
+          
+          return {
+            id: model.id,
+            name: modelName,
+            category,
+            price: engineSize.includes('300') ? 125000 : 
+                   engineSize.includes('150') ? 85000 : 70000,
+            currency: 'TL',
+            engineSize,
+            maxSpeed: engineSize.includes('300') ? '130 km/h' : '95 km/h',
+            fuelConsumption: engineSize.includes('300') ? '3.2L/100km' : '2.5L/100km',
+            colors: ['Beyaz', 'Siyah', 'Kırmızı', 'Mavi', 'Sarı'],
+            features: [
+              'LED Farlar',
+              'Dijital Gösterge',
+              'USB Şarj',
+              'Bagaj Bölmesi',
+              engineSize.includes('300') ? 'ABS Fren Sistemi' : 'Anti-Slip Sistem'
+            ],
+            specifications: {
+              engine: engineSize + ' 4-stroke',
+              power: engineSize.includes('300') ? '23.8 HP' : '12.9 HP',
+              torque: engineSize.includes('300') ? '26 Nm' : '12.8 Nm',
+              transmission: 'CVT Otomatik',
+              fuel: engineSize.includes('300') ? '9 Litre' : '7 Litre',
+              weight: engineSize.includes('300') ? '158 kg' : '134 kg',
+              dimensions: '1930x745x1350 mm'
+            },
+            description: `MotoEtiler'de satışta! ${modelName}, modern teknoloji ile klasik tasarımı birleştiren ideal Vespa. ${compatibleParts.length} çeşit yedek parça stokta!`,
+            inStock: true,
+            rating: 4.5,
+            image: model.image_path || '/api/placeholder/300/200',
+            partCount: compatibleParts.length,
+            url: '#'
             };
           } catch (err) {
-            console.error(`Model işleme hatası: ${modelName}`, err);
+            console.error(`Model işleme hatası: ${model.model_name}`, err);
             return null;
           }
         })
@@ -170,36 +156,24 @@ export default function VespaModels() {
       
       setVespaModels(modelsArray);
       
-      // Her model için parça listesi
+      // Create parts map for each model
       const partsMap = {};
-      Object.entries(modelsData.models).forEach(([modelName, modelData]) => {
-        try {
-          const generalData = modelData.categories?.Genel || {};
-          const partIds = generalData.parts || [];
-          const modelPartsDetails = partIds
-            .map(partId => partsData.parts[partId])
-            .filter(Boolean);
-          partsMap[modelName] = modelPartsDetails;
-        } catch (err) {
-          console.error(`Parça işleme hatası: ${modelName}`, err);
-          partsMap[modelName] = [];
-        }
+      modelsResponse.forEach(model => {
+        const modelParts = partsResponse.results?.filter(part => 
+          !part.vespa_model_id || part.vespa_model_id === model.id
+        ) || [];
+        partsMap[model.model_name] = modelParts;
       });
       
       setModelParts(partsMap);
-      setLoading(false);
-      setError(null);
-      
+
     } catch (err) {
-      console.error('Veri yükleme hatası:', err);
-      setError(err.message);
+      console.error('Error loading vespa models:', err);
+      setError('Vespa modelleri yüklenirken hata oluştu: ' + err.message);
+    } finally {
       setLoading(false);
-      
-      // Fallback data
-      setVespaModels([]);
-      setModelParts({});
     }
-  }, []);
+  };
 
   const categories = ['Klasik', 'Sport', 'Touring', 'Elektrikli'];
 

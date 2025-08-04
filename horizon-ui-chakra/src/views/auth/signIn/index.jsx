@@ -24,6 +24,7 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "contexts/AuthContext";
 // Chakra imports
 import {
   Box,
@@ -64,6 +65,7 @@ function SignIn() {
   const [isLoading, setIsLoading] = useState(false);
   
   const navigate = useNavigate();
+  const { login } = useAuth();
   
   const handleClick = () => setShow(!show);
   
@@ -72,17 +74,16 @@ function SignIn() {
     setIsLoading(true);
     setError("");
     
-    // MotoEtiler giriş bilgileri
-    const validUsername = "MotoEtiler";
-    const validPassword = "Motoetiler2025";
-    
-    if (username === validUsername && password === validPassword) {
-      // Giriş başarılı
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem("username", username);
+    try {
+      // Use AuthContext login function
+      await login(username, password);
+      
+      // Navigate to admin dashboard
       navigate("/admin");
-    } else {
-      setError("Kullanıcı adı veya şifre hatalı!");
+      
+    } catch (error) {
+      console.error("Login error:", error);
+      setError(error.message || "Giriş sırasında bir hata oluştu!");
     }
     
     setIsLoading(false);

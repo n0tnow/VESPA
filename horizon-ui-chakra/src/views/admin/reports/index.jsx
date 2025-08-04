@@ -219,6 +219,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
+import apiService from 'services/apiService';
 import LineChart from 'components/charts/LineChart';
 import BarChart from 'components/charts/BarChart';
 import PieChart from 'components/charts/PieChart';
@@ -239,27 +240,55 @@ export default function Reports() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedReport, setSelectedReport] = useState(null);
 
-  // Gerçek veri import'ları
-  let customersData, servicesData, partsData, modelsData;
-  try {
-    customersData = require('data/customers.json');
-    servicesData = require('data/services.json');
-    partsData = require('data/parts.json');
-    modelsData = require('data/models.json');
-  } catch (error) {
-    console.error('Veri yüklenemedi:', error);
-    customersData = { customers: {} };
-    servicesData = { services: {} };
-    partsData = { parts: {} };
-    modelsData = { models: {} };
-  }
+  // State for API data
+  const [reportsData, setReportsData] = useState({
+    customers: [],
+    services: [],
+    parts: [],
+    models: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Load data from API
+  useEffect(() => {
+    loadReportsData();
+  }, []);
+
+  const loadReportsData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Load data from APIs
+      const [customersResponse, servicesResponse, partsResponse, modelsResponse] = await Promise.all([
+        apiService.getCustomers(1, 1000),
+        apiService.getServices(1, 1000),
+        apiService.getParts(1, 1000),
+        apiService.getVespaModels()
+      ]);
+
+      setReportsData({
+        customers: customersResponse.results || [],
+        services: servicesResponse.results || [],
+        parts: partsResponse.results || [],
+        models: modelsResponse || []
+      });
+
+    } catch (error) {
+      console.error('Error loading reports data:', error);
+      setError('Rapor verileri yüklenirken hata oluştu: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Gerçek verilerden hesaplanan raporlar
   const calculateRealData = () => {
-    const customers = Object.values(customersData.customers || {});
-    const services = Object.values(servicesData.services || {});
-    const parts = Object.values(partsData.parts || {});
-    const models = Object.values(modelsData.models || {});
+    const customers = reportsData.customers;
+    const services = reportsData.services;
+    const parts = reportsData.parts;
+    const models = reportsData.models;
 
     // Toplam gelir hesaplama
     const totalRevenue = services.reduce((sum, service) => {
@@ -334,7 +363,7 @@ export default function Reports() {
 
   // Aylık gelir verisi (gerçek verilerden hesaplanacak)
   const calculateMonthlyRevenue = () => {
-    const services = Object.values(servicesData.services || {});
+    const services = reportsData.services;
     const monthlyData = {};
     
     services.forEach(service => {
@@ -941,7 +970,7 @@ export default function Reports() {
                 <Card>
                   <Text fontSize="lg" fontWeight="bold" mb="15px">Son Servisler</Text>
                   <VStack spacing={3} align="stretch">
-                    {Object.values(servicesData.services || {}).slice(0, 5).map((service, index) => (
+                    {reportsData.services.slice(0, 5).map((service, index) => (
                       <Box 
                         key={service.id} 
                         p="3" 
@@ -955,7 +984,7 @@ export default function Reports() {
                           <VStack align="start" spacing={1}>
                             <Text fontWeight="bold" fontSize="sm">{service.type || 'Servis'}</Text>
                             <Text fontSize="xs" color="gray.500">
-                              {customersData.customers[service.customerId]?.name || 'Müşteri'}
+                              {service.customer_name || 'Müşteri'}
                             </Text>
                           </VStack>
                           <VStack align="end" spacing={1}>

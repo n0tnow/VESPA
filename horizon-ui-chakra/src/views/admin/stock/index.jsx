@@ -63,10 +63,23 @@ import {
 } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
+import apiService from 'services/apiService';
 
 export default function StockManagement() {
   const brandColor = useColorModeValue('brand.500', 'white');
   const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
+  // Color definitions for all components
+  const modalBg = useColorModeValue('white', 'gray.800');
+  const modalCloseColor = useColorModeValue('black', 'white');
+  const itemBoxBg = useColorModeValue('white', 'gray.700');
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const modalHeaderColor = useColorModeValue('brand.600', 'brand.200');
+  const modalTextColor = useColorModeValue('gray.800', 'gray.100');
+  const inputBg = useColorModeValue('gray.50', 'gray.700');
+  const inputTextColor = useColorModeValue('gray.800', 'gray.100');
+  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
+  const buttonBg = useColorModeValue('brand.500', 'brand.400');
+  
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,104 +87,81 @@ export default function StockManagement() {
   const [activeTab, setActiveTab] = useState(0);
   const [zoomImage, setZoomImage] = useState(null);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
-
-  // Modal renk ve stil değişkenleri
-  const modalBg = useColorModeValue('white', 'gray.800');
-  const modalHeaderColor = useColorModeValue('brand.600', 'brand.200');
-  const modalTextColor = useColorModeValue('gray.800', 'gray.100');
-  const inputBg = useColorModeValue('gray.50', 'gray.700');
-  const inputTextColor = useColorModeValue('gray.800', 'gray.100');
-  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
-  const buttonBg = useColorModeValue('brand.500', 'brand.400');
   const buttonTextColor = useColorModeValue('white', 'gray.900');
   const buttonHoverBg = useColorModeValue('brand.600', 'brand.300');
 
-  // JSON dosyasını güvenli şekilde import et
-  let partsData;
-  try {
-    partsData = require('data/parts.json');
-  } catch (error) {
-    console.error('Parts data yüklenemedi:', error);
-    partsData = { parts: {} };
-  }
 
-  // Gerçek parça datası ile stokItems oluştur
-  const [stockItems, setStockItems] = useState(() => {
-    const saved = localStorage.getItem('stockItems');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return Object.entries(partsData.parts).map(([id, part]) => ({
-          id,
-          name: part.name,
-          category: part.category || '-',
-          partNumber: id,
-          currentStock: part.currentStock || Math.floor(Math.random() * 100),
-          minStock: part.minStock || 5,
-          maxStock: part.maxStock || 100,
-          price: part.price || 0,
-          supplier: part.supplier || '-',
-          lastUpdated: part.lastUpdated || '2024-01-01',
-          status: 'normal',
-          image: part.images?.thumbnail || part.images?.main || '',
-        }));
-      }
-    }
-    return Object.entries(partsData.parts).map(([id, part]) => ({
-      id,
-      name: part.name,
-      category: part.category || '-',
-      partNumber: id,
-      currentStock: part.currentStock || Math.floor(Math.random() * 100),
-      minStock: part.minStock || 5,
-      maxStock: part.maxStock || 100,
-      price: part.price || 0,
-      supplier: part.supplier || '-',
-      lastUpdated: part.lastUpdated || '2024-01-01',
-      status: 'normal',
-      image: part.images?.thumbnail || part.images?.main || '',
-    }));
-  });
 
+  // State management for real API data
+  const [stockItems, setStockItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Load parts from API
   useEffect(() => {
-    localStorage.setItem('stockItems', JSON.stringify(stockItems));
-  }, [stockItems]);
+    loadParts();
+  }, []);
 
-  const [suppliers, setSuppliers] = useState([
-    {
-      id: 1,
-      name: 'Vespa Türkiye',
-      contact: 'info@vespa.com.tr',
-      phone: '+90 212 123 45 67',
-      address: 'İstanbul, Türkiye',
-      rating: 5
-    },
-    {
-      id: 2,
-      name: 'Mobil Türkiye',
-      contact: 'info@mobil.com.tr',
-      phone: '+90 212 987 65 43',
-      address: 'Ankara, Türkiye',
-      rating: 4
-    },
-    {
-      id: 3,
-      name: 'Michelin',
-      contact: 'info@michelin.com.tr',
-      phone: '+90 212 456 78 90',
-      address: 'İzmir, Türkiye',
-      rating: 5
-    },
-    {
-      id: 4,
-      name: 'MotoEtiler Yetkili Bayi',
-      contact: 'info@motoetiler.com',
-      phone: '+90 212 345 67 89',
-      address: 'Etiler, İstanbul, Türkiye',
-      rating: 5
-    },
-  ]);
+  const loadParts = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await apiService.getParts(1, 200); // Load first 200 parts
+      
+      // Transform API response to match frontend format
+      const transformedParts = response.results?.map(part => ({
+        id: part.id,
+        name: part.part_name,
+        category: part.category_name || '-',
+        partNumber: part.part_code,
+        currentStock: part.total_stock || 0,
+        minStock: part.min_stock_level || 5,
+        maxStock: part.max_stock_level || 100,
+        price: part.sale_price_tl || part.sale_price || 0,
+        supplier: part.supplier_name || '-',
+        lastUpdated: part.updated_date?.split('T')[0] || '',
+        status: part.stock_status?.toLowerCase() || 'normal',
+        image: part.image_path || '',
+        brand: part.brand || '',
+        model: part.model || '',
+        color: part.color || '',
+        size: part.size || '',
+        description: part.description || '',
+        currency: part.currency_type || 'TRY'
+      })) || [];
+      
+      setStockItems(transformedParts);
+    } catch (error) {
+      console.error('Error loading parts:', error);
+      setError('Parçalar yüklenirken hata oluştu: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [suppliers, setSuppliers] = useState([]);
+
+  // Load suppliers from API
+  useEffect(() => {
+    loadSuppliers();
+  }, []);
+
+  const loadSuppliers = async () => {
+    try {
+      const response = await apiService.getSuppliers();
+      const transformedSuppliers = response.map(supplier => ({
+        id: supplier.id,
+        name: supplier.supplier_name,
+        contact: supplier.email || '-',
+        phone: supplier.phone || '-',
+        address: supplier.address || '-',
+        rating: 5 // Default rating, can be enhanced later
+      }));
+      setSuppliers(transformedSuppliers);
+    } catch (error) {
+      console.error('Error loading suppliers:', error);
+    }
+  };
 
   const [formData, setFormData] = useState({
     name: '',
@@ -401,7 +391,22 @@ export default function StockManagement() {
                 </Select>
               </Stack>
 
-              {/* Stock Table */}
+              {/* Error State */}
+              {error && (
+                <Alert status="error" mb="20px" borderRadius="12px">
+                  <AlertIcon />
+                  <AlertTitle>Hata!</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* Loading State */}
+              {loading ? (
+                <Box textAlign="center" py="40px">
+                  <Text>Parçalar yükleniyor...</Text>
+                </Box>
+              ) : (
+              /* Stock Table */
               <TableContainer>
                 <Table variant="simple">
                   <Thead>
@@ -423,7 +428,7 @@ export default function StockManagement() {
                       <Tr key={item.id}>
                         <Td>
                           <Box
-                            bg="white"
+                            bg={itemBoxBg}
                             borderRadius="md"
                             boxShadow="md"
                             p="1"
@@ -493,8 +498,9 @@ export default function StockManagement() {
                   </Tbody>
                 </Table>
               </TableContainer>
+              )}
 
-              {filteredItems.length === 0 && (
+              {!loading && filteredItems.length === 0 && (
                 <Box textAlign="center" py="40px">
                   <Text fontSize="lg" color="gray.500">
                     {searchTerm || filterCategory !== 'all' 
@@ -784,8 +790,8 @@ export default function StockManagement() {
       {/* Zoom Image Modal */}
       <Modal isOpen={isZoomOpen} onClose={() => setIsZoomOpen(false)} size="xl" isCentered>
         <ModalOverlay />
-        <ModalContent bg="white" borderRadius="lg" boxShadow="2xl">
-          <ModalCloseButton color="black" />
+        <ModalContent bg={modalBg} borderRadius="lg" boxShadow="2xl">
+          <ModalCloseButton color={modalCloseColor} />
           <ModalBody p={0} display="flex" alignItems="center" justifyContent="center">
             <Image
               src={zoomImage}
@@ -794,7 +800,7 @@ export default function StockManagement() {
               maxH="70vh"
               objectFit="contain"
               borderRadius="lg"
-              bg="white"
+              bg={cardBg}
               fallbackSrc="https://via.placeholder.com/400x400?text=No+Image"
             />
           </ModalBody>

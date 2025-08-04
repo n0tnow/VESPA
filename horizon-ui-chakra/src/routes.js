@@ -2,16 +2,18 @@ import React from 'react';
 
 import { Icon } from '@chakra-ui/react';
 import {
-  MdBarChart,
   MdPerson,
   MdHome,
   MdLock,
-  MdOutlineShoppingCart,
   MdInventory,
   MdBuild,
   MdDirectionsBike,
   MdGroup,
   MdAssessment,
+  MdCalendarToday,
+  MdAccountBalance,
+  MdSettings,
+  MdPalette,
 } from 'react-icons/md';
 
 // Admin Imports
@@ -22,6 +24,10 @@ import ServiceTracking from 'views/admin/service';
 import VespaModels from 'views/admin/vespa-models';
 import Reports from 'views/admin/reports';
 import Profile from 'views/admin/profile';
+import AppointmentManagement from 'views/admin/appointments';
+import PaintStudio from 'views/admin/paint-studio';
+import TaxReports from 'views/admin/tax-reports';
+import SystemSettings from 'views/admin/settings';
 
 // Auth Imports
 import SignInCentered from 'views/auth/signIn';
@@ -56,6 +62,27 @@ const routes = [
     component: <ServiceTracking />,
   },
   {
+    name: 'Randevu Sistemi',
+    layout: '/admin',
+    path: '/appointments',
+    icon: <Icon as={MdCalendarToday} width="20px" height="20px" color="inherit" />,
+    component: <AppointmentManagement />,
+  },
+  {
+    name: 'Paint Studio',
+    layout: '/admin',
+    path: '/paint-studio',
+    icon: <Icon as={MdPalette} width="20px" height="20px" color="inherit" />,
+    component: <PaintStudio />,
+  },
+  {
+    name: 'Vergi Beyanı',
+    layout: '/admin',
+    path: '/tax-reports',
+    icon: <Icon as={MdAccountBalance} width="20px" height="20px" color="inherit" />,
+    component: <TaxReports />,
+  },
+  {
     name: 'Vespa Modelleri',
     layout: '/admin',
     path: '/vespa-models',
@@ -68,6 +95,13 @@ const routes = [
     path: '/reports',
     icon: <Icon as={MdAssessment} width="20px" height="20px" color="inherit" />,
     component: <Reports />,
+  },
+  {
+    name: 'Sistem Ayarları',
+    layout: '/admin',
+    path: '/settings',
+    icon: <Icon as={MdSettings} width="20px" height="20px" color="inherit" />,
+    component: <SystemSettings />,
   },
   {
     name: 'Profil',

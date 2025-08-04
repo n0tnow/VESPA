@@ -84,8 +84,7 @@ import {
 } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
-import partsData from 'data/parts.json';
-import modelsData from 'data/models.json';
+import apiService from 'services/apiService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
@@ -296,27 +295,47 @@ export default function ServiceTracking() {
 
   // Technician selection removed as requested
 
-  // Gerçek parça verilerini kullan
+  // Real API data management
   const [availableParts, setAvailableParts] = useState([]);
   const [vespaModels, setVespaModels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Verileri yükle
+  // Load data from API
   useEffect(() => {
-    // Parça verilerini yükle
-    const partsArray = Object.entries(partsData.parts).map(([id, part]) => ({
-      id,
-      name: part.name,
-      price: part.price,
-      category: part.category,
-      url: part.url,
-      images: part.images
-    }));
-    setAvailableParts(partsArray);
-
-    // Model verilerini yükle
-    const modelsArray = Object.keys(modelsData.models);
-    setVespaModels(modelsArray);
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Load parts from API
+      const partsResponse = await apiService.getParts(1, 200);
+      const transformedParts = partsResponse.results?.map(part => ({
+        id: part.id,
+        name: part.part_name,
+        price: part.sale_price_tl || part.sale_price || 0,
+        category: part.category_name || '-',
+        partCode: part.part_code,
+        description: part.description || '',
+        image: part.image_path || ''
+      })) || [];
+      setAvailableParts(transformedParts);
+
+      // Load Vespa models from API
+      const modelsResponse = await apiService.getVespaModels();
+      const transformedModels = modelsResponse.map(model => model.model_name);
+      setVespaModels(transformedModels);
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setError('Veriler yüklenirken hata oluştu: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Müşteri verileri
   const [customers, setCustomers] = useState(() => {
@@ -603,12 +622,13 @@ export default function ServiceTracking() {
     }
   };
 
-  // Seçilen modele göre parça filtrele
+  // Get parts for selected model (simplified - returns all parts for now)
+  // TODO: Implement part compatibility system with backend API
   const getPartsForModel = (modelName) => {
-    if (!modelName || !modelsData.models[modelName]) return availableParts;
+    if (!modelName) return availableParts;
     
-    const modelParts = modelsData.models[modelName].categories.Genel.parts;
-    return availableParts.filter(part => modelParts.includes(part.id));
+    // For now, return all parts - backend part_model_compatibility table can be used later
+    return availableParts;
   };
 
   const updatePartQuantity = (partId, quantity) => {
@@ -1360,12 +1380,12 @@ export default function ServiceTracking() {
                     minW={0}
                     fontWeight="bold"
                     borderRadius="md"
-                    bg="white"
-                    color="gray.800"
+                    bg={invoiceModalBg}
+                    color={invoiceTextColor}
                     borderWidth="1px"
-                    borderColor="gray.300"
-                    _hover={{ bg: "gray.100" }}
-                    _active={{ bg: "gray.200" }}
+                    borderColor={invoiceBorderColor}
+                    _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}
+                    _active={{ bg: useColorModeValue("gray.200", "gray.500") }}
                     _focus={{ boxShadow: "outline" }}
                     textAlign="left"
                     px={4}

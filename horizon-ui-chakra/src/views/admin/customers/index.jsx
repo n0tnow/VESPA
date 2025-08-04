@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Flex,
-  Grid,
   Text,
   useColorModeValue,
   SimpleGrid,
@@ -41,7 +40,7 @@ import {
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdNotifications, MdDirectionsBike } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
-import customersJson from 'data/customers.json';
+import apiService from 'services/apiService';
 
 export default function CustomerManagement() {
   const brandColor = useColorModeValue('brand.500', 'white');
@@ -54,55 +53,95 @@ export default function CustomerManagement() {
   const inputText = useColorModeValue('gray.800', 'white');
   const labelColor = useColorModeValue('gray.700', 'gray.200');
 
-  // Müşteri verilerini hem localStorage hem customers.json'dan birleştir
-  const [customers, setCustomers] = useState(() => {
-    let local = [];
-    try {
-      const saved = localStorage.getItem('customers');
-      if (saved) local = JSON.parse(saved);
-    } catch (e) {}
-    // customers.json'daki veriler
-    const jsonCustomers = Object.values(customersJson.customers || {});
-    // localStorage'da olmayanları ekle
-    const merged = [...local];
-    jsonCustomers.forEach(jsonCust => {
-      if (!local.find(lc => lc.id === jsonCust.id)) {
-        merged.push(jsonCust);
-      }
-    });
-    return merged;
-  });
+  // Customer state management with real API
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
+  // Load customers from API
   useEffect(() => {
-    localStorage.setItem('customers', JSON.stringify(customers));
-  }, [customers]);
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await apiService.getCustomers(1, 100); // Load first 100 customers
+      
+      // Transform API response to match frontend format
+      const transformedCustomers = response.customers?.map(customer => ({
+        id: customer.id,
+        customer_code: customer.customer_code,
+        name: `${customer.first_name || ''} ${customer.last_name || ''}`.trim(),
+        first_name: customer.first_name,
+        last_name: customer.last_name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+        city: customer.city,
+        district: customer.district,
+        tax_number: customer.tax_number,
+        customer_type: customer.customer_type,
+        notes: customer.notes,
+        registrationDate: customer.created_date?.split('T')[0] || '',
+        status: customer.status || 'ACTIVE'
+      })) || [];
+      
+      setCustomers(transformedCustomers);
+    } catch (error) {
+      console.error('Error loading customers:', error);
+      setError('Müşteriler yüklenirken hata oluştu: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
-    name: '',
+    first_name: '',
+    last_name: '',
     email: '',
     phone: '',
-    vespaModel: '',
+    address: '',
+    city: '',
+    district: '',
+    tax_number: '',
+    customer_type: 'INDIVIDUAL',
     notes: '',
-    status: 'active'
+    status: 'ACTIVE'
   });
 
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.phone.includes(searchTerm);
-    const matchesStatus = filterStatus === 'all' || customer.status === filterStatus;
+    const searchableText = [
+      customer.name || '',
+      customer.first_name || '',
+      customer.last_name || '',
+      customer.email || '',
+      customer.phone || '',
+      customer.address || '',
+      customer.city || '',
+      customer.district || ''
+    ].join(' ').toLowerCase();
+    
+    const matchesSearch = searchableText.includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || customer.status?.toUpperCase() === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
   const handleAddCustomer = () => {
     setSelectedCustomer(null);
     setFormData({
-      name: '',
+      first_name: '',
+      last_name: '',
       email: '',
       phone: '',
-      vespaModel: '',
+      address: '',
+      city: '',
+      district: '',
+      tax_number: '',
+      customer_type: 'INDIVIDUAL',
       notes: '',
-      status: 'active'
+      status: 'ACTIVE'
     });
     onOpen();
   };
@@ -110,58 +149,94 @@ export default function CustomerManagement() {
   const handleEditCustomer = (customer) => {
     setSelectedCustomer(customer);
     setFormData({
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      vespaModel: customer.vespaModel,
+      first_name: customer.first_name || customer.name?.split(' ')[0] || '',
+      last_name: customer.last_name || customer.name?.split(' ').slice(1).join(' ') || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      district: customer.district || '',
+      tax_number: customer.tax_number || '',
+      customer_type: customer.customer_type || 'INDIVIDUAL',
       notes: customer.notes || '',
-      status: customer.status
+      status: customer.status?.toUpperCase() || 'ACTIVE'
     });
     onOpen();
   };
 
-  const handleSaveCustomer = () => {
-    if (selectedCustomer) {
-      // Update existing customer
-      setCustomers(customers.map(c => 
-        c.id === selectedCustomer.id 
-          ? { ...c, ...formData }
-          : c
-      ));
-    } else {
-      // Add new customer
-      const newCustomer = {
-        ...formData,
-        id: Date.now(),
-        lastService: null,
-        nextService: null,
-        totalSpent: 0,
-        servicesCount: 0,
-        registrationDate: new Date().toISOString().split('T')[0]
+  const handleSaveCustomer = async () => {
+    try {
+      setLoading(true);
+      
+      const customerData = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        district: formData.district,
+        tax_number: formData.tax_number,
+        customer_type: formData.customer_type,
+        notes: formData.notes,
+        status: formData.status
       };
-      setCustomers([...customers, newCustomer]);
+      
+      if (selectedCustomer) {
+        // Update existing customer
+        await apiService.updateCustomer(selectedCustomer.id, customerData);
+      } else {
+        // Add new customer
+        await apiService.createCustomer(customerData);
+      }
+      
+      // Reload customers after save
+      await loadCustomers();
+      onClose();
+      
+    } catch (error) {
+      console.error('Error saving customer:', error);
+      setError('Müşteri kaydedilirken hata oluştu: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    onClose();
   };
 
-  const handleDeleteCustomer = (customerId) => {
-    setCustomers(customers.filter(c => c.id !== customerId));
+  const handleDeleteCustomer = async (customerId) => {
+    if (!window.confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      // Note: Backend might not have delete endpoint, using update to deactivate
+      await apiService.updateCustomer(customerId, { status: 'INACTIVE' });
+      
+      // Reload customers after delete
+      await loadCustomers();
+      
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      setError('Müşteri silinirken hata oluştu: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'green';
-      case 'pending': return 'yellow';
-      case 'overdue': return 'red';
+    switch (status?.toUpperCase()) {
+      case 'ACTIVE': return 'green';
+      case 'INACTIVE': return 'red';
+      case 'PENDING': return 'yellow';
       default: return 'gray';
     }
   };
 
   const getStatusText = (status) => {
-    switch (status) {
-      case 'active': return 'Aktif';
-      case 'pending': return 'Beklemede';
-      case 'overdue': return 'Gecikmiş';
+    switch (status?.toUpperCase()) {
+      case 'ACTIVE': return 'Aktif';
+      case 'INACTIVE': return 'Pasif';
+      case 'PENDING': return 'Beklemede';
       default: return 'Bilinmiyor';
     }
   };
@@ -198,7 +273,7 @@ export default function CustomerManagement() {
             <Icon as={MdEdit} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
           }
           name="Aktif Müşteriler"
-          value={customers.filter(c => c.status === 'active').length.toString()}
+          value={customers.filter(c => c.status?.toUpperCase() === 'ACTIVE').length.toString()}
         />
         <MiniStatistics
           startContent={
@@ -254,27 +329,51 @@ export default function CustomerManagement() {
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
             w={{ base: '100%', md: '200px' }}
+            bg={inputBg}
+            color={inputText}
+            borderColor={useColorModeValue('gray.300', 'gray.600')}
           >
-            <option value="all">Tümü</option>
-            <option value="active">Aktif</option>
-            <option value="pending">Beklemede</option>
-            <option value="overdue">Gecikmiş</option>
+            <option value="all" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+              Tümü
+            </option>
+            <option value="ACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+              Aktif
+            </option>
+            <option value="INACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+              Pasif
+            </option>
+            <option value="PENDING" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+              Beklemede
+            </option>
           </Select>
         </Stack>
 
-        {/* Customer Table */}
+        {/* Error State */}
+        {error && (
+          <Alert status="error" mb="20px" borderRadius="12px">
+            <AlertIcon />
+            <AlertTitle>Hata!</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Loading State */}
+        {loading ? (
+          <Box textAlign="center" py="40px">
+            <Text>Müşteriler yükleniyor...</Text>
+          </Box>
+        ) : (
+        /* Customer Table */
         <TableContainer>
           <Table variant="simple">
             <Thead>
               <Tr>
                 <Th>Müşteri Adı</Th>
                 <Th>İletişim</Th>
-                <Th>Vespa Modeli</Th>
-                <Th>Son Servis</Th>
-                <Th>Sonraki Servis</Th>
+                <Th>Adres Bilgileri</Th>
+                <Th>TC/Vergi No</Th>
+                <Th>Müşteri Tipi</Th>
                 <Th>Durum</Th>
-                <Th>Toplam Harcama</Th>
-                <Th>Servis Sayısı</Th>
                 <Th>Notlar</Th>
                 <Th>Kayıt Tarihi</Th>
                 <Th>İşlemler</Th>
@@ -286,25 +385,44 @@ export default function CustomerManagement() {
                   <Td>
                     <Box>
                       <Text fontWeight="bold">{customer.name}</Text>
+                      <Text fontSize="sm" color="gray.500">
+                        {customer.customer_code || customer.id}
+                      </Text>
                     </Box>
                   </Td>
                   <Td>
                     <Box>
-                      <Text>{customer.email}</Text>
+                      <Text>{customer.email || '-'}</Text>
                       <Text fontSize="sm" color="gray.500">{customer.phone}</Text>
                     </Box>
                   </Td>
-                  <Td>{customer.vespaModel}</Td>
-                  <Td>{customer.lastService || 'Henüz yok'}</Td>
-                  <Td>{customer.nextService || 'Henüz yok'}</Td>
+                  <Td>
+                    <Box>
+                      <Text fontSize="sm">{customer.address || '-'}</Text>
+                      <Text fontSize="xs" color="gray.500">
+                        {[customer.district, customer.city].filter(Boolean).join(', ') || '-'}
+                      </Text>
+                    </Box>
+                  </Td>
+                  <Td>{customer.tax_number || '-'}</Td>
+                  <Td>
+                    <Badge 
+                      colorScheme={customer.customer_type === 'CORPORATE' ? 'purple' : 'blue'}
+                      variant="subtle"
+                    >
+                      {customer.customer_type === 'CORPORATE' ? 'Kurumsal' : 'Bireysel'}
+                    </Badge>
+                  </Td>
                   <Td>
                     <Badge colorScheme={getStatusColor(customer.status)}>
                       {getStatusText(customer.status)}
                     </Badge>
                   </Td>
-                  <Td>₺{(customer.totalSpent || 0).toLocaleString()}</Td>
-                  <Td>{customer.servicesCount || 0}</Td>
-                  <Td>{customer.notes || '-'}</Td>
+                  <Td>
+                    <Text fontSize="sm" noOfLines={2}>
+                      {customer.notes || '-'}
+                    </Text>
+                  </Td>
                   <Td>{customer.registrationDate || '-'}</Td>
                   <Td>
                     <Stack direction="row" spacing={1}>
@@ -327,8 +445,9 @@ export default function CustomerManagement() {
             </Tbody>
           </Table>
         </TableContainer>
+        )}
 
-        {filteredCustomers.length === 0 && (
+        {!loading && filteredCustomers.length === 0 && (
           <Box textAlign="center" py="40px">
             <Text fontSize="lg" color="gray.500">
               {searchTerm || filterStatus !== 'all' 
@@ -341,27 +460,41 @@ export default function CustomerManagement() {
       </Card>
 
       {/* Add/Edit Customer Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
+        <ModalContent bg={useColorModeValue('white', 'gray.800')}>
+          <ModalHeader color={useColorModeValue('gray.700', 'white')}>
             {selectedCustomer ? 'Müşteri Düzenle' : 'Yeni Müşteri Ekle'}
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color={useColorModeValue('gray.500', 'gray.300')} />
           <ModalBody>
-            <Stack spacing={4}>
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+              {/* Personal Information */}
               <FormControl isRequired>
-                <FormLabel color={labelColor}>Müşteri Adı</FormLabel>
+                <FormLabel color={labelColor}>Ad</FormLabel>
                 <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="Müşteri adını girin"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                  placeholder="Adı girin"
                   bg={inputBg}
                   color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
                 />
               </FormControl>
 
               <FormControl isRequired>
+                <FormLabel color={labelColor}>Soyad</FormLabel>
+                <Input
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                  placeholder="Soyadı girin"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                />
+              </FormControl>
+
+              <FormControl>
                 <FormLabel color={labelColor}>E-posta</FormLabel>
                 <Input
                   type="email"
@@ -370,6 +503,7 @@ export default function CustomerManagement() {
                   placeholder="E-posta adresini girin"
                   bg={inputBg}
                   color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
                 />
               </FormControl>
 
@@ -381,24 +515,76 @@ export default function CustomerManagement() {
                   placeholder="Telefon numarasını girin"
                   bg={inputBg}
                   color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
                 />
               </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel color={labelColor}>Vespa Modeli</FormLabel>
-                <Select
-                  value={formData.vespaModel}
-                  onChange={(e) => setFormData({...formData, vespaModel: e.target.value})}
-                  placeholder="Vespa modelini seçin"
+              <FormControl>
+                <FormLabel color={labelColor}>TC/Vergi No</FormLabel>
+                <Input
+                  value={formData.tax_number}
+                  onChange={(e) => setFormData({...formData, tax_number: e.target.value})}
+                  placeholder="TC Kimlik No veya Vergi No"
                   bg={inputBg}
                   color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel color={labelColor}>Müşteri Tipi</FormLabel>
+                <Select
+                  value={formData.customer_type}
+                  onChange={(e) => setFormData({...formData, customer_type: e.target.value})}
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
                 >
-                  <option value="Vespa Primavera 150">Vespa Primavera 150</option>
-                  <option value="Vespa GTS 300">Vespa GTS 300</option>
-                  <option value="Vespa Sprint 150">Vespa Sprint 150</option>
-                  <option value="Vespa LX 150">Vespa LX 150</option>
-                  <option value="Vespa ET2 150">Vespa ET2 150</option>
+                  <option value="INDIVIDUAL" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                    Bireysel
+                  </option>
+                  <option value="CORPORATE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                    Kurumsal
+                  </option>
                 </Select>
+              </FormControl>
+
+              {/* Address Information */}
+              <FormControl gridColumn={{ base: 1, md: 'span 2' }}>
+                <FormLabel color={labelColor}>Adres</FormLabel>
+                <Textarea
+                  value={formData.address}
+                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  placeholder="Detaylı adres bilgisi"
+                  rows={2}
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel color={labelColor}>İlçe</FormLabel>
+                <Input
+                  value={formData.district}
+                  onChange={(e) => setFormData({...formData, district: e.target.value})}
+                  placeholder="İlçe"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel color={labelColor}>Şehir</FormLabel>
+                <Input
+                  value={formData.city}
+                  onChange={(e) => setFormData({...formData, city: e.target.value})}
+                  placeholder="Şehir"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
+                />
               </FormControl>
 
               <FormControl>
@@ -408,14 +594,18 @@ export default function CustomerManagement() {
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
                   bg={inputBg}
                   color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
                 >
-                  <option value="active">Aktif</option>
-                  <option value="pending">Beklemede</option>
-                  <option value="overdue">Gecikmiş</option>
+                  <option value="ACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                    Aktif
+                  </option>
+                  <option value="INACTIVE" style={{backgroundColor: useColorModeValue('white', 'gray.700'), color: useColorModeValue('black', 'white')}}>
+                    Pasif
+                  </option>
                 </Select>
               </FormControl>
 
-              <FormControl>
+              <FormControl gridColumn={{ base: 1, md: 'span 2' }}>
                 <FormLabel color={labelColor}>Notlar</FormLabel>
                 <Textarea
                   value={formData.notes}
@@ -424,16 +614,26 @@ export default function CustomerManagement() {
                   rows={3}
                   bg={inputBg}
                   color={inputText}
+                  borderColor={useColorModeValue('gray.300', 'gray.600')}
                 />
               </FormControl>
-            </Stack>
+            </SimpleGrid>
           </ModalBody>
 
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
+          <ModalFooter bg={useColorModeValue('gray.50', 'gray.700')}>
+            <Button 
+              variant="ghost" 
+              mr={3} 
+              onClick={onClose}
+              color={useColorModeValue('gray.600', 'gray.300')}
+            >
               İptal
             </Button>
-            <Button colorScheme="brand" onClick={handleSaveCustomer}>
+            <Button 
+              colorScheme="brand" 
+              onClick={handleSaveCustomer}
+              isLoading={loading}
+            >
               {selectedCustomer ? 'Güncelle' : 'Ekle'}
             </Button>
           </ModalFooter>

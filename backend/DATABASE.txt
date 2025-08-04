@@ -1,0 +1,1252 @@
+-- ===============================================
+-- VESPA SERVİS YÖNETİM SİSTEMİ - TEK DATABASE (MOTOETILER)
+-- Mağaza/Depo + Kasa/Cari + Aksesuar Dahil
+-- ===============================================
+
+-- 1. KULLANICILAR
+CREATE TABLE users (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    username NVARCHAR(50) NOT NULL UNIQUE,
+    email NVARCHAR(100) NOT NULL UNIQUE,
+    password_hash NVARCHAR(255) NOT NULL,
+    full_name NVARCHAR(100) NOT NULL,
+    role NVARCHAR(20) DEFAULT 'ADMIN',
+    phone NVARCHAR(20),
+    is_active BIT DEFAULT 1,
+    last_login DATETIME2,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE()
+);
+
+-- 2. TEDARİKÇİLER
+CREATE TABLE suppliers (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    supplier_name NVARCHAR(100) NOT NULL UNIQUE,
+    contact_person NVARCHAR(100),
+    phone NVARCHAR(20),
+    email NVARCHAR(100),
+    address NVARCHAR(500),
+    tax_number NVARCHAR(20),
+    is_active BIT DEFAULT 1,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE()
+);
+
+-- 3. DEPO LOKASYONLARİ (Yeni - Raf Sistemi)
+CREATE TABLE storage_locations (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    location_code NVARCHAR(20) NOT NULL UNIQUE, -- D-A-01, M-B-05 etc.
+    location_name NVARCHAR(100) NOT NULL,
+    location_type NVARCHAR(20) NOT NULL, -- STORE (Mağaza), WAREHOUSE (Depo)
+    shelf_code NVARCHAR(10), -- A, B, C
+    rack_number INT, -- 1, 2, 3
+    level_number INT, -- 1, 2, 3 (raf seviyesi)
+    description NVARCHAR(200),
+    is_active BIT DEFAULT 1,
+    created_date DATETIME2 DEFAULT GETDATE()
+);
+
+-- 4. VESPA MODELLERİ
+CREATE TABLE vespa_models (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    model_code NVARCHAR(20) NOT NULL UNIQUE,
+    model_name NVARCHAR(100) NOT NULL,
+    model_year INT,
+    engine_size NVARCHAR(20),
+    category NVARCHAR(50),
+    image_path NVARCHAR(500),
+    is_active BIT DEFAULT 1,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE()
+);
+
+-- 5. PARÇA KATEGORİLERİ (Aksesuar Detaylı)
+CREATE TABLE part_categories (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    category_name NVARCHAR(100) NOT NULL UNIQUE,
+    parent_category_id INT NULL,
+    category_type NVARCHAR(20) DEFAULT 'PART', -- PART, ACCESSORY
+    sort_order INT DEFAULT 0,
+    is_active BIT DEFAULT 1,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    FOREIGN KEY (parent_category_id) REFERENCES part_categories(id)
+);
+
+-- 6. PARÇALAR (Stok bilgisi kaldırıldı - lokasyon bazlı olacak)
+CREATE TABLE parts (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    part_code NVARCHAR(50) NOT NULL UNIQUE,
+    part_name NVARCHAR(200) NOT NULL,
+    category_id INT NOT NULL,
+    part_type NVARCHAR(20) DEFAULT 'PART', -- PART, ACCESSORY
+    description NVARCHAR(MAX),
+    image_path NVARCHAR(500),
+    
+    -- Stok Kontrol Seviyeleri
+    min_stock_level INT DEFAULT 5,
+    max_stock_level INT DEFAULT 100,
+    
+    -- Ürün Özellikleri (Aksesuar için)
+    brand NVARCHAR(50), -- Kask markası vs.
+    model NVARCHAR(50), -- Kask modeli vs.
+    color NVARCHAR(30), -- Renk
+    size NVARCHAR(20), -- Beden/Boyut
+    
+    is_active BIT DEFAULT 1,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (category_id) REFERENCES part_categories(id)
+);
+
+-- 7. PARÇA-MODEL UYUMLULUĞU (Aksesuarlar için isteğe bağlı)
+CREATE TABLE part_model_compatibility (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    part_id INT NOT NULL,
+    vespa_model_id INT NULL, -- NULL = Tüm modeller için uygun
+    is_original BIT DEFAULT 1,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+    FOREIGN KEY (vespa_model_id) REFERENCES vespa_models(id) ON DELETE CASCADE,
+    UNIQUE(part_id, vespa_model_id)
+);
+
+-- 8. PARÇA STOK LOKASYONLARİ (Yeni - Mağaza/Depo Ayrımı)
+CREATE TABLE part_stock_locations (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    part_id INT NOT NULL,
+    storage_location_id INT NOT NULL,
+    current_stock INT DEFAULT 0,
+    reserved_stock INT DEFAULT 0, -- Rezerve edilmiş stok
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+    FOREIGN KEY (storage_location_id) REFERENCES storage_locations(id),
+    UNIQUE(part_id, storage_location_id)
+);
+
+-- 9. PARÇA FİYATLARI
+CREATE TABLE part_prices (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    part_id INT NOT NULL,
+    supplier_id INT NOT NULL,
+    
+    -- Fiyatlandırma
+    currency_type NVARCHAR(3) DEFAULT 'TRY',
+    purchase_price DECIMAL(10,2) NOT NULL,
+    sale_price DECIMAL(10,2) NOT NULL,
+    supplier_part_code NVARCHAR(50),
+    
+    -- Geçerlilik
+    effective_date DATE NOT NULL,
+    is_current BIT DEFAULT 1,
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+);
+
+-- 10. MÜŞTERİLER (Adres eklendi)
+CREATE TABLE customers (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    customer_code NVARCHAR(20) NOT NULL UNIQUE,
+    first_name NVARCHAR(50) NOT NULL,
+    last_name NVARCHAR(50) NOT NULL,
+    email NVARCHAR(100),
+    phone NVARCHAR(20) NOT NULL,
+    address NVARCHAR(500), -- Detaylı adres
+    city NVARCHAR(50),
+    district NVARCHAR(50),
+    tax_number NVARCHAR(15), -- TC/Vergi No
+    
+    -- Müşteri Durumu
+    status NVARCHAR(20) DEFAULT 'ACTIVE',
+    customer_type NVARCHAR(20) DEFAULT 'INDIVIDUAL', -- INDIVIDUAL, CORPORATE
+    notes NVARCHAR(MAX),
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE()
+);
+
+-- 11. MÜŞTERİ VESPALARI (KM ve servis tarihi dahil)
+CREATE TABLE customer_vespas (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    customer_id INT NOT NULL,
+    vespa_model_id INT NOT NULL,
+    license_plate NVARCHAR(20) NOT NULL UNIQUE,
+    chassis_number NVARCHAR(50),
+    purchase_date DATE,
+    current_mileage INT DEFAULT 0,
+    last_service_date DATE, -- Son servis tarihi
+    next_service_date DATE, -- Sonraki servis tarihi
+    service_interval_km INT DEFAULT 5000, -- Servis aralığı
+    is_active BIT DEFAULT 1,
+    notes NVARCHAR(MAX),
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    FOREIGN KEY (vespa_model_id) REFERENCES vespa_models(id)
+);
+
+-- 12. SERVİS KAYITLARI
+CREATE TABLE service_records (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    service_number NVARCHAR(20) NOT NULL UNIQUE,
+    customer_vespa_id INT NOT NULL,
+    
+    -- Servis Bilgileri  
+    service_type NVARCHAR(50) NOT NULL,
+    service_date DATE NOT NULL,
+    mileage_at_service INT,
+    technician_name NVARCHAR(100),
+    
+    -- Durum
+    status NVARCHAR(20) DEFAULT 'PENDING',
+    
+    -- Açıklama
+    description NVARCHAR(MAX),
+    customer_complaints NVARCHAR(MAX),
+    work_done NVARCHAR(MAX),
+    
+    -- Sadece işçilik
+    labor_cost DECIMAL(10,2) DEFAULT 0,
+    
+    -- Tarihler
+    start_date DATETIME2,
+    completion_date DATETIME2,
+    next_service_date DATE,
+    next_service_km INT,
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (customer_vespa_id) REFERENCES customer_vespas(id)
+);
+
+-- 13. SERVİS KAYITLARINDA KULLANILAN PARÇALAR
+CREATE TABLE service_parts (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    service_record_id INT NOT NULL,
+    part_id INT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    unit_price DECIMAL(10,2) NOT NULL,
+    currency_type NVARCHAR(3) DEFAULT 'TRY',
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (service_record_id) REFERENCES service_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (part_id) REFERENCES parts(id)
+);
+
+-- 14. STOK HAREKETLERİ (Lokasyon bazlı)
+CREATE TABLE stock_movements (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    part_id INT NOT NULL,
+    storage_location_id INT NOT NULL,
+    movement_type NVARCHAR(20) NOT NULL, -- IN, OUT, TRANSFER, ADJUSTMENT
+    quantity INT NOT NULL,
+    reference_type NVARCHAR(20), -- SERVICE, PURCHASE, TRANSFER, ADJUSTMENT, SALE
+    reference_id INT,
+    from_location_id INT, -- Transfer için kaynak lokasyon
+    to_location_id INT, -- Transfer için hedef lokasyon
+    notes NVARCHAR(500),
+    
+    created_by INT NOT NULL,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (part_id) REFERENCES parts(id),
+    FOREIGN KEY (storage_location_id) REFERENCES storage_locations(id),
+    FOREIGN KEY (from_location_id) REFERENCES storage_locations(id),
+    FOREIGN KEY (to_location_id) REFERENCES storage_locations(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- 15. DÖVİZ KURLARI
+CREATE TABLE currency_rates (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    currency_code NVARCHAR(3) NOT NULL,
+    rate_date DATE NOT NULL,
+    buy_rate DECIMAL(10,4) NOT NULL,
+    sell_rate DECIMAL(10,4) NOT NULL,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    UNIQUE(currency_code, rate_date)
+);
+
+-- 16. FATURALAR
+CREATE TABLE invoices (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    invoice_number NVARCHAR(20) NOT NULL UNIQUE,
+    invoice_type NVARCHAR(20) DEFAULT 'SERVICE', -- SERVICE, SALE, MIXED
+    customer_id INT NOT NULL,
+    service_record_id INT NULL, -- Servis faturası ise
+    
+    invoice_date DATE NOT NULL,
+    due_date DATE,
+    
+    -- Tutarlar
+    subtotal DECIMAL(10,2) NOT NULL,
+    tax_rate DECIMAL(5,2) DEFAULT 20.00,
+    tax_amount DECIMAL(10,2) NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    paid_amount DECIMAL(10,2) DEFAULT 0,
+    
+    -- Durum
+    status NVARCHAR(20) DEFAULT 'PENDING',
+    payment_date DATE,
+    
+    notes NVARCHAR(MAX),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (service_record_id) REFERENCES service_records(id)
+);
+
+-- 17. FATURA KALEMLERİ (Aksesuar satışları için)
+CREATE TABLE invoice_items (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    invoice_id INT NOT NULL,
+    part_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    line_total DECIMAL(10,2) NOT NULL,
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+    FOREIGN KEY (part_id) REFERENCES parts(id)
+);
+
+-- 18. KASA HAREKETLERİ (Yeni)
+CREATE TABLE cash_transactions (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    transaction_date DATE NOT NULL,
+    transaction_type NVARCHAR(20) NOT NULL, -- INCOME, EXPENSE
+    payment_method NVARCHAR(20) NOT NULL, -- CASH, CARD, TRANSFER, CHECK
+    amount DECIMAL(10,2) NOT NULL,
+    
+    -- Referans Bilgileri
+    reference_type NVARCHAR(20), -- INVOICE, EXPENSE, SALARY etc.
+    reference_id INT,
+    
+    description NVARCHAR(500),
+    receipt_number NVARCHAR(20),
+    
+    created_by INT NOT NULL,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- 19. MÜŞTERİ ALACAKLARI (Yeni)
+CREATE TABLE account_receivables (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    customer_id INT NOT NULL,
+    invoice_id INT NULL,
+    
+    due_date DATE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    paid_amount DECIMAL(10,2) DEFAULT 0,
+    remaining_amount AS (amount - paid_amount),
+    
+    status NVARCHAR(20) DEFAULT 'PENDING', -- PENDING, PARTIAL, PAID, OVERDUE
+    description NVARCHAR(500),
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+);
+
+-- 20. TEDARİKÇİ BORÇLARI (Yeni)
+CREATE TABLE account_payables (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    supplier_id INT NOT NULL,
+    
+    due_date DATE NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    paid_amount DECIMAL(10,2) DEFAULT 0,
+    remaining_amount AS (amount - paid_amount),
+    
+    status NVARCHAR(20) DEFAULT 'PENDING',
+    description NVARCHAR(500),
+    purchase_order_number NVARCHAR(20),
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+);
+
+-- 21. GÜNLÜK KASA ÖZETİ (Yeni)
+CREATE TABLE daily_cash_summary (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    summary_date DATE NOT NULL UNIQUE,
+    
+    -- Nakit
+    cash_opening_balance DECIMAL(10,2) DEFAULT 0,
+    cash_income DECIMAL(10,2) DEFAULT 0,
+    cash_expense DECIMAL(10,2) DEFAULT 0,
+    cash_closing_balance AS (cash_opening_balance + cash_income - cash_expense),
+    
+    -- Kart
+    card_income DECIMAL(10,2) DEFAULT 0,
+    
+    -- Transfer
+    transfer_income DECIMAL(10,2) DEFAULT 0,
+    transfer_expense DECIMAL(10,2) DEFAULT 0,
+    
+    -- Toplam
+    total_income AS (cash_income + card_income + transfer_income),
+    total_expense AS (cash_expense + transfer_expense),
+    net_income AS (cash_income + card_income + transfer_income - cash_expense - transfer_expense),
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE()
+);
+
+-- 22. BOYAMA ŞABLONLARİ
+CREATE TABLE paint_templates (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    vespa_model_id INT NOT NULL,
+    template_name NVARCHAR(100) NOT NULL,
+    svg_template_path NVARCHAR(500) NOT NULL,
+    is_active BIT DEFAULT 1,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (vespa_model_id) REFERENCES vespa_models(id)
+);
+
+-- 23. BOYAMA ŞABLONLARINDAKİ PARÇALAR
+CREATE TABLE paint_template_parts (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    paint_template_id INT NOT NULL,
+    part_name NVARCHAR(100) NOT NULL,
+    svg_element_id NVARCHAR(50) NOT NULL,
+    coordinates_x INT,
+    coordinates_y INT,
+    sort_order INT DEFAULT 0,
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (paint_template_id) REFERENCES paint_templates(id) ON DELETE CASCADE
+);
+
+-- 24. BOYAMA İŞLEMLERİ
+CREATE TABLE paint_jobs (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    service_record_id INT NOT NULL,
+    paint_template_id INT NOT NULL,
+    estimated_cost DECIMAL(10,2),
+    actual_cost DECIMAL(10,2),
+    status NVARCHAR(20) DEFAULT 'PLANNED',
+    painter_name NVARCHAR(100),
+    completion_date DATE,
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (service_record_id) REFERENCES service_records(id),
+    FOREIGN KEY (paint_template_id) REFERENCES paint_templates(id)
+);
+
+-- 25. BOYAMA İŞLEMLERİNDE SEÇİLEN PARÇALAR
+CREATE TABLE paint_job_parts (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    paint_job_id INT NOT NULL,
+    paint_template_part_id INT NOT NULL,
+    selected_color NVARCHAR(7),
+    color_name NVARCHAR(50),
+    estimated_cost DECIMAL(8,2),
+    actual_cost DECIMAL(8,2),
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (paint_job_id) REFERENCES paint_jobs(id) ON DELETE CASCADE,
+    FOREIGN KEY (paint_template_part_id) REFERENCES paint_template_parts(id)
+);
+
+-- 26. EMAIL BİLDİRİMLERİ
+CREATE TABLE email_notifications (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    notification_type NVARCHAR(50) NOT NULL,
+    recipient_email NVARCHAR(100) NOT NULL,
+    subject NVARCHAR(200) NOT NULL,
+    body NVARCHAR(MAX) NOT NULL,
+    status NVARCHAR(20) DEFAULT 'PENDING',
+    send_date DATETIME2,
+    error_message NVARCHAR(500),
+    
+    created_date DATETIME2 DEFAULT GETDATE()
+);
+
+-- 27. RANDEVU SLOTLARI (Çalışma saatleri)
+CREATE TABLE appointment_slots (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    day_of_week INT NOT NULL, -- 1=Pazartesi, 7=Pazar
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    slot_duration INT DEFAULT 60, -- dakika cinsinden
+    max_appointments INT DEFAULT 1, -- Bu slotta max kaç randevu
+    is_active BIT DEFAULT 1,
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    UNIQUE(day_of_week, start_time)
+);
+
+-- 28. RANDEVULAR
+CREATE TABLE appointments (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    appointment_number NVARCHAR(20) NOT NULL UNIQUE,
+    customer_id INT NOT NULL,
+    customer_vespa_id INT NULL, -- Hangi vespa için
+    
+    -- Randevu Detayları
+    appointment_date DATE NOT NULL,
+    appointment_time TIME NOT NULL,
+    estimated_duration INT DEFAULT 60, -- dakika
+    
+    -- Servis Bilgileri
+    service_type NVARCHAR(50) NOT NULL,
+    description NVARCHAR(MAX),
+    customer_notes NVARCHAR(MAX), -- Müşteri notları
+    internal_notes NVARCHAR(MAX), -- İç notlar
+    
+    -- Durum
+    status NVARCHAR(20) DEFAULT 'SCHEDULED', -- SCHEDULED, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW
+    
+    -- İletişim
+    reminder_sent BIT DEFAULT 0,
+    reminder_sent_date DATETIME2,
+    
+    -- Teknisyen
+    assigned_technician NVARCHAR(100),
+    
+    -- Bağlantılı servis kaydı (randevu tamamlandığında oluşur)
+    service_record_id INT NULL,
+    
+    created_by INT NOT NULL,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (customer_vespa_id) REFERENCES customer_vespas(id),
+    FOREIGN KEY (service_record_id) REFERENCES service_records(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- 29. RANDEVU DURUM GEÇMİŞİ
+CREATE TABLE appointment_status_history (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    appointment_id INT NOT NULL,
+    old_status NVARCHAR(20),
+    new_status NVARCHAR(20) NOT NULL,
+    change_reason NVARCHAR(500),
+    changed_by INT NOT NULL,
+    changed_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by) REFERENCES users(id)
+);
+
+-- 30. VERGİ RAPORLARI (Aylık/Yıllık)
+CREATE TABLE tax_reports (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    report_period_start DATE NOT NULL,
+    report_period_end DATE NOT NULL,
+    report_type NVARCHAR(20) NOT NULL, -- MONTHLY, QUARTERLY, ANNUAL
+    
+    -- Gelir Bilgileri
+    total_revenue DECIMAL(12,2) NOT NULL,
+    service_revenue DECIMAL(12,2) NOT NULL,
+    parts_revenue DECIMAL(12,2) NOT NULL,
+    accessory_revenue DECIMAL(12,2) NOT NULL,
+    
+    -- Gider/Maliyet Bilgileri
+    total_expenses DECIMAL(12,2) NOT NULL,
+    parts_cost DECIMAL(12,2) NOT NULL,
+    labor_cost DECIMAL(12,2) NOT NULL,
+    operational_expenses DECIMAL(12,2) NOT NULL,
+    
+    -- Vergi Hesaplamaları
+    taxable_income DECIMAL(12,2) NOT NULL, -- Vergi matrahı
+    calculated_tax DECIMAL(12,2) NOT NULL, -- Hesaplanan vergi
+    paid_tax DECIMAL(12,2) DEFAULT 0, -- Ödenen vergi
+    remaining_tax AS (calculated_tax - paid_tax), -- Kalan vergi
+    
+    -- KDV Bilgileri
+    collected_vat DECIMAL(12,2) NOT NULL, -- Tahsil edilen KDV
+    paid_vat DECIMAL(12,2) NOT NULL, -- Ödenen KDV (alış)
+    net_vat AS (collected_vat - paid_vat), -- Net KDV borcu/alacağı
+    
+    -- Durum
+    status NVARCHAR(20) DEFAULT 'DRAFT', -- DRAFT, FINALIZED, SUBMITTED
+    finalized_date DATE,
+    submission_date DATE,
+    
+    notes NVARCHAR(MAX),
+    created_by INT NOT NULL,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    UNIQUE(report_period_start, report_period_end, report_type)
+);
+
+-- 31. VERGİ RAPORU DETAYLARI (İşlem bazlı)
+CREATE TABLE tax_report_details (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    tax_report_id INT NOT NULL,
+    
+    -- İşlem Referansı
+    transaction_type NVARCHAR(20) NOT NULL, -- INVOICE, EXPENSE, PURCHASE
+    transaction_id INT NOT NULL,
+    transaction_date DATE NOT NULL,
+    
+    -- Tutar Bilgileri
+    gross_amount DECIMAL(10,2) NOT NULL,
+    tax_amount DECIMAL(10,2) NOT NULL,
+    net_amount DECIMAL(10,2) NOT NULL,
+    
+    description NVARCHAR(500),
+    
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (tax_report_id) REFERENCES tax_reports(id) ON DELETE CASCADE
+);
+
+-- 32. VERGİ ÖDEMELERİ
+CREATE TABLE tax_payments (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    tax_report_id INT NOT NULL,
+    
+    payment_date DATE NOT NULL,
+    payment_amount DECIMAL(12,2) NOT NULL,
+    payment_method NVARCHAR(20) NOT NULL, -- BANK_TRANSFER, CHECK, CASH
+    
+    -- Ödeme Detayları
+    tax_office NVARCHAR(100), -- Hangi vergi dairesi
+    receipt_number NVARCHAR(50), -- Makbuz numarası
+    bank_reference NVARCHAR(50), -- Banka dekontu no
+    
+    notes NVARCHAR(500),
+    created_by INT NOT NULL,
+    created_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (tax_report_id) REFERENCES tax_reports(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- 33. SİSTEM AYARLARI
+CREATE TABLE system_settings (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    setting_key NVARCHAR(50) NOT NULL UNIQUE,
+    setting_value NVARCHAR(MAX) NOT NULL,
+    setting_type NVARCHAR(20) DEFAULT 'TEXT', -- TEXT, NUMBER, BOOLEAN, JSON
+    description NVARCHAR(200),
+    category NVARCHAR(50) DEFAULT 'GENERAL', -- GENERAL, EMAIL, TAX, APPOINTMENT, CURRENCY
+    is_system BIT DEFAULT 0, -- Sistem ayarı mı (kullanıcı değiştiremez)
+    updated_by INT,
+    updated_date DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (updated_by) REFERENCES users(id)
+);
+
+-- ===============================================
+-- VIEWS (Hesaplanan Değerler)
+-- ===============================================
+
+-- Randevu takvimi görünümü
+GO
+CREATE VIEW appointment_calendar AS
+SELECT 
+    a.id,
+    a.appointment_number,
+    a.appointment_date,
+    a.appointment_time,
+    a.estimated_duration,
+    c.first_name + ' ' + c.last_name as customer_name,
+    c.phone as customer_phone,
+    vm.model_name,
+    cv.license_plate,
+    a.service_type,
+    a.status,
+    a.assigned_technician,
+    CASE 
+        WHEN a.status = 'SCHEDULED' AND a.appointment_date < GETDATE() THEN 'OVERDUE'
+        WHEN a.status = 'SCHEDULED' AND a.appointment_date = CAST(GETDATE() as DATE) THEN 'TODAY'
+        WHEN a.status = 'SCHEDULED' AND a.appointment_date > GETDATE() THEN 'UPCOMING'
+        ELSE a.status
+    END as display_status
+FROM appointments a
+INNER JOIN customers c ON a.customer_id = c.id
+LEFT JOIN customer_vespas cv ON a.customer_vespa_id = cv.id
+LEFT JOIN vespa_models vm ON cv.vespa_model_id = vm.id;
+
+-- Günlük randevu özeti
+GO
+CREATE VIEW daily_appointment_summary AS
+SELECT 
+    appointment_date,
+    COUNT(*) as total_appointments,
+    SUM(CASE WHEN status = 'SCHEDULED' THEN 1 ELSE 0 END) as scheduled_count,
+    SUM(CASE WHEN status = 'CONFIRMED' THEN 1 ELSE 0 END) as confirmed_count,
+    SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed_count,
+    SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled_count,
+    SUM(CASE WHEN status = 'NO_SHOW' THEN 1 ELSE 0 END) as no_show_count
+FROM appointments
+GROUP BY appointment_date;
+
+-- Vergi raporu özeti
+GO
+CREATE VIEW tax_report_summary AS
+SELECT 
+    tr.id,
+    tr.report_period_start,
+    tr.report_period_end,
+    tr.report_type,
+    tr.total_revenue,
+    tr.total_expenses,
+    tr.taxable_income,
+    tr.calculated_tax,
+    tr.paid_tax,
+    (tr.calculated_tax - tr.paid_tax) as remaining_tax,
+    tr.collected_vat,
+    tr.paid_vat,
+    (tr.collected_vat - tr.paid_vat) as net_vat,
+    tr.status,
+    ISNULL(tp.total_payments, 0) as total_payments
+FROM tax_reports tr
+LEFT JOIN (
+    SELECT 
+        tax_report_id,
+        SUM(payment_amount) as total_payments
+    FROM tax_payments 
+    GROUP BY tax_report_id
+) tp ON tr.id = tp.tax_report_id;
+
+-- Aylık mali özet
+GO
+CREATE VIEW monthly_financial_summary AS
+SELECT 
+    YEAR(invoice_date) as year,
+    MONTH(invoice_date) as month,
+    COUNT(*) as invoice_count,
+    SUM(subtotal) as total_revenue,
+    SUM(tax_amount) as total_vat_collected,
+    SUM(total_amount) as total_with_vat,
+    SUM(paid_amount) as total_collected,
+    SUM(total_amount - paid_amount) as outstanding_balance
+FROM invoices
+WHERE status IN ('PAID', 'PENDING', 'PARTIAL')
+GROUP BY YEAR(invoice_date), MONTH(invoice_date);
+
+GO
+
+-- Toplam stok görünümü (tüm lokasyonlar)
+GO
+CREATE VIEW part_total_stock AS
+SELECT 
+    p.id as part_id,
+    p.part_code,
+    p.part_name,
+    p.part_type,
+    SUM(psl.current_stock) as total_stock,
+    SUM(psl.reserved_stock) as total_reserved,
+    SUM(psl.current_stock - psl.reserved_stock) as available_stock,
+    p.min_stock_level,
+    p.max_stock_level,
+    CASE 
+        WHEN SUM(psl.current_stock) <= p.min_stock_level THEN 'LOW'
+        WHEN SUM(psl.current_stock) <= p.min_stock_level * 0.5 THEN 'CRITICAL'
+        ELSE 'NORMAL'
+    END as stock_status
+FROM parts p
+LEFT JOIN part_stock_locations psl ON p.id = psl.part_id
+GROUP BY p.id, p.part_code, p.part_name, p.part_type, p.min_stock_level, p.max_stock_level;
+
+GO
+
+-- Mağaza stoku
+GO
+CREATE VIEW store_stock AS
+SELECT 
+    p.id as part_id,
+    p.part_code,
+    p.part_name,
+    psl.current_stock as store_stock,
+    psl.reserved_stock as store_reserved,
+    sl.location_name
+FROM parts p
+INNER JOIN part_stock_locations psl ON p.id = psl.part_id
+INNER JOIN storage_locations sl ON psl.storage_location_id = sl.id
+WHERE sl.location_type = 'STORE';
+
+GO
+
+-- Depo stoku (raf detaylı)
+GO
+CREATE VIEW warehouse_stock AS
+SELECT 
+    p.id as part_id,
+    p.part_code,
+    p.part_name,
+    psl.current_stock,
+    sl.location_code,
+    sl.shelf_code,
+    sl.rack_number,
+    sl.level_number,
+    sl.location_name
+FROM parts p
+INNER JOIN part_stock_locations psl ON p.id = psl.part_id
+INNER JOIN storage_locations sl ON psl.storage_location_id = sl.id
+WHERE sl.location_type = 'WAREHOUSE';
+
+GO
+
+-- Güncel parça fiyatları (döviz dahil)
+GO
+CREATE VIEW current_part_prices AS
+SELECT 
+    p.id as part_id,
+    p.part_code,
+    p.part_name,
+    p.part_type,
+    pp.purchase_price,
+    pp.sale_price,
+    pp.currency_type,
+    s.supplier_name,
+    pp.supplier_part_code,
+    -- TL karşılığı hesaplanacak (EUR ise kur ile çarpılacak)
+    CASE 
+        WHEN pp.currency_type = 'EUR' THEN 
+            pp.purchase_price * ISNULL((SELECT TOP 1 buy_rate FROM currency_rates WHERE currency_code = 'EUR' ORDER BY rate_date DESC), 1)
+        ELSE pp.purchase_price 
+    END as purchase_price_tl,
+    CASE 
+        WHEN pp.currency_type = 'EUR' THEN 
+            pp.sale_price * ISNULL((SELECT TOP 1 sell_rate FROM currency_rates WHERE currency_code = 'EUR' ORDER BY rate_date DESC), 1)
+        ELSE pp.sale_price 
+    END as sale_price_tl
+FROM parts p
+LEFT JOIN part_prices pp ON p.id = pp.part_id AND pp.is_current = 1
+LEFT JOIN suppliers s ON pp.supplier_id = s.id;
+
+GO
+
+-- Servis toplam maliyetleri
+GO
+CREATE VIEW service_total_costs AS
+SELECT 
+    sr.id,
+    sr.service_number,
+    sr.labor_cost,
+    ISNULL(parts_total.total_parts_cost, 0) as parts_cost,
+    (sr.labor_cost + ISNULL(parts_total.total_parts_cost, 0)) as total_cost
+FROM service_records sr
+LEFT JOIN (
+    SELECT 
+        service_record_id,
+        SUM(quantity * unit_price) as total_parts_cost
+    FROM service_parts 
+    GROUP BY service_record_id
+) parts_total ON sr.id = parts_total.service_record_id;
+
+GO
+
+-- Müşteri özet bilgileri
+GO
+CREATE VIEW customer_summary AS
+SELECT 
+    c.id as customer_id,
+    c.first_name + ' ' + c.last_name as customer_name,
+    c.phone,
+    c.email,
+    c.address,
+    COUNT(DISTINCT cv.id) as vespa_count,
+    COUNT(sr.id) as total_services,
+    SUM(CASE WHEN sr.status = 'COMPLETED' THEN stc.total_cost ELSE 0 END) as total_spent,
+    MAX(sr.service_date) as last_service_date,
+    SUM(ar.remaining_amount) as outstanding_balance
+FROM customers c
+LEFT JOIN customer_vespas cv ON c.id = cv.customer_id
+LEFT JOIN service_records sr ON cv.id = sr.customer_vespa_id
+LEFT JOIN service_total_costs stc ON sr.id = stc.id
+LEFT JOIN account_receivables ar ON c.id = ar.customer_id AND ar.status IN ('PENDING', 'PARTIAL')
+GROUP BY c.id, c.first_name, c.last_name, c.phone, c.email, c.address;
+
+GO
+
+-- ===============================================
+-- INDEXES
+-- ===============================================
+
+-- Müşteri aramaları
+CREATE INDEX IX_customers_phone ON customers(phone);
+CREATE INDEX IX_customers_full_name ON customers(first_name, last_name);
+CREATE INDEX IX_customer_vespas_plate ON customer_vespas(license_plate);
+
+-- Parça aramaları
+CREATE INDEX IX_parts_code ON parts(part_code);
+CREATE INDEX IX_parts_name ON parts(part_name);
+CREATE INDEX IX_parts_type ON parts(part_type);
+
+-- Stok sorguları
+CREATE INDEX IX_part_stock_locations_part ON part_stock_locations(part_id);
+CREATE INDEX IX_stock_movements_part_date ON stock_movements(part_id, created_date);
+
+-- Fiyat sorguları
+CREATE INDEX IX_part_prices_current ON part_prices(part_id, is_current) WHERE is_current = 1;
+
+-- Mali işlemler
+CREATE INDEX IX_cash_transactions_date ON cash_transactions(transaction_date);
+CREATE INDEX IX_account_receivables_customer ON account_receivables(customer_id, status);
+CREATE INDEX IX_account_payables_supplier ON account_payables(supplier_id, status);
+
+-- Randevu sistemi
+CREATE INDEX IX_appointments_date ON appointments(appointment_date);
+CREATE INDEX IX_appointments_customer ON appointments(customer_id);
+CREATE INDEX IX_appointments_status ON appointments(status);
+CREATE INDEX IX_appointments_technician ON appointments(assigned_technician);
+CREATE INDEX IX_appointment_slots_day ON appointment_slots(day_of_week, is_active);
+
+-- Vergi raporları
+CREATE INDEX IX_tax_reports_period ON tax_reports(report_period_start, report_period_end);
+CREATE INDEX IX_tax_reports_type ON tax_reports(report_type, status);
+CREATE INDEX IX_tax_report_details_report ON tax_report_details(tax_report_id);
+CREATE INDEX IX_tax_payments_report ON tax_payments(tax_report_id);
+
+-- ===============================================
+-- TRIGGERS
+-- ===============================================
+
+-- Parça fiyatı güncellendiğinde eski fiyatları is_current=0 yap
+GO
+CREATE TRIGGER tr_part_prices_update
+ON part_prices
+AFTER INSERT
+AS
+BEGIN
+    UPDATE part_prices 
+    SET is_current = 0
+    WHERE part_id IN (SELECT part_id FROM inserted)
+    AND id NOT IN (SELECT id FROM inserted)
+    AND is_current = 1;
+END;
+
+GO
+
+-- Servis parçası eklendiğinde stok azalt (mağaza öncelikli)
+GO
+CREATE TRIGGER tr_service_parts_stock_decrease
+ON service_parts
+AFTER INSERT
+AS
+BEGIN
+    -- Önce mağaza stokunu kontrol et, yoksa depodan al
+    DECLARE @part_id INT, @quantity INT, @service_id INT;
+    DECLARE @store_location_id INT, @warehouse_location_id INT;
+    
+    DECLARE part_cursor CURSOR FOR
+    SELECT part_id, quantity, service_record_id FROM inserted;
+    
+    OPEN part_cursor;
+    FETCH NEXT FROM part_cursor INTO @part_id, @quantity, @service_id;
+    
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        -- Mağaza lokasyonunu bul
+        SELECT TOP 1 @store_location_id = psl.storage_location_id
+        FROM part_stock_locations psl
+        INNER JOIN storage_locations sl ON psl.storage_location_id = sl.id
+        WHERE psl.part_id = @part_id AND sl.location_type = 'STORE' 
+        AND psl.current_stock >= @quantity;
+        
+        IF @store_location_id IS NOT NULL
+        BEGIN
+            -- Mağazadan düş
+            UPDATE part_stock_locations
+            SET current_stock = current_stock - @quantity
+            WHERE part_id = @part_id AND storage_location_id = @store_location_id;
+            
+            -- Hareket kaydı
+            INSERT INTO stock_movements (part_id, storage_location_id, movement_type, quantity, reference_type, reference_id, created_by)
+            VALUES (@part_id, @store_location_id, 'OUT', @quantity, 'SERVICE', @service_id, 1);
+        END
+        ELSE
+        BEGIN
+            -- Depodan düş
+            SELECT TOP 1 @warehouse_location_id = psl.storage_location_id
+            FROM part_stock_locations psl
+            INNER JOIN storage_locations sl ON psl.storage_location_id = sl.id
+            WHERE psl.part_id = @part_id AND sl.location_type = 'WAREHOUSE' 
+            AND psl.current_stock >= @quantity;
+            
+            IF @warehouse_location_id IS NOT NULL
+            BEGIN
+                UPDATE part_stock_locations
+                SET current_stock = current_stock - @quantity
+                WHERE part_id = @part_id AND storage_location_id = @warehouse_location_id;
+                
+                INSERT INTO stock_movements (part_id, storage_location_id, movement_type, quantity, reference_type, reference_id, created_by)
+                VALUES (@part_id, @warehouse_location_id, 'OUT', @quantity, 'SERVICE', @service_id, 1);
+            END
+        END
+        
+        FETCH NEXT FROM part_cursor INTO @part_id, @quantity, @service_id;
+    END
+    
+    CLOSE part_cursor;
+    DEALLOCATE part_cursor;
+END;
+
+GO
+
+-- Randevu durumu değiştiğinde geçmiş kaydı oluştur
+GO
+CREATE TRIGGER tr_appointment_status_change
+ON appointments
+AFTER UPDATE
+AS
+BEGIN
+    IF UPDATE(status)
+    BEGIN
+        INSERT INTO appointment_status_history (appointment_id, old_status, new_status, changed_by)
+        SELECT 
+            d.id,
+            d.status,
+            i.status,
+            1 -- Sistem kullanıcısı (güncellenecek)
+        FROM deleted d
+        INNER JOIN inserted i ON d.id = i.id
+        WHERE d.status != i.status;
+    END
+END;
+
+GO
+
+-- Randevu tamamlandığında servis kaydı oluştur
+GO
+CREATE TRIGGER tr_appointment_completed
+ON appointments
+AFTER UPDATE
+AS
+BEGIN
+    IF UPDATE(status)
+    BEGIN
+        DECLARE @appointment_id INT, @customer_vespa_id INT, @service_type NVARCHAR(50);
+        DECLARE @description NVARCHAR(MAX), @service_number NVARCHAR(20);
+        
+        DECLARE appointment_cursor CURSOR FOR
+        SELECT i.id, i.customer_vespa_id, i.service_type, i.description
+        FROM inserted i
+        INNER JOIN deleted d ON i.id = d.id
+        WHERE i.status = 'COMPLETED' AND d.status != 'COMPLETED'
+        AND i.service_record_id IS NULL;
+        
+        OPEN appointment_cursor;
+        FETCH NEXT FROM appointment_cursor INTO @appointment_id, @customer_vespa_id, @service_type, @description;
+        
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            -- Servis numarası oluştur
+            SET @service_number = 'SRV' + FORMAT(GETDATE(), 'yyyyMMdd') + FORMAT(@appointment_id, '000');
+            
+            -- Servis kaydı oluştur
+            INSERT INTO service_records (
+                service_number, customer_vespa_id, service_type, 
+                service_date, status, description, start_date
+            )
+            VALUES (
+                @service_number, @customer_vespa_id, @service_type,
+                CAST(GETDATE() as DATE), 'IN_PROGRESS', @description, GETDATE()
+            );
+            
+            -- Randevuya servis kaydını bağla
+            UPDATE appointments 
+            SET service_record_id = SCOPE_IDENTITY()
+            WHERE id = @appointment_id;
+            
+            FETCH NEXT FROM appointment_cursor INTO @appointment_id, @customer_vespa_id, @service_type, @description;
+        END
+        
+        CLOSE appointment_cursor;
+        DEALLOCATE appointment_cursor;
+    END
+END;
+
+GO
+
+-- ===============================================
+-- VARSAYILAN VERİLER
+-- ===============================================
+
+-- Tedarikçiler
+INSERT INTO suppliers (supplier_name, contact_person, phone, email) VALUES
+('Motopit', 'Satış Departmanı', '+90 212 000 00 00', 'info@motopit.com.tr'),
+('Vespa Türkiye', 'Yedek Parça', '+90 212 111 11 11', 'parts@vespa.com.tr'),
+('Yerel Tedarikçi', 'Mehmet Bey', '+90 212 222 22 22', 'mehmet@yerel.com');
+
+-- Depo lokasyonları
+INSERT INTO storage_locations (location_code, location_name, location_type, shelf_code, rack_number, level_number) VALUES
+-- Mağaza
+('M-COUNTER', 'Mağaza Tezgah', 'STORE', NULL, NULL, NULL),
+('M-DISPLAY', 'Mağaza Vitrin', 'STORE', NULL, NULL, NULL),
+-- Depo
+('D-A-01-1', 'Depo A Rafı 1 Seviye 1', 'WAREHOUSE', 'A', 1, 1),
+('D-A-01-2', 'Depo A Rafı 1 Seviye 2', 'WAREHOUSE', 'A', 1, 2),
+('D-A-02-1', 'Depo A Rafı 2 Seviye 1', 'WAREHOUSE', 'A', 2, 1),
+('D-B-01-1', 'Depo B Rafı 1 Seviye 1', 'WAREHOUSE', 'B', 1, 1),
+('D-B-01-2', 'Depo B Rafı 1 Seviye 2', 'WAREHOUSE', 'B', 1, 2),
+('D-C-01-1', 'Depo C Rafı 1 Seviye 1', 'WAREHOUSE', 'C', 1, 1);
+
+-- Ana parça kategorileri
+INSERT INTO part_categories (category_name, parent_category_id, category_type, sort_order) VALUES
+-- Parça kategorileri
+('Orijinal Aksesuar', NULL, 'PART', 1),
+('Bakım Grubu', NULL, 'PART', 2),
+('Aktarma / Debriyaj Grubu', NULL, 'PART', 3),
+('Fren / Manet Grubu', NULL, 'PART', 4),
+('Panel / Şase / Grenaj Grubu', NULL, 'PART', 5),
+('Elektrik / Elektronik Grubu', NULL, 'PART', 6),
+('Motor / Silindir/ Karter Grubu', NULL, 'PART', 7),
+('Hava / Benzin / Egzost Grubu', NULL, 'PART', 8),
+-- Aksesuar kategorileri
+('Kasklar', NULL, 'ACCESSORY', 9),
+('Çantalar', NULL, 'ACCESSORY', 10),
+('Eldiven', NULL, 'ACCESSORY', 11),
+('Kilitler', NULL, 'ACCESSORY', 12),
+('Sırt Dayama', NULL, 'ACCESSORY', 13),
+('Cam Aksesuar', NULL, 'ACCESSORY', 14),
+('Çanta Demiri', NULL, 'ACCESSORY', 15);
+
+-- Vespa modelleri
+INSERT INTO vespa_models (model_code, model_name, model_year, engine_size, category) VALUES
+('PRIM150', 'Vespa Primavera 150', 2024, '150cc', 'Primavera'),
+('PRIM150_3V', 'Vespa Primavera 150 3v', 2024, '150cc', 'Primavera'),
+('GTS300', 'Vespa GTS 300', 2024, '300cc', 'GTS'),
+('SPRINT150', 'Vespa Sprint 150', 2024, '150cc', 'Sprint'),
+('LX150', 'Vespa LX 150', 2023, '150cc', 'LX'),
+('ET2150', 'Vespa ET2 150', 2022, '150cc', 'ET'),
+('ET4150', 'Vespa ET4 150', 2021, '150cc', 'ET');
+
+-- Randevu çalışma saatleri (Pazartesi-Cumartesi 09:00-18:00)
+INSERT INTO appointment_slots (day_of_week, start_time, end_time, slot_duration, max_appointments) VALUES
+-- Pazartesi (1)
+(1, '09:00', '10:00', 60, 2),
+(1, '10:00', '11:00', 60, 2),
+(1, '11:00', '12:00', 60, 2),
+(1, '13:00', '14:00', 60, 2),
+(1, '14:00', '15:00', 60, 2),
+(1, '15:00', '16:00', 60, 2),
+(1, '16:00', '17:00', 60, 2),
+(1, '17:00', '18:00', 60, 1),
+-- Salı (2)
+(2, '09:00', '10:00', 60, 2),
+(2, '10:00', '11:00', 60, 2),
+(2, '11:00', '12:00', 60, 2),
+(2, '13:00', '14:00', 60, 2),
+(2, '14:00', '15:00', 60, 2),
+(2, '15:00', '16:00', 60, 2),
+(2, '16:00', '17:00', 60, 2),
+(2, '17:00', '18:00', 60, 1),
+-- Çarşamba (3)
+(3, '09:00', '10:00', 60, 2),
+(3, '10:00', '11:00', 60, 2),
+(3, '11:00', '12:00', 60, 2),
+(3, '13:00', '14:00', 60, 2),
+(3, '14:00', '15:00', 60, 2),
+(3, '15:00', '16:00', 60, 2),
+(3, '16:00', '17:00', 60, 2),
+(3, '17:00', '18:00', 60, 1),
+-- Perşembe (4)
+(4, '09:00', '10:00', 60, 2),
+(4, '10:00', '11:00', 60, 2),
+(4, '11:00', '12:00', 60, 2),
+(4, '13:00', '14:00', 60, 2),
+(4, '14:00', '15:00', 60, 2),
+(4, '15:00', '16:00', 60, 2),
+(4, '16:00', '17:00', 60, 2),
+(4, '17:00', '18:00', 60, 1),
+-- Cuma (5)
+(5, '09:00', '10:00', 60, 2),
+(5, '10:00', '11:00', 60, 2),
+(5, '11:00', '12:00', 60, 2),
+(5, '13:00', '14:00', 60, 2),
+(5, '14:00', '15:00', 60, 2),
+(5, '15:00', '16:00', 60, 2),
+(5, '16:00', '17:00', 60, 2),
+(5, '17:00', '18:00', 60, 1),
+-- Cumartesi (6) - Kısa mesai
+(6, '09:00', '10:00', 60, 1),
+(6, '10:00', '11:00', 60, 1),
+(6, '11:00', '12:00', 60, 1),
+(6, '13:00', '14:00', 60, 1),
+(6, '14:00', '15:00', 60, 1);
+
+-- Sistem ayarları (Kategoriler ile organize)
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description, category, is_system) VALUES
+-- Email Ayarları
+('EMAIL_SMTP_HOST', 'smtp.gmail.com', 'TEXT', 'Email SMTP sunucusu', 'EMAIL', 0),
+('EMAIL_SMTP_PORT', '587', 'NUMBER', 'Email SMTP portu', 'EMAIL', 0),
+('EMAIL_USERNAME', 'info@motoetiler.com', 'TEXT', 'Email kullanıcı adı', 'EMAIL', 0),
+('EMAIL_PASSWORD', '', 'TEXT', 'Email şifresi', 'EMAIL', 0),
+('LOW_STOCK_EMAIL_ENABLED', 'true', 'BOOLEAN', 'Düşük stok email bildirimi', 'EMAIL', 0),
+('DAILY_REPORT_EMAIL_ENABLED', 'true', 'BOOLEAN', 'Günlük rapor email bildirimi', 'EMAIL', 0),
+('APPOINTMENT_REMINDER_EMAIL', 'true', 'BOOLEAN', 'Randevu hatırlatma emaili', 'EMAIL', 0),
+
+-- Döviz Kuru Ayarları
+('CURRENCY_API_URL', 'https://api.exchangerate-api.com/v4/latest/EUR', 'TEXT', 'Döviz kuru API adresi', 'CURRENCY', 0),
+('CURRENCY_UPDATE_INTERVAL', '60', 'NUMBER', 'Döviz kuru güncelleme sıklığı (dakika)', 'CURRENCY', 0),
+('AUTO_CURRENCY_UPDATE', 'true', 'BOOLEAN', 'Otomatik kur güncellemesi', 'CURRENCY', 0),
+
+-- Vergi Ayarları
+('TAX_RATE', '20.00', 'NUMBER', 'KDV oranı (%)', 'TAX', 0),
+('INCOME_TAX_RATE', '22.00', 'NUMBER', 'Gelir vergisi oranı (%)', 'TAX', 0),
+('TAX_OFFICE_NAME', 'Beşiktaş Vergi Dairesi', 'TEXT', 'Bağlı bulunulan vergi dairesi', 'TAX', 0),
+('TAX_NUMBER', '1234567890', 'TEXT', 'Vergi numarası', 'TAX', 0),
+('AUTO_TAX_CALCULATION', 'true', 'BOOLEAN', 'Otomatik vergi hesaplama', 'TAX', 0),
+
+-- Randevu Ayarları
+('APPOINTMENT_DURATION_DEFAULT', '60', 'NUMBER', 'Varsayılan randevu süresi (dakika)', 'APPOINTMENT', 0),
+('APPOINTMENT_REMINDER_DAYS', '1', 'NUMBER', 'Randevu hatırlatma (gün öncesi)', 'APPOINTMENT', 0),
+('MAX_APPOINTMENTS_PER_SLOT', '2', 'NUMBER', 'Slot başına max randevu sayısı', 'APPOINTMENT', 0),
+('APPOINTMENT_CANCEL_HOURS', '24', 'NUMBER', 'Randevu iptal süresi (saat)', 'APPOINTMENT', 0),
+('WEEKEND_APPOINTMENTS', 'false', 'BOOLEAN', 'Hafta sonu randevuları', 'APPOINTMENT', 0),
+
+-- Şirket Bilgileri
+('COMPANY_NAME', 'MotoEtiler Vespa Servisi', 'TEXT', 'Şirket adı', 'GENERAL', 0),
+('COMPANY_ADDRESS', 'Etiler Mah. Vespa Cad. No:1 Beşiktaş/İstanbul', 'TEXT', 'Şirket adresi', 'GENERAL', 0),
+('COMPANY_PHONE', '+90 212 000 00 00', 'TEXT', 'Şirket telefonu', 'GENERAL', 0),
+('COMPANY_EMAIL', 'info@motoetiler.com', 'TEXT', 'Şirket email', 'GENERAL', 0),
+('COMPANY_WEBSITE', 'www.motoetiler.com', 'TEXT', 'Şirket web sitesi', 'GENERAL', 0),
+
+-- Stok Ayarları
+('LOW_STOCK_THRESHOLD', '5', 'NUMBER', 'Düşük stok uyarı seviyesi', 'GENERAL', 0),
+('CRITICAL_STOCK_THRESHOLD', '2', 'NUMBER', 'Kritik stok uyarı seviyesi', 'GENERAL', 0),
+('AUTO_STOCK_UPDATE', 'true', 'BOOLEAN', 'Otomatik stok güncellemesi', 'GENERAL', 0),
+
+-- Sistem Ayarları (Değiştirilemez)
+('SYSTEM_VERSION', '1.0.0', 'TEXT', 'Sistem sürümü', 'GENERAL', 1),
+('LAST_BACKUP_DATE', '', 'TEXT', 'Son yedekleme tarihi', 'GENERAL', 1),
+('DATABASE_VERSION', '1.0.0', 'TEXT', 'Veritabanı sürümü', 'GENERAL', 1);
+
+-- Admin kullanıcı
+INSERT INTO users (username, email, password_hash, full_name, role) VALUES
+('admin', 'admin@motoetiler.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewYyBQ2nN8Dt.mKy', 'MotoEtiler Admin', 'ADMIN');
+-- Şifre: admin123
+
+-- Örnek döviz kuru
+INSERT INTO currency_rates (currency_code, rate_date, buy_rate, sell_rate) VALUES
+('EUR', GETDATE(), 34.50, 34.80),
+('USD', GETDATE(), 32.10, 32.40);
+
+-- Günlük kasa açılış kaydı
+INSERT INTO daily_cash_summary (summary_date, cash_opening_balance) VALUES
+(GETDATE(), 1000.00);

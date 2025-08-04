@@ -31,13 +31,7 @@ import {
   VStack,
   HStack,
   Divider,
-
-
-  Heading,
   Progress,
-  List,
-  ListItem,
-  ListIcon,
   Table,
   Thead,
   Tbody,
@@ -50,20 +44,17 @@ import {
 import MiniCalendar from "components/calendar/MiniCalendar";
 import MiniStatistics from "components/card/MiniStatistics";
 import Card from "components/card/Card";
-import React from "react";
+import React, { useState, useEffect } from "react";
+import apiService from "services/apiService";
 import {
   MdDirectionsBike,
   MdPeople,
   MdBuild,
-  MdInventory,
   MdAttachMoney,
   MdTrendingUp,
   MdWarning,
   MdCheckCircle,
   MdPending,
-  MdNotifications,
-  MdCalendarToday,
-  MdAssignment,
 } from "react-icons/md";
 
 export default function VespaDashboard() {
@@ -71,16 +62,51 @@ export default function VespaDashboard() {
   const brandColor = useColorModeValue("brand.500", "white");
   const boxBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
   
-  // MotoEtiler bayi verileri
-  const dashboardData = {
-    totalCustomers: 125,
-    totalServices: 89,
-    totalRevenue: 45000,
-    lowStockItems: 8,
-    pendingServices: 5,
-    completedServices: 84,
-    monthlyGrowth: 12.5,
-    popularModel: "Vespa Primavera 150"
+  // Real dashboard data from API
+  const [dashboardData, setDashboardData] = useState({
+    totalCustomers: 0,
+    totalServices: 0,
+    totalRevenue: 0,
+    lowStockItems: 0,
+    pendingServices: 0,
+    completedServices: 0,
+    monthlyGrowth: 0,
+    popularModel: "-"
+  });
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Load dashboard data from API
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Get comprehensive dashboard data from backend
+      const data = await apiService.getDashboardData();
+      
+      setDashboardData({
+        totalCustomers: data.active_customers || 0,
+        totalServices: data.total_services || 0,
+        totalRevenue: data.total_revenue || 0,
+        lowStockItems: data.low_stock_parts || 0,
+        pendingServices: data.pending_services || 0,
+        completedServices: data.completed_services || 0,
+        monthlyGrowth: data.monthly_growth || 0,
+        popularModel: data.popular_model || "-"
+      });
+      
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      setError('Dashboard verileri yüklenirken hata oluştu');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const recentServices = [

@@ -20,6 +20,8 @@ import { SearchBar } from 'components/navbar/searchBar/SearchBar';
 import { SidebarResponsive } from 'components/sidebar/Sidebar';
 import PropTypes from 'prop-types';
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from 'contexts/AuthContext';
 // Assets
 import navImage from 'assets/img/layout/Navbar.png';
 import { MdNotificationsNone, MdInfoOutline } from 'react-icons/md';
@@ -29,6 +31,18 @@ import routes from 'routes';
 export default function HeaderLinks(props) {
   const { secondary } = props;
   const { colorMode, toggleColorMode } = useColorMode();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  
+  // Get user info from AuthContext
+  const userFullName = user?.userFullName || 'Kullanıcı';
+  const username = user?.username || 'user';
+  
+  // Logout function
+  const handleLogout = async () => {
+    await logout();
+    navigate('/auth/sign-in');
+  };
   // Chakra Color Mode
   const navbarIcon = useColorModeValue('gray.400', 'white');
   let menuBg = useColorModeValue('white', 'navy.800');
@@ -138,7 +152,7 @@ export default function HeaderLinks(props) {
           <Avatar
             _hover={{ cursor: 'pointer' }}
             color="white"
-            name="Adela Parkson"
+            name={userFullName}
             bg="#11047A"
             size="sm"
             w="40px"
@@ -165,7 +179,7 @@ export default function HeaderLinks(props) {
               fontWeight="700"
               color={textColor}
             >
-              👋&nbsp; Hey, Adela
+              👋&nbsp; Merhaba, {userFullName}
             </Text>
           </Flex>
           <Flex flexDirection="column" p="10px">
@@ -191,8 +205,9 @@ export default function HeaderLinks(props) {
               color="red.400"
               borderRadius="8px"
               px="14px"
+              onClick={handleLogout}
             >
-              <Text fontSize="sm">Log out</Text>
+              <Text fontSize="sm">Çıkış Yap</Text>
             </MenuItem>
           </Flex>
         </MenuList>

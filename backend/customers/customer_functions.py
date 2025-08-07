@@ -12,13 +12,14 @@ def get_all_customers(limit=100, offset=0):
             c.id, c.customer_code, c.first_name, c.last_name,
             c.first_name + ' ' + c.last_name as full_name,
             c.email, c.phone, c.address, c.city, c.district,
+            c.tax_number,
             c.status, c.customer_type, c.created_date,
             COUNT(cv.id) as vespa_count
         FROM customers c
         LEFT JOIN customer_vespas cv ON c.id = cv.customer_id AND cv.is_active = 1
         WHERE c.status = 'ACTIVE'
         GROUP BY c.id, c.customer_code, c.first_name, c.last_name, c.email, c.phone, 
-                 c.address, c.city, c.district, c.status, c.customer_type, c.created_date
+                 c.address, c.city, c.district, c.tax_number, c.status, c.customer_type, c.created_date
         ORDER BY c.first_name, c.last_name
         OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
         """
@@ -160,7 +161,7 @@ def search_customers(search_term):
     query = """
     SELECT DISTINCT
         c.id, c.customer_code, c.first_name, c.last_name,
-        c.phone, c.email, c.status
+        c.phone, c.email, c.tax_number, c.status
     FROM customers c
     LEFT JOIN customer_vespas cv ON c.id = cv.customer_id
     WHERE (
@@ -168,13 +169,14 @@ def search_customers(search_term):
         c.last_name LIKE ? OR 
         c.phone LIKE ? OR
         c.email LIKE ? OR
+        c.tax_number LIKE ? OR
         cv.license_plate LIKE ?
     ) AND c.status = 'ACTIVE'
     ORDER BY c.first_name, c.last_name
     """
     
     search_pattern = f"%{search_term}%"
-    cursor.execute(query, (search_pattern, search_pattern, search_pattern, search_pattern, search_pattern))
+    cursor.execute(query, (search_pattern, search_pattern, search_pattern, search_pattern, search_pattern, search_pattern))
     rows = cursor.fetchall()
     connection.close()
     
@@ -188,7 +190,8 @@ def search_customers(search_term):
             'full_name': f"{row[2]} {row[3]}",
             'phone': row[4],
             'email': row[5],
-            'status': row[6]
+            'tax_number': row[6],
+            'status': row[7]
         })
     
     return customers

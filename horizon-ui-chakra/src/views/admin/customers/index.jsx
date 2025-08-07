@@ -48,6 +48,7 @@ import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
 import apiService from 'services/apiService';
 
+
 export default function CustomerManagement() {
   const brandColor = useColorModeValue('brand.500', 'white');
   const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
@@ -150,6 +151,10 @@ export default function CustomerManagement() {
   // Vespa models state
   const [vespaModels, setVespaModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [customerVespas, setCustomerVespas] = useState([]);
+  const [selectedVespaIndex, setSelectedVespaIndex] = useState(0);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState({ services: [], vespas: [] });
 
   // Helper function to update vespa data
   const updateVespaData = (field, value) => {
@@ -295,10 +300,11 @@ export default function CustomerManagement() {
     try {
       if (customer.vespa_count > 0) {
         const vespaResponse = await apiService.getCustomerVespas(customer.id);
-        
-        if (vespaResponse.vespas && vespaResponse.vespas.length > 0) {
-          const firstVespa = vespaResponse.vespas[0]; // Use first Vespa if multiple
-          
+        const vespas = vespaResponse.vespas || vespaResponse || [];
+
+        setCustomerVespas(vespas);
+        if (vespas.length > 0) {
+          const firstVespa = vespas[0];
           setFormData(prev => ({
             ...prev,
             vespa: {
@@ -316,6 +322,23 @@ export default function CustomerManagement() {
     }
     
     onOpen();
+  };
+
+  // Yeni: Müşteri bilgi kartını aç
+  const handleOpenCustomerInfo = async (customer) => {
+    try {
+      setSelectedCustomer(customer);
+      // Tüm vespaları çek
+      const vespaResp = await apiService.getCustomerVespas(customer.id);
+      const vespas = vespaResp.vespas || vespaResp || [];
+      // Son 5 servis kaydı (müşteriye göre)
+      const servicesResp = await apiService.getServices(1, 50, '', customer.id, null);
+      const services = servicesResp.services || servicesResp.results || servicesResp || [];
+      setCustomerInfo({ vespas, services: services.slice(0, 5) });
+      setIsInfoOpen(true);
+    } catch (e) {
+      console.error('Müşteri bilgi kartı yüklenemedi:', e);
+    }
   };
 
   const handleSaveCustomer = async () => {
@@ -613,6 +636,14 @@ export default function CustomerManagement() {
                         size="sm"
                         colorScheme="blue"
                         onClick={() => handleEditCustomer(customer)}
+                        title="Müşteriyi Düzenle"
+                      />
+                      <IconButton
+                        icon={<MdDirectionsBike />}
+                        size="sm"
+                        colorScheme="teal"
+                        onClick={() => handleOpenCustomerInfo(customer)}
+                        title="Müşteri Bilgi Kartı"
                       />
                       <IconButton
                         icon={<MdDelete />}
@@ -809,6 +840,39 @@ export default function CustomerManagement() {
                     </AccordionButton>
                     <AccordionPanel pb={4}>
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        {/* Eğer müşterinin birden fazla Vespa'sı varsa seçim alanı */}
+                        {customerVespas.length > 1 && (
+                          <FormControl gridColumn={{ base: 1, md: 'span 2' }}>
+                            <FormLabel color={labelColor}>Müşterinin Vespaları</FormLabel>
+                            <Select
+                              value={selectedVespaIndex}
+                              onChange={(e) => {
+                                const idx = parseInt(e.target.value, 10) || 0;
+                                setSelectedVespaIndex(idx);
+                                const v = customerVespas[idx];
+                                setFormData(prev => ({
+                                  ...prev,
+                                  vespa: {
+                                    vespa_model_id: v.vespa_model_id?.toString() || '',
+                                    license_plate: v.license_plate || '',
+                                    current_mileage: v.current_mileage || 0,
+                                    service_interval_km: v.service_interval_km || 3000,
+                                    vespa_notes: v.vespa_notes || ''
+                                  }
+                                }));
+                              }}
+                              bg={inputBg}
+                              color={inputText}
+                              borderColor={borderColor}
+                            >
+                              {customerVespas.map((v, idx) => (
+                                <option key={v.id} value={idx} style={{ backgroundColor: optionBgLight, color: optionColorLight }}>
+                                  {v.license_plate} - {v.model_name}
+                                </option>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        )}
                         <FormControl isRequired>
                           <FormLabel color={labelColor}>Vespa Modeli</FormLabel>
                           <Select
@@ -925,6 +989,89 @@ export default function CustomerManagement() {
             >
               {selectedCustomer ? 'Güncelle' : 'Ekle'}
             </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Müşteri Bilgi Kartı Modal */}
+      <Modal isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} size="xl">
+        <ModalOverlay />
+        <ModalContent bg={modalBg}>
+          <ModalHeader color={modalHeaderColor}>Müşteri Bilgi Kartı</ModalHeader>
+          <ModalCloseButton color={modalCloseColor} />
+          <ModalBody>
+            {selectedCustomer && (
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <Card>
+                  <Box p={4}>
+                    <Text fontWeight="bold" mb={2}>Müşteri Bilgileri</Text>
+                    <Stack spacing={1} fontSize="sm">
+                      <Text>Ad Soyad: {selectedCustomer.name}</Text>
+                      <Text>E-posta: {selectedCustomer.email || '-'}</Text>
+                      <Text>Telefon: {selectedCustomer.phone || '-'}</Text>
+                      <Text>TC/Vergi No: {selectedCustomer.tax_number || '-'}</Text>
+                      <Text>Durum: {getStatusText(selectedCustomer.status)}</Text>
+                      <Text>Kayıt Tarihi: {formatDate(selectedCustomer.registrationDate)}</Text>
+                    </Stack>
+                  </Box>
+                </Card>
+                <Card>
+                  <Box p={4}>
+                    <Text fontWeight="bold" mb={2}>Motor Bilgileri</Text>
+                    <Stack spacing={2}>
+                      {customerInfo.vespas.length === 0 ? (
+                        <Text fontSize="sm" color="gray.500">Bu müşteriye ait motor kaydı yok.</Text>
+                      ) : customerInfo.vespas.map((v) => (
+                        <Box key={v.id} p={3} border="1px solid" borderColor={borderColor} borderRadius="md">
+                          <Text fontWeight="medium">{v.model_name} - {v.license_plate}</Text>
+                          <Text fontSize="sm" color="gray.500">KM: {v.current_mileage || 0} | Son Servis: {v.last_service_date ? formatDate(v.last_service_date) : '-'}</Text>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                </Card>
+                <Card gridColumn={{ base: 1, md: 'span 2' }}>
+                  <Box p={4}>
+                    <Text fontWeight="bold" mb={2}>Son Servis Geçmişi</Text>
+                    {customerInfo.services.length === 0 ? (
+                      <Text fontSize="sm" color="gray.500">Servis kaydı bulunamadı.</Text>
+                    ) : (
+                      <TableContainer>
+                        <Table variant="simple" size="sm">
+                          <Thead>
+                            <Tr>
+                              <Th>Tarih</Th>
+                              <Th>Servis Türü</Th>
+                              <Th>Plaka</Th>
+                              <Th>Durum</Th>
+                              <Th>Tutar</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {customerInfo.services.slice(0,5).map((s) => (
+                              <Tr key={s.id}>
+                                <Td>{s.service_date}</Td>
+                                <Td>{s.service_type}</Td>
+                                <Td>{s.license_plate}</Td>
+                                <Td>
+                                  <Badge colorScheme={getStatusColor((s.status || '').toLowerCase())}>
+                                    {getStatusText((s.status || '').toLowerCase())}
+                                  </Badge>
+                                </Td>
+                                <Td>₺{(s.total_cost || 0).toLocaleString()}</Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Box>
+                </Card>
+              </SimpleGrid>
+            )}
+          </ModalBody>
+          <ModalFooter bg={modalFooterBg}>
+            <Button onClick={() => setIsInfoOpen(false)} color={cancelButtonColor}>Kapat</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

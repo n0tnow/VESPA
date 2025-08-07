@@ -291,7 +291,12 @@ export default function ServiceTracking() {
       await loadWorkTypes();
     } catch (error) {
       console.error('Error saving work type:', error);
-      alert('İşlem türü kaydedilirken hata oluştu.');
+      const msg = (error && error.message) || '';
+      if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate')) {
+        alert('Bu isimde bir işlem türü zaten mevcut. Lütfen farklı bir ad deneyin.');
+      } else {
+        alert('İşlem türü kaydedilirken hata oluştu: ' + msg);
+      }
     }
   };
 
@@ -314,7 +319,8 @@ export default function ServiceTracking() {
 
       // Load parts from API
       const partsResponse = await apiService.getParts(1, 200);
-      const transformedParts = partsResponse.results?.map(part => ({
+      const partsRaw = partsResponse?.parts || partsResponse?.results || partsResponse || [];
+      const transformedParts = partsRaw.map(part => ({
         id: part.id,
         name: part.part_name,
         price: part.sale_price_tl || part.sale_price || 0,
@@ -327,7 +333,10 @@ export default function ServiceTracking() {
 
       // Load Vespa models from API
       const modelsResponse = await apiService.getVespaModels();
-      const transformedModels = modelsResponse.map(model => model.model_name);
+      const modelsArray = Array.isArray(modelsResponse)
+        ? modelsResponse
+        : (modelsResponse?.models || []);
+      const transformedModels = modelsArray.map(model => model.model_name);
       setVespaModels(transformedModels);
 
       // Load work types from API
@@ -383,7 +392,7 @@ export default function ServiceTracking() {
       console.log('📡 Response type:', typeof response);
       
       // Try different possible response structures
-      const servicesData = response.services || response.results || response.data || response || [];
+      const servicesData = response?.services || response?.results || response?.data || response || [];
       console.log('📋 Service records data:', servicesData.length, 'items');
       console.log('📋 First service sample:', servicesData[0]);
       
@@ -404,7 +413,7 @@ export default function ServiceTracking() {
         plateNumber: service.license_plate || 'Plaka Bilgisi Yok',
         serviceDate: service.service_date,
         serviceType: service.service_type,
-        status: service.status,
+        status: (service.status || '').toLowerCase(),
         technicianName: service.technician_name || 'Mehmet Öztürk',
         totalCost: service.total_cost || 0,
         laborCost: service.labor_cost || 0,
@@ -430,7 +439,6 @@ export default function ServiceTracking() {
       // Try alternative API endpoints if main one fails
       const alternativeEndpoints = [
         'http://localhost:8000/api/services/',
-        'http://localhost:8000/services/',  // Direct services module endpoint
       ];
       
       for (const endpoint of alternativeEndpoints) {

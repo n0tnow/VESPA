@@ -30,8 +30,16 @@ class ServicesView(APIView):
             limit = int(request.GET.get('limit', 100))
             offset = int(request.GET.get('offset', 0))
             status_filter = request.GET.get('status')
+            customer_id = request.GET.get('customer_id')
+            vespa_id = request.GET.get('vespa_id')
             
-            services = get_all_service_records(limit, offset, status_filter)
+            services = get_all_service_records(
+                limit=limit,
+                offset=offset,
+                status_filter=status_filter,
+                customer_id=int(customer_id) if customer_id else None,
+                vespa_id=int(vespa_id) if vespa_id else None,
+            )
             
             return Response({
                 'services': services,
@@ -331,7 +339,7 @@ class WorkTypesView(APIView):
         """Create new work type"""
         try:
             data = request.data
-            name = data.get('name')
+            name = (data.get('name') or '').strip()
             base_price = float(data.get('base_price', 0))
             description = data.get('description')
             category = data.get('category')
@@ -340,6 +348,13 @@ class WorkTypesView(APIView):
             if not name:
                 return Response({
                     'error': 'Work type name is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Prevent duplicate names (case-insensitive)
+            existing_work_types = get_work_types()
+            if any((wt.get('name') or '').strip().lower() == name.lower() for wt in existing_work_types):
+                return Response({
+                    'error': 'Work type with this name already exists'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             work_type_id = create_work_type(
@@ -362,8 +377,13 @@ class WorkTypesView(APIView):
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
         except Exception as e:
+            error_message = str(e)
+            if 'UNIQUE KEY' in error_message or 'UQ__' in error_message or 'duplicate key' in error_message.lower():
+                return Response({
+                    'error': 'Work type with this name already exists'
+                }, status=status.HTTP_400_BAD_REQUEST)
             return Response({
-                'error': f'Failed to create work type: {str(e)}'
+                'error': f'Failed to create work type: {error_message}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -395,6 +415,17 @@ class WorkTypeDetailView(APIView):
         try:
             data = request.data
             
+            # If name is being updated, ensure uniqueness (excluding this record)
+            new_name = data.get('name')
+            if new_name is not None:
+                new_name_norm = (str(new_name) or '').strip().lower()
+                existing_work_types = get_work_types()
+                for wt in existing_work_types:
+                    if wt.get('id') != work_type_id and (wt.get('name') or '').strip().lower() == new_name_norm:
+                        return Response({
+                            'error': 'Work type with this name already exists'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+            
             success = update_work_type(
                 work_type_id=work_type_id,
                 name=data.get('name'),
@@ -416,8 +447,13 @@ class WorkTypeDetailView(APIView):
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
         except Exception as e:
+            error_message = str(e)
+            if 'UNIQUE KEY' in error_message or 'UQ__' in error_message or 'duplicate key' in error_message.lower():
+                return Response({
+                    'error': 'Work type with this name already exists'
+                }, status=status.HTTP_400_BAD_REQUEST)
             return Response({
-                'error': f'Failed to update work type: {str(e)}'
+                'error': f'Failed to update work type: {error_message}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def delete(self, request, work_type_id):

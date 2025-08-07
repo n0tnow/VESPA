@@ -114,7 +114,8 @@ export default function StockManagement() {
       const response = await apiService.getParts(1, 200); // Load first 200 parts
       
       // Transform API response to match frontend format
-      const transformedParts = response.results?.map(part => ({
+      const partsRaw = response?.parts || response?.results || response || [];
+      const transformedParts = partsRaw.map(part => ({
         id: part.id,
         name: part.part_name,
         category: part.category_name || '-',
@@ -154,7 +155,8 @@ export default function StockManagement() {
   const loadSuppliers = async () => {
     try {
       const response = await apiService.getSuppliers();
-      const transformedSuppliers = response.map(supplier => ({
+      const suppliersRaw = response?.suppliers || response || [];
+      const transformedSuppliers = suppliersRaw.map(supplier => ({
         id: supplier.id,
         name: supplier.supplier_name,
         contact: supplier.email || '-',

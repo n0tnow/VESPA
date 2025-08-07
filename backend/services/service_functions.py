@@ -12,7 +12,7 @@ from .database import get_db_connection
 
 # ===== SERVICE RECORDS =====
 
-def get_all_service_records(limit=100, offset=0, status_filter=None):
+def get_all_service_records(limit=100, offset=0, status_filter=None, customer_id=None, vespa_id=None):
     """Get service records with customer and vespa info"""
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -23,6 +23,14 @@ def get_all_service_records(limit=100, offset=0, status_filter=None):
     if status_filter:
         where_conditions.append("sr.status = ?")
         params.append(status_filter)
+    
+    if customer_id:
+        where_conditions.append("c.id = ?")
+        params.append(customer_id)
+    
+    if vespa_id:
+        where_conditions.append("cv.id = ?")
+        params.append(vespa_id)
     
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
     
@@ -37,7 +45,9 @@ def get_all_service_records(limit=100, offset=0, status_filter=None):
         cv.license_plate,
         vm.model_name,
         ISNULL(parts_total.total_parts_cost, 0) as parts_cost,
-        (sr.labor_cost + ISNULL(parts_total.total_parts_cost, 0)) as total_cost
+        (sr.labor_cost + ISNULL(parts_total.total_parts_cost, 0)) as total_cost,
+        c.id as customer_id,
+        cv.id as customer_vespa_id
     FROM service_records sr
     INNER JOIN customer_vespas cv ON sr.customer_vespa_id = cv.id
     INNER JOIN customers c ON cv.customer_id = c.id
@@ -80,7 +90,9 @@ def get_all_service_records(limit=100, offset=0, status_filter=None):
             'license_plate': row[15],
             'model_name': row[16],
             'parts_cost': float(row[17]) if row[17] else 0,
-            'total_cost': float(row[18]) if row[18] else 0
+            'total_cost': float(row[18]) if row[18] else 0,
+            'customer_id': row[19],
+            'customer_vespa_id': row[20]
         })
     
     return services

@@ -90,7 +90,7 @@ class ApiService {
   async handleResponse(response) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
     }
     
     return await response.json();
@@ -260,7 +260,7 @@ class ApiService {
    * Get low stock parts
    */
   async getLowStockParts() {
-    return await this.makeRequest('/inventory/low-stock/');
+    return await this.makeRequest('/inventory/stock/low/');
   }
 
   /**
@@ -294,12 +294,14 @@ class ApiService {
   /**
    * Get all service records
    */
-  async getServices(page = 1, limit = 20, status = '') {
+  async getServices(page = 1, limit = 20, status = '', customerId = null, vespaId = null) {
     const params = new URLSearchParams({
       page,
       limit,
       ...(status && { status }),
     });
+    if (customerId) params.append('customer_id', customerId);
+    if (vespaId) params.append('vespa_id', vespaId);
     
     return await this.makeRequest(`/services/?${params}`);
   }
@@ -326,7 +328,7 @@ class ApiService {
    */
   async updateServiceStatus(serviceId, status, completionData = {}) {
     return await this.makeRequest(`/services/${serviceId}/status/`, {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify({ status, ...completionData }),
     });
   }
@@ -335,7 +337,7 @@ class ApiService {
    * Get paint templates for model
    */
   async getPaintTemplates(modelId) {
-    return await this.makeRequest(`/services/paint-templates/?model=${modelId}`);
+    return await this.makeRequest(`/services/paint/templates/${modelId}/`);
   }
 
   /**
@@ -343,7 +345,7 @@ class ApiService {
    */
   async getPaintJobs(serviceId = null) {
     const params = serviceId ? `?service=${serviceId}` : '';
-    return await this.makeRequest(`/services/paint-jobs/${params}`);
+    return await this.makeRequest(`/services/paint/jobs/${params}`);
   }
 
   // ===== APPOINTMENTS ENDPOINTS =====
@@ -384,7 +386,7 @@ class ApiService {
    */
   async updateAppointmentStatus(appointmentId, status) {
     return await this.makeRequest(`/appointments/${appointmentId}/status/`, {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify({ status }),
     });
   }
@@ -426,7 +428,7 @@ class ApiService {
    */
   async getDailyCashSummary(date = null) {
     const params = date ? `?date=${date}` : '';
-    return await this.makeRequest(`/accounting/daily-cash-summary/${params}`);
+    return await this.makeRequest(`/accounting/cash-summary/${params}`);
   }
 
   // ===== REPORTS ENDPOINTS =====
@@ -442,21 +444,21 @@ class ApiService {
    * Get customer summary report
    */
   async getCustomerSummaryReport() {
-    return await this.makeRequest('/reports/customer-summary/');
+    return await this.makeRequest('/reports/customers/');
   }
 
   /**
    * Get inventory summary report
    */
   async getInventorySummaryReport() {
-    return await this.makeRequest('/reports/inventory-summary/');
+    return await this.makeRequest('/reports/inventory/');
   }
 
   /**
    * Get service performance report
    */
   async getServicePerformanceReport() {
-    return await this.makeRequest('/reports/service-performance/');
+    return await this.makeRequest('/reports/services/');
   }
 
   // ===== VESPA MODELS =====
@@ -554,7 +556,7 @@ class ApiService {
    * Test currency API
    */
   async testCurrencyAPI() {
-    return await this.makeRequest('/inventory/test-currency-api/');
+    return await this.makeRequest('/inventory/currency/rates/');
   }
 
   /**
@@ -661,21 +663,29 @@ class ApiService {
    * Create new work type
    */
   async createWorkType(workTypeData) {
-    return await this.makeRequest('/services/work-types/', 'POST', workTypeData);
+    return await this.makeRequest('/services/work-types/', {
+      method: 'POST',
+      body: JSON.stringify(workTypeData),
+    });
   }
 
   /**
    * Update work type
    */
   async updateWorkType(workTypeId, workTypeData) {
-    return await this.makeRequest(`/services/work-types/${workTypeId}/`, 'PUT', workTypeData);
+    return await this.makeRequest(`/services/work-types/${workTypeId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(workTypeData),
+    });
   }
 
   /**
    * Delete work type (soft delete)
    */
   async deleteWorkType(workTypeId) {
-    return await this.makeRequest(`/services/work-types/${workTypeId}/`, 'DELETE');
+    return await this.makeRequest(`/services/work-types/${workTypeId}/`, {
+      method: 'DELETE',
+    });
   }
 
   /**

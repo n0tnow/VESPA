@@ -101,7 +101,10 @@ export default function VespaModels() {
       ]);
 
       // Transform API response to match frontend format
-      const modelsArray = modelsResponse.map((model, index) => {
+      const modelsRaw = Array.isArray(modelsResponse) ? modelsResponse : (modelsResponse?.models || []);
+      const partsRaw = partsResponse?.parts || partsResponse?.results || partsResponse || [];
+
+      const modelsArray = modelsRaw.map((model, index) => {
         try {
           // Use API data
           const modelName = model.model_name;
@@ -109,7 +112,7 @@ export default function VespaModels() {
           const category = model.category || 'Klasik';
           
           // Calculate compatible parts count from partsResponse
-          const compatibleParts = partsResponse.results?.filter(part => 
+          const compatibleParts = partsRaw.filter(part => 
             !part.vespa_model_id || part.vespa_model_id === model.id
           ) || [];
           
@@ -158,8 +161,8 @@ export default function VespaModels() {
       
       // Create parts map for each model
       const partsMap = {};
-      modelsResponse.forEach(model => {
-        const modelParts = partsResponse.results?.filter(part => 
+      modelsRaw.forEach(model => {
+        const modelParts = partsRaw.filter(part => 
           !part.vespa_model_id || part.vespa_model_id === model.id
         ) || [];
         partsMap[model.model_name] = modelParts;

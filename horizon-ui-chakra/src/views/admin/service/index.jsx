@@ -81,7 +81,8 @@ import {
   MdDirectionsBike,
   MdCheck,
   MdClose,
-  MdReceipt
+  MdReceipt,
+  MdArrowDropDown
 } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
@@ -137,6 +138,23 @@ export default function ServiceTracking() {
   const brandCardBg = useColorModeValue("brand.50", "brand.900");
   const brandCardBorder = useColorModeValue("brand.200", "brand.700");
   
+  // Operations dropdown colors
+  const operationsSelectedBg = useColorModeValue("green.100", "green.800");
+  const operationsSelectedColor = useColorModeValue("green.800", "green.100");
+  const operationsSelectedHoverBg = useColorModeValue("green.200", "green.700");
+  const operationsListBg = useColorModeValue("green.50", "gray.800");
+  const operationsListBorder = useColorModeValue("green.200", "gray.700");
+  const operationsItemBg = useColorModeValue("green.100", "green.900");
+  const operationsItemBorder = useColorModeValue("green.300", "green.700");
+  const operationsItemText = useColorModeValue("green.800", "green.100");
+  const operationsTotalBg = useColorModeValue("green.200", "green.800");
+  const operationsTotalText = useColorModeValue("green.800", "green.100");
+  
+  // Scrollbar colors
+  const scrollbarTrack = useColorModeValue('#f1f1f1', '#2d3748');
+  const scrollbarThumb = useColorModeValue('#888', '#4a5568');
+  const scrollbarThumbHover = useColorModeValue('#555', '#2d3748');
+  
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedService, setSelectedService] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,180 +163,22 @@ export default function ServiceTracking() {
   const [invoiceService, setInvoiceService] = useState(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [printInvoiceService, setPrintInvoiceService] = useState(null);
+  const [servicePrices, setServicePrices] = useState({});
+  const [priceSearchTerm, setPriceSearchTerm] = useState('');
 
-  // MotoEtiler servis kayıtları
-  const [serviceRecords, setServiceRecords] = useState(() => {
-    const saved = localStorage.getItem('serviceRecords');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return [
-          {
-            id: 1,
-            customerId: 1,
-            customerName: 'Ahmet Yılmaz',
-            vespaModel: 'Vespa Primavera 150',
-            plateNumber: '34 ABC 123',
-            serviceDate: '2024-01-15',
-            serviceType: 'Rutin Bakım',
+  // MotoEtiler servis kayıtları - Database'den çekilecek
+  const [serviceRecords, setServiceRecords] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(false);
 
-            status: 'completed',
-            totalCost: 2750,
-            laborCost: 2500,
-            partsCost: 250,
-            description: 'MotoEtiler Rutin Bakım - Yağ değişimi, fren kontrolü, lastik kontrolü',
-            usedParts: [
-              { name: 'Motor Yağı 10W-40', quantity: 1, cost: 75 },
-              { name: 'Yağ Filtresi', quantity: 1, cost: 45 },
-              { name: 'Fren Balata Seti', quantity: 1, cost: 130 }
-            ],
-            nextServiceDate: '2024-04-15',
-            mileage: 15000
-          },
-          {
-            id: 2,
-            customerId: 2,
-            customerName: 'Elif Kaya',
-            vespaModel: 'Vespa GTS 300',
-            plateNumber: '06 DEF 456',
-            serviceDate: '2024-02-20',
-            serviceType: 'Ağır Bakım',
+  // Service types will come from workTypes database
 
-            status: 'in_progress',
-            totalCost: 8050,
-            laborCost: 7500,
-            partsCost: 550,
-            description: 'MotoEtiler Ağır Bakım - Kayış değişimi, yağ, yağ filtresi, hava filtresi',
-            usedParts: [
-              { name: 'Amortisör Takımı', quantity: 1, cost: 400 },
-              { name: 'Fren Balata Seti', quantity: 1, cost: 150 }
-            ],
-            nextServiceDate: '2024-05-20',
-            mileage: 22000
-          },
-          {
-            id: 3,
-            customerId: 3,
-            customerName: 'Mehmet Özkan',
-            vespaModel: 'Vespa Sprint 150',
-            plateNumber: '35 GHI 789',
-            serviceDate: '2024-01-10',
-            serviceType: 'Kayış Değişimi',
-
-            status: 'pending',
-            totalCost: 3670,
-            laborCost: 3500,
-            partsCost: 170,
-            description: 'MotoEtiler Kayış Değişimi - Transmisyon kayışı ve akü değişimi',
-            usedParts: [
-              { name: 'Akü 12V', quantity: 1, cost: 170 }
-            ],
-            nextServiceDate: '2024-03-10',
-            mileage: 8500
-          }
-        ];
-      }
-    }
-    return [
-      {
-        id: 1,
-        customerId: 1,
-        customerName: 'Ahmet Yılmaz',
-        vespaModel: 'Vespa Primavera 150',
-        plateNumber: '34 ABC 123',
-        serviceDate: '2024-01-15',
-        serviceType: 'Rutin Bakım',
-
-        status: 'completed',
-        totalCost: 2750,
-        laborCost: 2500,
-        partsCost: 250,
-        description: 'MotoEtiler Rutin Bakım - Yağ değişimi, fren kontrolü, lastik kontrolü',
-        usedParts: [
-          { name: 'Motor Yağı 10W-40', quantity: 1, cost: 75 },
-          { name: 'Yağ Filtresi', quantity: 1, cost: 45 },
-          { name: 'Fren Balata Seti', quantity: 1, cost: 130 }
-        ],
-        nextServiceDate: '2024-04-15',
-        mileage: 15000
-      },
-      {
-        id: 2,
-        customerId: 2,
-        customerName: 'Elif Kaya',
-        vespaModel: 'Vespa GTS 300',
-        plateNumber: '06 DEF 456',
-        serviceDate: '2024-02-20',
-        serviceType: 'Ağır Bakım',
-
-        status: 'in_progress',
-        totalCost: 8050,
-        laborCost: 7500,
-        partsCost: 550,
-        description: 'MotoEtiler Ağır Bakım - Kayış değişimi, yağ, yağ filtresi, hava filtresi',
-        usedParts: [
-          { name: 'Amortisör Takımı', quantity: 1, cost: 400 },
-          { name: 'Fren Balata Seti', quantity: 1, cost: 150 }
-        ],
-        nextServiceDate: '2024-05-20',
-        mileage: 22000
-      },
-      {
-        id: 3,
-        customerId: 3,
-        customerName: 'Mehmet Özkan',
-        vespaModel: 'Vespa Sprint 150',
-        plateNumber: '35 GHI 789',
-        serviceDate: '2024-01-10',
-        serviceType: 'Kayış Değişimi',
-
-        status: 'pending',
-        totalCost: 3670,
-        laborCost: 3500,
-        partsCost: 170,
-        description: 'MotoEtiler Kayış Değişimi - Transmisyon kayışı ve akü değişimi',
-        usedParts: [
-          { name: 'Akü 12V', quantity: 1, cost: 170 }
-        ],
-        nextServiceDate: '2024-03-10',
-        mileage: 8500
-      }
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('serviceRecords', JSON.stringify(serviceRecords));
-  }, [serviceRecords]);
-
-  const [serviceTypes] = useState([
-    'Rutin Bakım',
-    'Ağır Bakım',
-    'Kayış Değişimi',
-    'Periyodik Bakım',
-    'Onarım',
-    'Acil Onarım',
-    'Garantili Bakım',
-    'Kaza Sonrası Tamir',
-    'Modifikasyon',
-    'Winterizasyon',
-    'Test Sürüşü'
-  ]);
-
-  // MotoEtiler Servis Fiyat Listesi - state olarak tutulacak
-  const [servicePrices, setServicePrices] = useState({
-    'Rutin Bakım': 2500,
-    'Ağır Bakım': 7500,
-    'Kayış Değişimi': 3500,
-    'Periyodik Bakım': 1500,
-    'Onarım': 0, // Parçaya göre değişir
-    'Acil Onarım': 500, // Ek ücret
-    'Garantili Bakım': 1000,
-    'Kaza Sonrası Tamir': 0, // Hasara göre değişir
-    'Modifikasyon': 0, // Özel fiyat
-    'Winterizasyon': 800,
-    'Test Sürüşü': 200
-  });
+  // Service prices will come from workTypes database
+  
+  // Helper function to get price from workTypes
+  const getWorkTypePrice = (serviceName) => {
+    const workType = workTypes.find(wt => wt.name === serviceName);
+    return workType ? workType.basePrice : 0;
+  };
 
   // Technician selection removed as requested
 
@@ -332,6 +192,120 @@ export default function ServiceTracking() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const loadWorkTypes = async () => {
+    try {
+      console.log('🔄 Loading work types...');
+      setLoadingWorkTypes(true);
+      const response = await apiService.getWorkTypes();
+      console.log('📡 API Response:', response);
+      const workTypesData = response.work_types || [];
+      console.log('📋 Work types data:', workTypesData.length, 'items');
+      
+      // Transform data for frontend compatibility
+      const transformedWorkTypes = workTypesData.map(wt => ({
+        id: wt.id,
+        name: wt.name,
+        basePrice: wt.base_price,
+        description: wt.description,
+        category: wt.category,
+        estimatedDuration: wt.estimated_duration,
+        isActive: wt.is_active
+      }));
+      
+      console.log('✅ Transformed work types:', transformedWorkTypes);
+      setWorkTypes(transformedWorkTypes);
+      
+      // Populate servicePrices from workTypes data
+      const pricesObject = {};
+      transformedWorkTypes.forEach(wt => {
+        pricesObject[wt.name] = wt.basePrice;
+      });
+      setServicePrices(pricesObject);
+      console.log('✅ Service prices populated:', pricesObject);
+    } catch (error) {
+      console.error('❌ Error loading work types:', error);
+    } finally {
+      setLoadingWorkTypes(false);
+    }
+  };
+
+  // Work Type CRUD Functions
+  const handleEditWorkType = (workType) => {
+    setEditingWorkType(workType);
+    setWorkTypeFormData({
+      name: workType.name,
+      base_price: workType.basePrice,
+      description: workType.description || '',
+      category: workType.category || '',
+      estimated_duration: workType.estimatedDuration || 30
+    });
+    setIsWorkTypeModalOpen(true);
+  };
+
+  const handleDeleteWorkType = async (workTypeId) => {
+    if (window.confirm('Bu işlem türünü silmek istediğinizden emin misiniz?')) {
+      try {
+        await apiService.deleteWorkType(workTypeId);
+        await loadWorkTypes(); // Reload data
+        alert('İşlem türü başarıyla silindi.');
+      } catch (error) {
+        console.error('Error deleting work type:', error);
+        alert('İşlem türü silinirken hata oluştu.');
+      }
+    }
+  };
+
+  const handleSaveWorkType = async () => {
+    try {
+      const data = {
+        name: workTypeFormData.name,
+        base_price: parseFloat(workTypeFormData.base_price),
+        description: workTypeFormData.description,
+        category: workTypeFormData.category,
+        estimated_duration: parseInt(workTypeFormData.estimated_duration)
+      };
+
+      if (editingWorkType) {
+        // Update existing
+        await apiService.updateWorkType(editingWorkType.id, data);
+        alert('İşlem türü başarıyla güncellendi.');
+      } else {
+        // Create new
+        await apiService.createWorkType(data);
+        alert('Yeni işlem türü başarıyla eklendi.');
+      }
+
+      // Reset form and close modal
+      setWorkTypeFormData({
+        name: '',
+        base_price: '',
+        description: '',
+        category: '',
+        estimated_duration: 30
+      });
+      setEditingWorkType(null);
+      setIsWorkTypeModalOpen(false);
+      
+      // Reload data
+      await loadWorkTypes();
+    } catch (error) {
+      console.error('Error saving work type:', error);
+      alert('İşlem türü kaydedilirken hata oluştu.');
+    }
+  };
+
+  const handleWorkTypeModalClose = () => {
+    setWorkTypeFormData({
+      name: '',
+      base_price: '',
+      description: '',
+      category: '',
+      estimated_duration: 30
+    });
+    setEditingWorkType(null);
+    setIsWorkTypeModalOpen(false);
+  };
 
   const loadData = async () => {
     try {
@@ -356,6 +330,15 @@ export default function ServiceTracking() {
       const transformedModels = modelsResponse.map(model => model.model_name);
       setVespaModels(transformedModels);
 
+      // Load work types from API
+      await loadWorkTypes();
+
+      // Load service records from API
+      await loadServiceRecords();
+
+      // Load customers from API  
+      await loadCustomers();
+
     } catch (error) {
       console.error('Error loading data:', error);
       setError('Veriler yüklenirken hata oluştu: ' + error.message);
@@ -364,70 +347,268 @@ export default function ServiceTracking() {
     }
   };
 
-  // Müşteri verileri
-  const [customers, setCustomers] = useState(() => {
-    const saved = localStorage.getItem('customers');
-    if (saved) {
+  // Load service records from database
+  const loadServiceRecords = async () => {
+    try {
+      console.log('🔄 Loading service records...');
+      console.log('🔗 API Base URL:', 'http://localhost:8000/api');
+      setLoadingServices(true);
+      
+      // First, let's test the direct endpoint
       try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
-      {
-        id: 1,
-        name: 'Ahmet Yılmaz',
-        email: 'ahmet@email.com',
-        phone: '+90 532 123 45 67',
-        vespaModel: 'Vespa Primavera 150 3v',
-        plateNumber: '34 ABC 123'
-      },
-      {
-        id: 2,
-        name: 'Elif Kaya',
-        email: 'elif@email.com',
-        phone: '+90 533 987 65 43',
-        vespaModel: 'Vespa GTS 300',
-        plateNumber: '06 DEF 456'
-      },
-      {
-        id: 3,
-        name: 'Mehmet Özkan',
-        email: 'mehmet@email.com',
-        phone: '+90 534 456 78 90',
-        vespaModel: 'Vespa Sprint 125',
-        plateNumber: '35 GHI 789'
-      },
-      {
-        id: 4,
-        name: 'Ayşe Demir',
-        email: 'ayse@email.com',
-        phone: '+90 535 555 66 77',
-        vespaModel: 'Vespa ET4 150',
-        plateNumber: '16 XYZ 456'
+        console.log('🧪 Testing direct /api/services/ endpoint...');
+        const directResponse = await fetch('http://localhost:8000/api/services/', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        console.log('📡 Direct fetch status:', directResponse.status);
+        console.log('📡 Direct fetch ok:', directResponse.ok);
+        
+        if (directResponse.ok) {
+          const directData = await directResponse.json();
+          console.log('📡 Direct fetch response:', directData);
+        } else {
+          console.log('❌ Direct fetch failed with status:', await directResponse.text());
+        }
+      } catch (directError) {
+        console.error('❌ Direct fetch error:', directError);
       }
-    ];
-  });
+      
+      // Now try the API service
+      const response = await apiService.getServices(1, 100); // Get first 100 records
+      console.log('📡 Service records API Response:', response);
+      console.log('📡 Response keys:', Object.keys(response));
+      console.log('📡 Response type:', typeof response);
+      
+      // Try different possible response structures
+      const servicesData = response.services || response.results || response.data || response || [];
+      console.log('📋 Service records data:', servicesData.length, 'items');
+      console.log('📋 First service sample:', servicesData[0]);
+      
+      // Check if we actually have data
+      if (!Array.isArray(servicesData) || servicesData.length === 0) {
+        console.log('⚠️ No service records found in response');
+        setServiceRecords([]);
+        return;
+      }
+      
+      // Transform data for frontend compatibility - backend already provides all joined data
+      const transformedServices = servicesData.map(service => ({
+        id: service.id,
+        serviceNumber: service.service_number || '',
+        customerId: service.customer_vespa_id || service.customer_id || '',
+        customerName: service.customer_name || 'Müşteri Bilgisi Yok',
+        vespaModel: service.model_name || 'Model Bilgisi Yok',
+        plateNumber: service.license_plate || 'Plaka Bilgisi Yok',
+        serviceDate: service.service_date,
+        serviceType: service.service_type,
+        status: service.status,
+        technicianName: service.technician_name || 'Mehmet Öztürk',
+        totalCost: service.total_cost || 0,
+        laborCost: service.labor_cost || 0,
+        partsCost: service.parts_cost || 0,
+        description: service.description || '',
+        customerComplaints: service.customer_complaints || '',
+        workDone: service.work_done || '',
+        customerPhone: service.customer_phone || '',
+        startDate: service.start_date || null,
+        completionDate: service.completion_date || null,
+        usedParts: service.used_parts || [],
+        nextServiceDate: service.next_service_date || null,
+        mileage: service.mileage_at_service || 0
+      }));
+      
+      console.log('✅ Transformed service records:', transformedServices);
+      setServiceRecords(transformedServices);
+    } catch (error) {
+      console.error('❌ Error loading service records:', error);
+      console.error('❌ Error details:', error.message);
+      console.error('❌ Full error:', error);
+      
+      // Try alternative API endpoints if main one fails
+      const alternativeEndpoints = [
+        'http://localhost:8000/api/services/',
+        'http://localhost:8000/services/',  // Direct services module endpoint
+      ];
+      
+      for (const endpoint of alternativeEndpoints) {
+        try {
+          console.log(`🔄 Trying alternative endpoint: ${endpoint}`);
+          const alternativeResponse = await fetch(endpoint);
+          console.log(`📡 Alternative endpoint ${endpoint} status:`, alternativeResponse.status);
+          
+          if (alternativeResponse.ok) {
+            const alternativeData = await alternativeResponse.json();
+            console.log('📡 Alternative API Response:', alternativeData);
+            
+            const altServicesData = alternativeData.services || alternativeData.results || alternativeData || [];
+            console.log('📋 Alternative service records:', altServicesData.length, 'items');
+            
+            if (altServicesData.length > 0) {
+              console.log('📋 Sample alternative data:', altServicesData[0]);
+              
+              // Transform the data
+              const transformedAltServices = altServicesData.map(service => ({
+                id: service.id,
+                serviceNumber: service.service_number || '',
+                customerId: service.customer_vespa_id || service.customer_id || '',
+                customerName: service.customer_name || 'Müşteri Bilgisi Yok',
+                vespaModel: service.model_name || 'Model Bilgisi Yok',
+                plateNumber: service.license_plate || 'Plaka Bilgisi Yok',
+                serviceDate: service.service_date,
+                serviceType: service.service_type,
+                status: service.status,
+                technicianName: service.technician_name || 'Mehmet Öztürk',
+                totalCost: service.total_cost || 0,
+                laborCost: service.labor_cost || 0,
+                partsCost: service.parts_cost || 0,
+                description: service.description || '',
+                customerComplaints: service.customer_complaints || '',
+                workDone: service.work_done || '',
+                customerPhone: service.customer_phone || '',
+                startDate: service.start_date || null,
+                completionDate: service.completion_date || null,
+                mileage: service.mileage_at_service || 0
+              }));
+              
+              setServiceRecords(transformedAltServices);
+              console.log('✅ Using alternative endpoint data');
+              return;
+            }
+          }
+        } catch (altError) {
+          console.error(`❌ Alternative endpoint ${endpoint} failed:`, altError);
+        }
+      }
+      
+      // If all endpoints fail, use mock data for testing
+      console.log('⚠️ All API endpoints failed, using mock data for testing');
+      const mockServiceData = [
+        {
+          id: 1,
+          serviceNumber: 'SRV2024001001',
+          customerId: 1,
+          customerName: 'Ahmet Yılmaz',
+          vespaModel: 'Primavera 150',
+          plateNumber: '34ABC123',
+          serviceDate: '2024-06-15',
+          serviceType: 'Periyodik Bakım',
+          status: 'COMPLETED',
+          technicianName: 'Mehmet Öztürk',
+          totalCost: 350,
+          laborCost: 350,
+          partsCost: 0,
+          description: '8000 km periyodik bakım',
+          customerComplaints: 'Motor sesinde artış',
+          workDone: 'Motor yağı değişimi',
+          customerPhone: '5551234567',
+          mileage: 8000
+        },
+        {
+          id: 2,
+          serviceNumber: 'SRV2024071002',
+          customerId: 2,
+          customerName: 'Ayşe Demir',
+          vespaModel: 'GTS 300',
+          plateNumber: '06DEF456',
+          serviceDate: '2024-07-10',
+          serviceType: 'Fren Bakımı',
+          status: 'COMPLETED',
+          technicianName: 'Mehmet Öztürk',
+          totalCost: 280,
+          laborCost: 280,
+          partsCost: 0,
+          description: 'Fren sistemi revizyonu',
+          customerComplaints: 'Fren etkisi azaldı, ses yapıyor',
+          workDone: 'Ön-arka balata değişimi',
+          customerPhone: '5559876543',
+          mileage: 15600
+        }
+      ];
+      
+      setServiceRecords(mockServiceData);
+      console.log('📋 Mock data loaded:', mockServiceData.length, 'services');
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
+  // Müşteri verileri
+  const [customers, setCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+
+  // Load customers from API
+  const loadCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      const response = await apiService.getCustomers(1, 100); // Load first 100 customers
+      
+      // Transform API response and load vespa data for each customer
+      const transformedCustomers = await Promise.all(
+        (response.customers || []).map(async (customer) => {
+          let vespaModel = 'Model Bilinmiyor';
+          let plateNumber = 'Plaka Bilinmiyor';
+          let currentMileage = 0;
+
+          // Try to load customer's vespa data
+          try {
+            if (customer.vespa_count > 0) {
+              const vespaResponse = await apiService.getCustomerVespas(customer.id);
+              if (vespaResponse.vespas && vespaResponse.vespas.length > 0) {
+                const firstVespa = vespaResponse.vespas[0];
+                vespaModel = firstVespa.model_name || 'Model Bilinmiyor';
+                plateNumber = firstVespa.license_plate || 'Plaka Bilinmiyor';
+                currentMileage = firstVespa.current_mileage || 0;
+              }
+            }
+          } catch (vespaError) {
+            console.error(`Error loading vespa data for customer ${customer.id}:`, vespaError);
+          }
+
+          return {
+            id: customer.id,
+            name: `${customer.first_name || ''} ${customer.last_name || ''}`.trim(),
+            email: customer.email,
+            phone: customer.phone,
+            vespaModel,
+            plateNumber,
+            current_mileage: currentMileage
+          };
+        })
+      );
+      
+      setCustomers(transformedCustomers);
+    } catch (error) {
+      console.error('Error loading customers:', error);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem('customers', JSON.stringify(customers));
-  }, [customers]);
+    loadCustomers();
+  }, []);
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerServiceHistory, setCustomerServiceHistory] = useState([]);
   const [workItems, setWorkItems] = useState([]);
 
-  // İşlem türleri
-  const [workTypes] = useState([
-    { name: 'Yağ Değişimi', basePrice: 200 },
-    { name: 'Fren Kontrolü', basePrice: 150 },
-    { name: 'Lastik Kontrolü', basePrice: 100 },
-    { name: 'Kayış Kontrolü', basePrice: 250 },
-    { name: 'Amortisör Kontrolü', basePrice: 300 },
-    { name: 'Fren Balata Değişimi', basePrice: 400 },
-    { name: 'Akü Kontrolü', basePrice: 100 },
-    { name: 'Motor Temizliği', basePrice: 150 },
-    { name: 'Genel Bakım', basePrice: 500 }
-  ]);
+  // İşlem türleri - Database'den çekiliyor
+  const [workTypes, setWorkTypes] = useState([]);
+  const [loadingWorkTypes, setLoadingWorkTypes] = useState(false);
+  
+  // Work Type Modal States
+  const [isWorkTypeModalOpen, setIsWorkTypeModalOpen] = useState(false);
+  const [editingWorkType, setEditingWorkType] = useState(null);
+  const [workTypeFormData, setWorkTypeFormData] = useState({
+    name: '',
+    base_price: '',
+    description: '',
+    category: '',
+    estimated_duration: 30
+  });
 
   const [formData, setFormData] = useState({
     customerId: '',
@@ -445,14 +626,13 @@ export default function ServiceTracking() {
   });
 
   const [selectedParts, setSelectedParts] = useState([]);
-  const [isPriceListOpen, setIsPriceListOpen] = useState(false);
-  const [priceSearchTerm, setPriceSearchTerm] = useState('');
+
   const [editingPrice, setEditingPrice] = useState(null);
   const [editPrice, setEditPrice] = useState('');
 
   // Servis türüne göre otomatik fiyat hesaplama
   const calculateServiceCost = (serviceType, parts = []) => {
-    const basePrice = servicePrices[serviceType] || 0;
+    const basePrice = getWorkTypePrice(serviceType);
     const partsCost = parts.reduce((total, part) => total + (part.cost * part.quantity), 0);
     return basePrice + partsCost;
   };
@@ -462,15 +642,26 @@ export default function ServiceTracking() {
     setFormData(prev => ({
       ...prev,
       serviceType,
-      laborCost: servicePrices[serviceType] || 0
+      laborCost: getWorkTypePrice(serviceType)
     }));
   };
 
   const filteredServices = serviceRecords.filter(service => {
-    const matchesSearch = service.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.serviceType.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || service.status === filterStatus;
+    const matchesSearch = service.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         service.plateNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         service.serviceType?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Filter logic: 
+    // "all" -> show pending and in_progress (active services)
+    // "completed" -> show only completed
+    // specific status -> show that status only
+    let matchesStatus;
+    if (filterStatus === 'all') {
+      matchesStatus = service.status === 'pending' || service.status === 'in_progress';
+    } else {
+      matchesStatus = service.status === filterStatus;
+    }
+    
     return matchesSearch && matchesStatus;
   });
 
@@ -531,46 +722,81 @@ export default function ServiceTracking() {
     onOpen();
   };
 
-  const handleSaveService = () => {
-    const serviceCost = servicePrices[formData.serviceType] || 0;
-    const workCost = workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0);
-    const partsCost = selectedParts.reduce((sum, part) => sum + part.cost, 0);
-    const totalCost = serviceCost + workCost + partsCost + (formData.laborCost || 0);
+  const handleSaveService = async () => {
+    try {
+      const serviceCost = getWorkTypePrice(formData.serviceType);
+      const workCost = workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0);
+      const partsCost = selectedParts.reduce((sum, part) => sum + part.cost, 0);
+      const totalCost = serviceCost + workCost + partsCost + (formData.laborCost || 0);
 
-    const updatedService = {
-      ...formData,
-      usedParts: selectedParts,
-      workItems: workItems,
-      serviceCost,
-      workCost,
-      partsCost,
-      totalCost,
-      serviceDate: formData.serviceDate || new Date().toISOString().split('T')[0],
-      description: `${formData.serviceType} - ${workItems.map(item => item.name).join(', ')} - ${formData.description || 'MotoEtiler servis hizmeti'}`
-    };
-
-    if (selectedService) {
-      setServiceRecords(serviceRecords.map(service =>
-        service.id === selectedService.id
-          ? { ...service, ...updatedService }
-          : service
-      ));
-    } else {
-      const newService = {
-        ...updatedService,
-        id: Date.now()
+      const serviceData = {
+        customer_id: formData.customerId,
+        vespa_model: formData.vespaModel,
+        license_plate: formData.plateNumber,
+        service_date: formData.serviceDate || new Date().toISOString().split('T')[0],
+        service_type: formData.serviceType,
+        status: formData.status,
+        description: `${formData.serviceType} - ${workItems.map(item => item.name).join(', ')} - ${formData.description || 'MotoEtiler servis hizmeti'}`,
+        labor_cost: formData.laborCost || 0,
+        parts_cost: partsCost,
+        total_cost: totalCost,
+        current_mileage: formData.mileage || 0,
+        next_service_date: formData.nextServiceDate || null,
+        used_parts: selectedParts.map(part => ({
+          part_id: part.id,
+          quantity: part.quantity,
+          cost: part.cost
+        })),
+        work_items: workItems.map(item => ({
+          work_type_id: item.id,
+          quantity: item.quantity,
+          cost: item.basePrice * item.quantity
+        }))
       };
-      setServiceRecords([...serviceRecords, newService]);
+
+      if (selectedService) {
+        // Update existing service (if API supports it)
+        console.log('Updating service not implemented yet');
+        alert('Servis güncelleme henüz desteklenmiyor.');
+        return;
+      } else {
+        // Create new service
+        console.log('🔄 Creating new service:', serviceData);
+        const response = await apiService.createService(serviceData);
+        console.log('✅ Service created successfully:', response);
+        alert('Servis başarıyla kaydedildi!');
+      }
+      
+      // Reload service records from database
+      await loadServiceRecords();
+      
+      // Form sıfırlama
+      setFormData({
+        customerId: '',
+        customerName: '',
+        vespaModel: '',
+        plateNumber: '',
+        serviceDate: '',
+        serviceType: '',
+        status: 'pending',
+        description: '',
+        usedParts: [],
+        laborCost: 0,
+        mileage: 0,
+        nextServiceDate: ''
+      });
+      setSelectedService(null);
+      setSelectedCustomer(null);
+      setCustomerServiceHistory([]);
+      setWorkItems([]);
+      setSelectedParts([]);
+      
+      onClose();
+      
+    } catch (error) {
+      console.error('❌ Error saving service:', error);
+      alert('Servis kaydedilirken hata oluştu: ' + error.message);
     }
-    
-    // Form sıfırlama
-    setSelectedService(null);
-    setSelectedCustomer(null);
-    setCustomerServiceHistory([]);
-    setWorkItems([]);
-    setSelectedParts([]);
-    
-    onClose();
   };
 
   // Silme onayı için state
@@ -582,10 +808,22 @@ export default function ServiceTracking() {
     setDeleteId(id);
     setIsDeleteOpen(true);
   };
-  const handleDeleteConfirm = () => {
-    setServiceRecords(serviceRecords.filter(service => service.id !== deleteId));
-    setIsDeleteOpen(false);
-    setDeleteId(null);
+  const handleDeleteConfirm = async () => {
+    try {
+      // TODO: Implement actual API delete when available
+      // await apiService.deleteService(deleteId);
+      
+      // For now, just remove from local state
+      console.log('⚠️ Service deletion only removes from local state - API delete not implemented');
+      setServiceRecords(serviceRecords.filter(service => service.id !== deleteId));
+      alert('Servis geçici olarak listeden kaldırıldı. Database API silinmesi henüz desteklenmiyor.');
+      
+      setIsDeleteOpen(false);
+      setDeleteId(null);
+    } catch (error) {
+      console.error('❌ Error deleting service:', error);
+      alert('Servis silinirken hata oluştu: ' + error.message);
+    }
   };
   const handleDeleteCancel = () => {
     setIsDeleteOpen(false);
@@ -672,14 +910,29 @@ export default function ServiceTracking() {
     setEditPrice(currentPrice.toString());
   };
 
-  const handleSavePrice = () => {
+  const handleSavePrice = async () => {
     if (editingPrice && editPrice) {
-      setServicePrices(prev => ({
-        ...prev,
-        [editingPrice]: parseInt(editPrice)
-      }));
+      try {
+        // Find the work type by name
+        const workType = workTypes.find(wt => wt.name === editingPrice);
+        if (workType) {
+          // Update via API
+          await apiService.updateWorkType(workType.id, {
+            base_price: parseFloat(editPrice)
+          });
+          
+          // Reload work types to refresh the data
+          await loadWorkTypes();
+          
+          alert('Fiyat başarıyla güncellendi.');
+        }
+      } catch (error) {
+        console.error('Error updating price:', error);
+        alert('Fiyat güncellenirken hata oluştu.');
+      } finally {
       setEditingPrice(null);
       setEditPrice('');
+      }
     }
   };
 
@@ -693,23 +946,48 @@ export default function ServiceTracking() {
   );
 
   // Müşteri seçimi fonksiyonları
-  const handleCustomerSelect = (customerId) => {
+  const handleCustomerSelect = async (customerId) => {
     const customer = customers.find(c => c.id === parseInt(customerId));
     setSelectedCustomer(customer);
     
     if (customer) {
+      // Otomatik 6 ay sonrası tarih hesapla
+      const today = new Date();
+      const sixMonthsLater = new Date(today);
+      sixMonthsLater.setMonth(today.getMonth() + 6);
+      const nextServiceDate = sixMonthsLater.toISOString().split('T')[0];
+
       // Müşteri bilgilerini forma aktar
       setFormData(prev => ({
         ...prev,
         customerId: customer.id,
         customerName: customer.name,
         vespaModel: customer.vespaModel,
-        plateNumber: customer.plateNumber
+        plateNumber: customer.plateNumber,
+        mileage: customer.current_mileage || 0,  // Müşterinin mevcut kilometresini otomatik doldur
+        nextServiceDate: nextServiceDate  // Otomatik 6 ay sonrası
       }));
 
-      // Müşterinin servis geçmişini bul
-      const history = serviceRecords.filter(record => record.customerId === customer.id);
-      setCustomerServiceHistory(history);
+      // Müşterinin servis geçmişini temizle (yeni müşteriler için)
+      setCustomerServiceHistory([]);
+      
+      // TODO: Gelecekte gerçek API'den servis geçmişi çekilecek
+      // const history = await apiService.getCustomerServiceHistory(customer.id);
+      // setCustomerServiceHistory(history || []);
+
+      // API'den müşterinin vespa bilgilerini çek (mevcut kilometre için)
+      try {
+        const vespaResponse = await apiService.getCustomerVespas(customer.id);
+        if (vespaResponse.vespas && vespaResponse.vespas.length > 0) {
+          const firstVespa = vespaResponse.vespas[0];
+          setFormData(prev => ({
+            ...prev,
+            mileage: firstVespa.current_mileage || 0
+          }));
+        }
+      } catch (error) {
+        console.error('Error loading customer vespa data:', error);
+      }
     }
   };
 
@@ -735,7 +1013,7 @@ export default function ServiceTracking() {
 
   // Toplam maliyet hesaplama
   const calculateTotalCost = () => {
-    const serviceCost = servicePrices[formData.serviceType] || 0;
+    const serviceCost = getWorkTypePrice(formData.serviceType);
     const workCost = workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0);
     const partsCost = selectedParts.reduce((sum, part) => sum + part.cost, 0);
     const laborCost = formData.laborCost || 0;
@@ -986,18 +1264,31 @@ export default function ServiceTracking() {
   return (
     <CBox pt={{ base: '130px', md: '80px', xl: '80px' }}>
       {/* Header */}
-      <CFlex justify="space-between" align="center" mb="20px">
+      <CFlex justify="center" align="center" mb="20px">
         <CText fontSize="2xl" fontWeight="bold" color={brandColor}>
           MotoEtiler Servis Yönetimi
         </CText>
-        <Button
-          leftIcon={<MdAttachMoney />}
-          colorScheme="green"
-          onClick={() => setIsPriceListOpen(true)}
-        >
-          Fiyat Listesi
-        </Button>
       </CFlex>
+
+      {/* Loading State */}
+      {(loading || loadingServices) && (
+        <CFlex justify="center" align="center" mb="20px">
+          <CText fontSize="lg" color={textColor}>
+            🔄 Veriler yükleniyor... (Konsolu kontrol edin)
+          </CText>
+        </CFlex>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Alert status="error" mb="20px" borderRadius="12px">
+          <AlertIcon />
+          <CBox>
+            <AlertTitle>API Bağlantı Hatası</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </CBox>
+        </Alert>
+      )}
 
       {/* Statistics Cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap="20px" mb="20px">
@@ -1047,11 +1338,14 @@ export default function ServiceTracking() {
       {/* Main Content */}
       <Card>
         <Tabs index={activeTab} onChange={setActiveTab}>
-          <TabList>
-            <Tab>Servis Kayıtları</Tab>
-                            <Tab>Servis Geçmişi</Tab>
-            <Tab>Servis Analizi</Tab>
-          </TabList>
+          <CFlex justify="center" w="100%">
+            <TabList>
+              <Tab>Servis Kayıtları</Tab>
+              <Tab>Servis Geçmişi</Tab>
+              <Tab>Servis Analizi</Tab>
+              <Tab>İşlem Yönetimi</Tab>
+            </TabList>
+          </CFlex>
 
           <TabPanels>
             {/* Service Records Tab */}
@@ -1236,8 +1530,8 @@ export default function ServiceTracking() {
                     <CText fontSize="lg" fontWeight="bold" color={textColor}>Servis Türü Dağılımı</CText>
                     <CText fontSize="sm" color={secondaryTextColor}>Gelir bazında servis türü analizi</CText>
                   </CBox>
-                  {serviceTypes.map(type => {
-                    const typeServices = serviceRecords.filter(service => service.serviceType === type);
+                  {workTypes.map(workType => {
+                    const typeServices = serviceRecords.filter(service => service.serviceType === workType.name);
                     const typeRevenue = typeServices.reduce((sum, service) => sum + service.totalCost, 0);
                     const totalRevenue = calculateTotalRevenue();
                     const percentage = totalRevenue > 0 ? (typeRevenue / totalRevenue) * 100 : 0;
@@ -1246,9 +1540,9 @@ export default function ServiceTracking() {
                     if (typeRevenue === 0) return null;
                     
                     return (
-                      <CBox key={type} mb="10px">
+                      <CBox key={workType.name} mb="10px">
                         <CFlex justify="space-between" mb="2" align="center">
-                          <CText fontSize="sm" color={textColor} fontWeight="medium">{type}</CText>
+                          <CText fontSize="sm" color={textColor} fontWeight="medium">{workType.name}</CText>
                           <CText fontSize="sm" color={textColor} fontWeight="bold">₺{typeRevenue.toLocaleString()}</CText>
                         </CFlex>
                         <CFlex align="center" gap="3">
@@ -1256,7 +1550,7 @@ export default function ServiceTracking() {
                             value={percentage}
                             colorScheme="brand"
                             size="sm"
-                            borderRadius="md"
+                            borderRadius="md" 
                             flex="1"
                             maxW="200px"
                             bg={progressBarBg}
@@ -1313,6 +1607,105 @@ export default function ServiceTracking() {
                 </Card>
               </SimpleGrid>
             </TabPanel>
+
+            {/* İşlem Yönetimi Tab */}
+            <TabPanel>
+              <CFlex justify="space-between" align="center" mb="20px">
+                <CText fontSize="2xl" fontWeight="bold" color={brandColor}>
+                  İşlem Türleri Yönetimi
+                </CText>
+                <Button
+                  leftIcon={<MdAdd />}
+                  colorScheme="brand"
+                  onClick={() => setIsWorkTypeModalOpen(true)}
+                >
+                  Yeni İşlem Türü Ekle
+                </Button>
+              </CFlex>
+
+              {/* İşlem türleri tablosu */}
+              <Card>
+                <CBox p="6">
+                  {loadingWorkTypes ? (
+                    <CFlex justify="center" align="center" h="200px">
+                      <CText color={textColor}>İşlem türleri yükleniyor...</CText>
+                    </CFlex>
+                  ) : workTypes.length === 0 ? (
+                    <CFlex justify="center" align="center" h="200px" direction="column">
+                      <CText color={textColor} fontSize="lg" mb={2}>Henüz işlem türü bulunmamaktadır</CText>
+                      <CText color={secondaryTextColor} fontSize="sm">Yeni işlem türü eklemek için yukarıdaki butonu kullanın</CText>
+                    </CFlex>
+                  ) : (
+                    <CFlex justify="center" w="100%">
+                      <TableContainer maxW="1200px" w="100%">
+                        <Table variant="simple" size="md">
+                          <Thead>
+                            <Tr bg={cardBg}>
+                              <Th color={textColor} textAlign="center" fontSize="sm">İşlem Adı</Th>
+                              <Th color={textColor} textAlign="center" fontSize="sm">Kategori</Th>
+                              <Th color={textColor} textAlign="center" fontSize="sm">Temel Fiyat</Th>
+                              <Th color={textColor} textAlign="center" fontSize="sm">Süre (dk)</Th>
+                              <Th color={textColor} textAlign="center" fontSize="sm">Açıklama</Th>
+                              <Th color={textColor} textAlign="center" fontSize="sm">İşlemler</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {workTypes.map(workType => (
+                              <Tr key={workType.id} _hover={{ bg: cardBg }} transition="all 0.2s">
+                                <Td color={textColor} fontWeight="medium" textAlign="center">{workType.name}</Td>
+                                <Td textAlign="center">
+                                  <Badge 
+                                    colorScheme={
+                                      workType.category === 'Bakım' ? 'green' :
+                                      workType.category === 'Onarım' ? 'red' :
+                                      workType.category === 'Kontrol' ? 'blue' : 'gray'
+                                    }
+                                    px={3}
+                                    py={1}
+                                    borderRadius="md"
+                                  >
+                                    {workType.category}
+                                  </Badge>
+                                </Td>
+                                <Td color={textColor} textAlign="center" fontWeight="semibold">
+                                  ₺{workType.basePrice?.toLocaleString()}
+                                </Td>
+                                <Td color={textColor} textAlign="center">{workType.estimatedDuration} dk</Td>
+                                <Td color={textColor} maxW="250px" isTruncated textAlign="center">
+                                  {workType.description || '-'}
+                                </Td>
+                                <Td textAlign="center">
+                                  <HStack spacing={2} justify="center">
+                                    <IconButton
+                                      icon={<MdEdit />}
+                                      size="sm"
+                                      colorScheme="blue"
+                                      variant="outline"
+                                      onClick={() => handleEditWorkType(workType)}
+                                      aria-label="Düzenle"
+                                      _hover={{ transform: "scale(1.05)" }}
+                                    />
+                                    <IconButton
+                                      icon={<MdDelete />}
+                                      size="sm"
+                                      colorScheme="red"
+                                      variant="outline"
+                                      onClick={() => handleDeleteWorkType(workType.id)}
+                                      aria-label="Sil"
+                                      _hover={{ transform: "scale(1.05)" }}
+                                    />
+                                  </HStack>
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                    </CFlex>
+                  )}
+                </CBox>
+              </Card>
+            </TabPanel>
           </TabPanels>
         </Tabs>
       </Card>
@@ -1335,10 +1728,11 @@ export default function ServiceTracking() {
                 <Select
                   value={formData.customerId}
                   onChange={(e) => handleCustomerSelect(e.target.value)}
-                  placeholder="Müşteri seçin"
+                  placeholder={loadingCustomers ? "Müşteriler yükleniyor..." : "Müşteri seçin"}
                   bg={inputBg}
                   color={inputTextColor}
                   borderColor={inputBorderColor}
+                  disabled={loadingCustomers}
                 >
                   {customers.map(customer => (
                     <option key={customer.id} value={customer.id} style={{ backgroundColor: optionBg, color: optionTextColor }}>
@@ -1346,6 +1740,11 @@ export default function ServiceTracking() {
                     </option>
                   ))}
                 </Select>
+                {loadingCustomers && (
+                  <CText fontSize="xs" color="gray.500" mt={1}>
+                    Müşteri listesi yükleniyor...
+                  </CText>
+                )}
               </FormControl>
 
               {/* Müşteri Bilgileri */}
@@ -1357,14 +1756,16 @@ export default function ServiceTracking() {
                     <CText color={textColor}><strong>Telefon:</strong> {selectedCustomer.phone}</CText>
                     <CText color={textColor}><strong>Model:</strong> {selectedCustomer.vespaModel}</CText>
                     <CText color={textColor}><strong>Plaka:</strong> {selectedCustomer.plateNumber}</CText>
+                    <CText color={textColor}><strong>Mevcut KM:</strong> {selectedCustomer.current_mileage || 0} km</CText>
                   </Stack>
                 </CBox>
               )}
 
               {/* Müşteri Servis Geçmişi */}
-              {customerServiceHistory.length > 0 && (
+              {selectedCustomer && (
                 <CBox p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
                   <CText fontWeight="bold" mb="2" color={brandColor}>Servis Geçmişi:</CText>
+                  {customerServiceHistory.length > 0 ? (
                   <Stack spacing={2}>
                     {customerServiceHistory.slice(-3).map(service => (
                       <CBox key={service.id} p="2" bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
@@ -1375,6 +1776,13 @@ export default function ServiceTracking() {
                       </CBox>
                     ))}
                   </Stack>
+                  ) : (
+                    <CBox p="3" bg="gray.50" borderRadius="md" textAlign="center">
+                      <CText fontSize="sm" color="gray.500" fontStyle="italic">
+                        📝 Bu müşterinin daha önce servis kaydı bulunmamaktadır.
+                      </CText>
+                    </CBox>
+                  )}
                 </CBox>
               )}
 
@@ -1418,8 +1826,8 @@ export default function ServiceTracking() {
                     color={inputTextColor}
                     borderColor={inputBorderColor}
                   >
-                    {serviceTypes.map(type => (
-                      <option key={type} value={type} style={{ backgroundColor: optionBg, color: optionTextColor }}>{type}</option>
+                    {workTypes.map(workType => (
+                      <option key={workType.id} value={workType.name} style={{ backgroundColor: optionBg, color: optionTextColor }}>{workType.name}</option>
                     ))}
                   </Select>
                 </FormControl>
@@ -1430,85 +1838,152 @@ export default function ServiceTracking() {
               {/* Yapılacak İşlemler */}
               <FormControl mb={4}>
                 <FormLabel color={textColor}>Yapılacak İşlemler</FormLabel>
-                <Menu closeOnSelect={false} isLazy>
+                <Menu closeOnSelect={false} isLazy matchWidth>
                   <MenuButton
                     as={Button}
                     w="100%"
-                    minW={0}
-                    fontWeight="bold"
-                    borderRadius="md"
-                    bg={invoiceModalBg}
-                    color={invoiceTextColor}
-                    borderWidth="1px"
-                    borderColor={invoiceBorderColor}
-                    _hover={{ bg: menuButtonHoverBg }}
-                    _active={{ bg: menuButtonActiveBg }}
-                    _focus={{ boxShadow: "outline" }}
+                    h="40px"
                     textAlign="left"
-                    px={4}
-                    py={2}
-                    overflow="hidden"
-                    whiteSpace="nowrap"
-                  >
-                    {workItems.length === 0
-                      ? "İşlem seçin"
-                      : (
-                        <CFlex wrap="wrap" gap="2px">
-                          {workItems.map(item => (
-                            <CBox
-                              key={item.name}
-                              bg="brand.100"
-                              color="brand.700"
-                              px={2}
-                              py={0.5}
+                    fontWeight="normal"
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
+                    borderWidth="1px"
                               borderRadius="md"
-                              fontSize="xs"
-                              mr={1}
-                              mb={1}
-                              maxW="90px"
-                              overflow="hidden"
-                              textOverflow="ellipsis"
-                              whiteSpace="nowrap"
-                            >
-                              {item.name}
-                            </CBox>
-                          ))}
-                        </CFlex>
-                      )
+                    _hover={{ bg: menuButtonHoverBg, borderColor: inputBorderColor }}
+                    _active={{ bg: menuButtonActiveBg, borderColor: inputBorderColor }}
+                    _focus={{ boxShadow: "outline", borderColor: "brand.500" }}
+                    justifyContent="space-between"
+                    rightIcon={<Icon as={MdArrowDropDown} />}
+                    px={3}
+                  >
+                    {workItems.length === 0 
+                      ? "İşlem türü seçin"
+                      : `${workItems.length} işlem seçildi`
                     }
                   </MenuButton>
-                  <MenuList w="100%" minW="unset" maxH="250px" overflowY="auto" p={0}>
-                    <CBox display="flex" flexDirection="column">
-                      {(workTypes || []).map(item => (
+                  <MenuList 
+                    w="100%" 
+                    maxW="100%"
+                    minW="100%" 
+                    maxH="300px" 
+                    overflowY="auto"
+                    bg={inputBg}
+                    borderColor={inputBorderColor}
+                    borderWidth="1px"
+                    borderRadius="md"
+                    boxShadow="lg"
+                    zIndex={1500}
+                    mt={1}
+                    p={0}
+                    css={{
+                      '&::-webkit-scrollbar': {
+                        width: '8px',
+                      },
+                      '&::-webkit-scrollbar-track': {
+                        background: scrollbarTrack,
+                        borderRadius: '4px',
+                        margin: '4px',
+                      },
+                      '&::-webkit-scrollbar-thumb': {
+                        background: scrollbarThumb,
+                        borderRadius: '4px',
+                        border: '2px solid transparent',
+                        backgroundClip: 'content-box',
+                      },
+                      '&::-webkit-scrollbar-thumb:hover': {
+                        background: scrollbarThumbHover,
+                        backgroundClip: 'content-box',
+                      },
+                    }}
+                  >
+                    {(workTypes || []).map(item => {
+                      const isSelected = workItems.some(w => w.name === item.name);
+                      return (
                         <MenuItem
                           key={item.name}
                           onClick={() => {
-                            const exists = workItems.find(w => w.name === item.name);
-                            if (exists) {
+                            if (isSelected) {
                               setWorkItems(workItems.filter(w => w.name !== item.name));
                             } else {
                               setWorkItems([...workItems, { ...item, quantity: 1 }]);
                             }
                           }}
+                          bg={isSelected ? operationsSelectedBg : 'transparent'}
+                          color={isSelected ? operationsSelectedColor : textColor}
+                          _hover={{ 
+                            bg: isSelected ? operationsSelectedHoverBg : menuButtonHoverBg 
+                          }}
+                          _focus={{ 
+                            bg: isSelected ? operationsSelectedHoverBg : menuButtonHoverBg 
+                          }}
                           display="flex"
                           alignItems="center"
                           justifyContent="space-between"
                           px={4}
-                          py={2}
-                          _hover={{ bg: "gray.100" }}
-                          _focus={{ bg: "gray.200" }}
+                          py={3}
+                          h="48px"
+                          fontWeight={isSelected ? "bold" : "normal"}
+                          borderRadius="none"
+                          transition="all 0.2s"
                         >
-                          <ChakraCheckbox
-                            isChecked={!!workItems.find(w => w.name === item.name)}
-                            pointerEvents="none"
-                            mr={2}
-                          />
-                          <CText flex="1">{item.name} – ₺{item.basePrice}</CText>
+                          <CText fontSize="sm">
+                            {isSelected ? "✅ " : ""}{item.name}
+                          </CText>
+                          <CText fontSize="sm" color={isSelected ? operationsSelectedColor : secondaryTextColor}>
+                            ₺{item.basePrice}
+                          </CText>
                         </MenuItem>
-                      ))}
-                    </CBox>
+                      );
+                    })}
                   </MenuList>
                 </Menu>
+                
+                {/* Seçilen İşlemler Listesi */}
+                {workItems.length > 0 && (
+                  <CBox mt={3} p={3} bg={operationsListBg} borderRadius="md" border="1px solid" borderColor={operationsListBorder}>
+                    <CFlex justify="space-between" align="center" mb={2}>
+                      <CText fontWeight="bold" fontSize="sm" color={operationsItemText}>
+                        ✅ Seçilen İşlemler ({workItems.length})
+                      </CText>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="red"
+                        onClick={() => setWorkItems([])}
+                      >
+                        Tümünü Temizle
+                      </Button>
+                    </CFlex>
+                    <Stack spacing={2}>
+                      {workItems.map(item => (
+                        <CFlex key={item.name} justify="space-between" align="center" p={2} bg={operationsItemBg} borderRadius="md" border="1px solid" borderColor={operationsItemBorder}>
+                          <CText fontSize="sm" color={operationsItemText} fontWeight="medium">
+                            {item.name}
+                          </CText>
+                          <CFlex align="center" gap={2}>
+                            <CText fontSize="sm" color={operationsItemText} fontWeight="semibold">
+                              ₺{item.basePrice}
+                            </CText>
+                            <Button
+                              size="xs"
+                              colorScheme="red"
+                              variant="ghost"
+                              onClick={() => setWorkItems(workItems.filter(w => w.name !== item.name))}
+                            >
+                              ❌
+                            </Button>
+                          </CFlex>
+                        </CFlex>
+                      ))}
+                      <Divider borderColor={operationsItemBorder} />
+                      <CFlex justify="space-between" align="center" fontWeight="bold" p={2} bg={operationsTotalBg} borderRadius="md">
+                        <CText color={operationsTotalText}>Toplam İşlem:</CText>
+                        <CText color={operationsTotalText} fontSize="lg">₺{workItems.reduce((sum, item) => sum + item.basePrice, 0)}</CText>
+                      </CFlex>
+                    </Stack>
+                  </CBox>
+                )}
               </FormControl>
 
               <FormControl>
@@ -1620,6 +2095,8 @@ export default function ServiceTracking() {
                   bg={inputBg}
                   color={inputTextColor}
                   borderColor={inputBorderColor}
+                  w="100%"
+                  minW="200px"
                 />
               </FormControl>
 
@@ -1629,7 +2106,7 @@ export default function ServiceTracking() {
                 <Stack spacing={1}>
                   <HStack justify="space-between">
                     <CText color={textColor}>Servis Ücreti:</CText>
-                    <CText color={textColor}>₺{(servicePrices[formData.serviceType] || 0).toLocaleString()}</CText>
+                    <CText color={textColor}>₺{getWorkTypePrice(formData.serviceType).toLocaleString()}</CText>
                   </HStack>
                   <HStack justify="space-between">
                     <CText color={textColor}>İşlemler:</CText>
@@ -1689,99 +2166,7 @@ export default function ServiceTracking() {
         </ModalContent>
       </Modal>
 
-      {/* Fiyat Listesi Modal */}
-      <Modal isOpen={isPriceListOpen} onClose={() => setIsPriceListOpen(false)} size="lg">
-        <ModalOverlay bg={modalOverlayBg} />
-        <ModalContent bg={modalBg} borderRadius="15px" border="1px solid" borderColor={borderColor}>
-          <ModalHeader borderBottom="1px solid" borderColor={borderColor}>
-            <Heading size="md" color={brandColor}>MotoEtiler Servis Fiyat Listesi</Heading>
-          </ModalHeader>
-          <ModalCloseButton color={textColor} />
-          <ModalBody>
-            <Stack spacing={4}>
-              {/* Arama Kutusu */}
-              <InputGroup>
-                <InputLeftElement pointerEvents="none">
-                  <MdSearch color={secondaryTextColor} />
-                </InputLeftElement>
-                <Input
-                  placeholder="Servis türü ara..."
-                  value={priceSearchTerm}
-                  onChange={(e) => setPriceSearchTerm(e.target.value)}
-                  bg={inputBg}
-                  color={inputTextColor}
-                  borderColor={inputBorderColor}
-                  _placeholder={{ color: secondaryTextColor }}
-                />
-              </InputGroup>
 
-              {/* Fiyat Listesi */}
-              <CBox maxH="400px" overflowY="auto">
-                <Stack spacing={3}>
-                  {filteredPrices.map(([serviceType, price]) => (
-                    <CBox key={serviceType} p="4" border="1px solid" borderColor={borderColor} borderRadius="md" bg={cardBg}>
-                      <HStack justify="space-between" align="center">
-                        <VStack align="start" spacing={1}>
-                          <CText fontWeight="bold" color={textColor}>{serviceType}</CText>
-                          <CText color={price > 0 ? 'green.500' : 'orange.500'} fontSize="lg" fontWeight="bold">
-                            {price > 0 ? `₺${price.toLocaleString()}` : 'Özel Fiyat'}
-                          </CText>
-                        </VStack>
-                        {editingPrice === serviceType ? (
-                          <HStack>
-                            <NumberInput
-                              size="sm"
-                              w="120px"
-                              value={editPrice}
-                              onChange={(value) => setEditPrice(value)}
-                              min={0}
-                            >
-                              <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} />
-                              <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                              </NumberInputStepper>
-                            </NumberInput>
-                            <IconButton
-                              icon={<MdCheck />}
-                              size="sm"
-                              colorScheme="green"
-                              onClick={handleSavePrice}
-                              aria-label="Kaydet"
-                            />
-                            <IconButton
-                              icon={<MdClose />}
-                              size="sm"
-                              colorScheme="red"
-                              onClick={handleCancelEdit}
-                              aria-label="İptal"
-                            />
-                          </HStack>
-                        ) : (
-                          <IconButton
-                            icon={<MdEdit />}
-                            size="sm"
-                            colorScheme="blue"
-                            variant="outline"
-                            onClick={() => handleEditPrice(serviceType, price)}
-                            aria-label="Düzenle"
-                          />
-                        )}
-                      </HStack>
-                    </CBox>
-                  ))}
-                </Stack>
-              </CBox>
-            </Stack>
-          </ModalBody>
-
-          <ModalFooter borderTop="1px solid" borderColor={borderColor}>
-            <Button colorScheme="brand" onClick={() => setIsPriceListOpen(false)}>
-              Tamam
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       {/* Fatura Modal */}
       <Modal isOpen={isInvoiceOpen} onClose={() => setIsInvoiceOpen(false)} size="xl">
@@ -2019,6 +2404,116 @@ export default function ServiceTracking() {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      {/* Work Type Add/Edit Modal */}
+      <Modal isOpen={isWorkTypeModalOpen} onClose={handleWorkTypeModalClose} size="xl">
+        <ModalOverlay bg={modalOverlayBg} />
+        <ModalContent bg={modalBg} borderRadius="15px" border="1px solid" borderColor={borderColor}>
+          <ModalHeader borderBottom="1px solid" borderColor={borderColor}>
+            <Heading size="md" color={brandColor}>
+              {editingWorkType ? 'İşlem Türünü Düzenle' : 'Yeni İşlem Türü Ekle'}
+            </Heading>
+          </ModalHeader>
+          <ModalCloseButton color={textColor} />
+          
+          <ModalBody py={6}>
+            <Stack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel color={textColor}>İşlem Adı</FormLabel>
+                <Input
+                  value={workTypeFormData.name}
+                  onChange={(e) => setWorkTypeFormData({...workTypeFormData, name: e.target.value})}
+                  placeholder="Örn: Yağ Değişimi"
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                />
+              </FormControl>
+
+              <HStack spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel color={textColor}>Kategori</FormLabel>
+                  <Select
+                    value={workTypeFormData.category}
+                    onChange={(e) => setWorkTypeFormData({...workTypeFormData, category: e.target.value})}
+                    placeholder="Kategori seçin"
+                    bg={inputBg}
+                    color={inputTextColor}
+                    borderColor={inputBorderColor}
+                  >
+                    <option value="Bakım">Bakım</option>
+                    <option value="Onarım">Onarım</option>
+                    <option value="Kontrol">Kontrol</option>
+                    <option value="Diğer">Diğer</option>
+                  </Select>
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel color={textColor}>Temel Fiyat (₺)</FormLabel>
+                  <NumberInput
+                    value={workTypeFormData.base_price}
+                    onChange={(value) => setWorkTypeFormData({...workTypeFormData, base_price: value})}
+                    min={0}
+                  >
+                    <NumberInputField 
+                      bg={inputBg} 
+                      color={inputTextColor} 
+                      borderColor={inputBorderColor}
+                      placeholder="0"
+                    />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+              </HStack>
+
+              <FormControl>
+                <FormLabel color={textColor}>Tahmini Süre (dakika)</FormLabel>
+                <NumberInput
+                  value={workTypeFormData.estimated_duration}
+                  onChange={(value) => setWorkTypeFormData({...workTypeFormData, estimated_duration: value})}
+                  min={1}
+                  max={480}
+                >
+                  <NumberInputField 
+                    bg={inputBg} 
+                    color={inputTextColor} 
+                    borderColor={inputBorderColor}
+                  />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel color={textColor}>Açıklama</FormLabel>
+                <Textarea
+                  value={workTypeFormData.description}
+                  onChange={(e) => setWorkTypeFormData({...workTypeFormData, description: e.target.value})}
+                  placeholder="İşlem hakkında detaylı bilgi..."
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  rows={3}
+                />
+              </FormControl>
+            </Stack>
+          </ModalBody>
+
+          <ModalFooter borderTop="1px solid" borderColor={borderColor}>
+            <Button variant="ghost" onClick={handleWorkTypeModalClose} mr={3} color={cancelButtonColor}>
+              İptal
+            </Button>
+            <Button colorScheme="brand" onClick={handleSaveWorkType}>
+              {editingWorkType ? 'Güncelle' : 'Ekle'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </CBox>
   );
 } 

@@ -17,4 +17,9 @@ urlpatterns = [
     path('paint/template-parts/<int:template_id>/', views.PaintTemplatePartsView.as_view(), name='paint-template-parts'),
     path('paint/jobs/', views.PaintJobsView.as_view(), name='paint-jobs'),
     path('paint/jobs/<int:paint_job_id>/', views.PaintJobDetailView.as_view(), name='paint-job-detail'),
+    
+    # Work Types Management
+    path('work-types/', views.WorkTypesView.as_view(), name='work-types'),
+    path('work-types/<int:work_type_id>/', views.WorkTypeDetailView.as_view(), name='work-type-detail'),
+    path('work-types/categories/', views.WorkTypesCategoriesView.as_view(), name='work-types-categories'),
 ]

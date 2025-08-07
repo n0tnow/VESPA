@@ -216,7 +216,7 @@ def create_customer_vespa(customer_id, vespa_data):
         vespa_data.get('chassis_number', ''),
         vespa_data.get('purchase_date'),
         vespa_data.get('current_mileage', 0),
-        vespa_data.get('service_interval_km', 5000),
+        vespa_data.get('service_interval_km', 3000),
         vespa_data.get('vespa_notes', '')
     ))
     
@@ -267,7 +267,7 @@ def get_customer_vespas(customer_id):
         cv.id, cv.license_plate, cv.chassis_number, cv.purchase_date,
         cv.current_mileage, cv.last_service_date, cv.next_service_date,
         cv.service_interval_km, cv.notes, cv.is_active,
-        vm.model_name, vm.model_year, vm.engine_size
+        cv.vespa_model_id, vm.model_name, vm.model_year, vm.engine_size
     FROM customer_vespas cv
     INNER JOIN vespa_models vm ON cv.vespa_model_id = vm.id
     WHERE cv.customer_id = ? AND cv.is_active = 1
@@ -289,11 +289,12 @@ def get_customer_vespas(customer_id):
             'last_service_date': row[5],
             'next_service_date': row[6],
             'service_interval_km': row[7],
-            'notes': row[8],
+            'vespa_notes': row[8],  # Changed from 'notes' to 'vespa_notes' to match frontend
             'is_active': row[9],
-            'model_name': row[10],
-            'model_year': row[11],
-            'engine_size': row[12]
+            'vespa_model_id': row[10],  # Added vespa_model_id
+            'model_name': row[11],
+            'model_year': row[12],
+            'engine_size': row[13]
         })
     
     return vespas

@@ -465,7 +465,7 @@ class ApiService {
    * Get all Vespa models
    */
   async getVespaModels() {
-    return await this.makeRequest('/inventory/vespa-models/');
+    return await this.makeRequest('/customers/vespa-models/');
   }
 
   // ===== TAX REPORTS ENDPOINTS =====
@@ -634,6 +634,55 @@ class ApiService {
    */
   async getPaintJobDetails(paintJobId) {
     return await this.makeRequest(`/services/paint/jobs/${paintJobId}/`);
+  }
+
+  // ===== WORK TYPES =====
+
+  /**
+   * Get all work types
+   */
+  async getWorkTypes(search = '', category = '') {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (category) params.append('category', category);
+    
+    const url = `/services/work-types/${params.toString() ? '?' + params.toString() : ''}`;
+    return await this.makeRequest(url);
+  }
+
+  /**
+   * Get work type by ID
+   */
+  async getWorkType(workTypeId) {
+    return await this.makeRequest(`/services/work-types/${workTypeId}/`);
+  }
+
+  /**
+   * Create new work type
+   */
+  async createWorkType(workTypeData) {
+    return await this.makeRequest('/services/work-types/', 'POST', workTypeData);
+  }
+
+  /**
+   * Update work type
+   */
+  async updateWorkType(workTypeId, workTypeData) {
+    return await this.makeRequest(`/services/work-types/${workTypeId}/`, 'PUT', workTypeData);
+  }
+
+  /**
+   * Delete work type (soft delete)
+   */
+  async deleteWorkType(workTypeId) {
+    return await this.makeRequest(`/services/work-types/${workTypeId}/`, 'DELETE');
+  }
+
+  /**
+   * Get work types grouped by categories
+   */
+  async getWorkTypesCategories() {
+    return await this.makeRequest('/services/work-types/categories/');
   }
 }
 

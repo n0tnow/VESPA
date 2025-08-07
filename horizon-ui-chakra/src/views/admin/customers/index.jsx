@@ -110,9 +110,6 @@ export default function CustomerManagement() {
         last_name: customer.last_name,
         phone: customer.phone,
         email: customer.email,
-        address: customer.address,
-        city: customer.city,
-        district: customer.district,
         tax_number: customer.tax_number,
         customer_type: customer.customer_type,
         notes: customer.notes,
@@ -135,21 +132,17 @@ export default function CustomerManagement() {
     last_name: '',
     email: '',
     phone: '',
-    address: '',
-    city: '',
-    district: '',
+
     tax_number: '',
     customer_type: 'INDIVIDUAL',
     notes: '',
     status: 'ACTIVE',
-    // Vespa data (optional)
+    // Vespa data (required)
     vespa: {
       vespa_model_id: '',
       license_plate: '',
-      chassis_number: '',
-      purchase_date: '',
       current_mileage: 0,
-      service_interval_km: 5000,
+      service_interval_km: 3000,
       vespa_notes: ''
     }
   });
@@ -169,6 +162,68 @@ export default function CustomerManagement() {
     }));
   };
 
+  // Helper function to format date as gg.aa.yyyy
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
+      
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      
+      return `${day}.${month}.${year}`;
+    } catch (error) {
+      return '-';
+    }
+  };
+
+  // Helper function to handle TC/Vergi No input (numbers only)
+  const handleTaxNumberChange = (e) => {
+    const value = e.target.value;
+    // Remove all non-digit characters
+    const numbersOnly = value.replace(/\D/g, '');
+    // Limit to 11 characters (TC Kimlik max length)
+    const limitedValue = numbersOnly.slice(0, 11);
+    setFormData({...formData, tax_number: limitedValue});
+  };
+
+  // Helper function to handle phone input (numbers only, no leading zero)
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    // Remove all non-digit characters
+    const numbersOnly = value.replace(/\D/g, '');
+    
+    // Remove leading zeros and ensure it starts with 5
+    let cleanedValue = numbersOnly;
+    
+    // Remove leading zeros
+    cleanedValue = cleanedValue.replace(/^0+/, '');
+    
+    // If first digit is not 5, don't allow (Turkish mobile format)
+    if (cleanedValue.length > 0 && cleanedValue[0] !== '5') {
+      // If user is trying to type a non-5 first digit, prevent it
+      if (formData.phone === '') {
+        return; // Don't update if trying to start with non-5
+      }
+    }
+    
+    // Limit to 10 digits (Turkish mobile format: 5XXXXXXXXX)
+    const limitedValue = cleanedValue.slice(0, 10);
+    setFormData({...formData, phone: limitedValue});
+  };
+
+  // Helper function to handle license plate input (Turkish format)
+  const handleLicensePlateChange = (e) => {
+    const value = e.target.value.toUpperCase();
+    // Allow only letters, numbers and spaces
+    const cleanedValue = value.replace(/[^A-Z0-9\s]/g, '');
+    // Limit to reasonable length (Turkish plates are typically 7-9 characters including spaces)
+    const limitedValue = cleanedValue.slice(0, 10);
+    updateVespaData('license_plate', limitedValue);
+  };
+
   const filteredCustomers = customers.filter(customer => {
     const searchableText = [
       customer.name || '',
@@ -176,9 +231,7 @@ export default function CustomerManagement() {
       customer.last_name || '',
       customer.email || '',
       customer.phone || '',
-      customer.address || '',
-      customer.city || '',
-      customer.district || ''
+
     ].join(' ').toLowerCase();
     
     const matchesSearch = searchableText.includes(searchTerm.toLowerCase());
@@ -193,9 +246,7 @@ export default function CustomerManagement() {
       last_name: '',
       email: '',
       phone: '',
-      address: '',
-      city: '',
-      district: '',
+
       tax_number: '',
       customer_type: 'INDIVIDUAL',
       notes: '',
@@ -203,10 +254,10 @@ export default function CustomerManagement() {
       vespa: {
         vespa_model_id: '',
         license_plate: '',
-        chassis_number: '',
-        purchase_date: '',
+
+
         current_mileage: 0,
-        service_interval_km: 5000,
+        service_interval_km: 3000,
         vespa_notes: ''
       }
     });
@@ -215,16 +266,18 @@ export default function CustomerManagement() {
     onOpen();
   };
 
-  const handleEditCustomer = (customer) => {
+  const handleEditCustomer = async (customer) => {
     setSelectedCustomer(customer);
+    
+    // First, load Vespa models (wait for them to be ready)
+    await loadVespaModels();
+    
+    // Set initial form data
     setFormData({
       first_name: customer.first_name || customer.name?.split(' ')[0] || '',
       last_name: customer.last_name || customer.name?.split(' ').slice(1).join(' ') || '',
       email: customer.email || '',
       phone: customer.phone || '',
-      address: customer.address || '',
-      city: customer.city || '',
-      district: customer.district || '',
       tax_number: customer.tax_number || '',
       customer_type: customer.customer_type || 'INDIVIDUAL',
       notes: customer.notes || '',
@@ -232,15 +285,36 @@ export default function CustomerManagement() {
       vespa: {
         vespa_model_id: '',
         license_plate: '',
-        chassis_number: '',
-        purchase_date: '',
         current_mileage: 0,
-        service_interval_km: 5000,
+        service_interval_km: 3000,
         vespa_notes: ''
       }
     });
-    // Load Vespa models when opening form
-    loadVespaModels();
+    
+    // Load customer's existing Vespa data
+    try {
+      if (customer.vespa_count > 0) {
+        const vespaResponse = await apiService.getCustomerVespas(customer.id);
+        
+        if (vespaResponse.vespas && vespaResponse.vespas.length > 0) {
+          const firstVespa = vespaResponse.vespas[0]; // Use first Vespa if multiple
+          
+          setFormData(prev => ({
+            ...prev,
+            vespa: {
+              vespa_model_id: firstVespa.vespa_model_id?.toString() || '',
+              license_plate: firstVespa.license_plate || '',
+              current_mileage: firstVespa.current_mileage || 0,
+              service_interval_km: firstVespa.service_interval_km || 3000,
+              vespa_notes: firstVespa.vespa_notes || ''
+            }
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading customer Vespa data:', error);
+    }
+    
     onOpen();
   };
 
@@ -248,32 +322,53 @@ export default function CustomerManagement() {
     try {
       setLoading(true);
       
+      // Validation: Vespa bilgileri zorunlu
+      if (!formData.vespa.vespa_model_id || !formData.vespa.license_plate) {
+        setError('Vespa model ve plaka bilgileri zorunludur!');
+        setLoading(false);
+        return;
+      }
+
+      // Validation: Plaka formatı kontrolü
+      if (formData.vespa.license_plate.length < 6) {
+        setError('Plaka en az 6 karakter olmalıdır!');
+        setLoading(false);
+        return;
+      }
+
+      // Validation: Telefon numarası kontrolü
+      if (!formData.phone || formData.phone.length !== 10 || formData.phone[0] !== '5') {
+        setError('Telefon numarası 5 ile başlayan 10 haneli olmalıdır!');
+        setLoading(false);
+        return;
+      }
+
+      // Validation: TC/Vergi No kontrolü (eğer girilmişse)
+      if (formData.tax_number && (formData.tax_number.length < 10 || formData.tax_number.length > 11)) {
+        setError('TC Kimlik No 11 haneli, Vergi No 10 haneli olmalıdır!');
+        setLoading(false);
+        return;
+      }
+      
       const customerData = {
         first_name: formData.first_name,
         last_name: formData.last_name,
         email: formData.email,
         phone: formData.phone,
-        address: formData.address,
-        city: formData.city,
-        district: formData.district,
         tax_number: formData.tax_number,
         customer_type: formData.customer_type,
         notes: formData.notes,
         status: formData.status
       };
 
-      // Add Vespa data if provided (only for new customers)
-      if (!selectedCustomer && formData.vespa.vespa_model_id && formData.vespa.license_plate) {
-        customerData.vespa = {
-          vespa_model_id: parseInt(formData.vespa.vespa_model_id),
-          license_plate: formData.vespa.license_plate,
-          chassis_number: formData.vespa.chassis_number,
-          purchase_date: formData.vespa.purchase_date || null,
-          current_mileage: parseInt(formData.vespa.current_mileage) || 0,
-          service_interval_km: parseInt(formData.vespa.service_interval_km) || 5000,
-          vespa_notes: formData.vespa.vespa_notes
-        };
-      }
+      // Add Vespa data (required for all customers)
+      customerData.vespa = {
+        vespa_model_id: parseInt(formData.vespa.vespa_model_id),
+        license_plate: formData.vespa.license_plate,
+        current_mileage: parseInt(formData.vespa.current_mileage) || 0,
+        service_interval_km: parseInt(formData.vespa.service_interval_km) || 3000,
+        vespa_notes: formData.vespa.vespa_notes
+      };
       
       if (selectedCustomer) {
         // Update existing customer (without Vespa - that's handled separately)
@@ -463,7 +558,6 @@ export default function CustomerManagement() {
               <Tr>
                 <Th>Müşteri Adı</Th>
                 <Th>İletişim</Th>
-                <Th>Adres Bilgileri</Th>
                 <Th>TC/Vergi No</Th>
                 <Th>Motor Sayısı</Th>
                 <Th>Müşteri Tipi</Th>
@@ -489,14 +583,6 @@ export default function CustomerManagement() {
                       <Text fontSize="sm" color="gray.500">{customer.phone}</Text>
                     </Box>
                   </Td>
-                  <Td>
-                    <Box>
-                      <Text fontSize="sm">{customer.address || '-'}</Text>
-                      <Text fontSize="xs" color="gray.500">
-                        {[customer.district, customer.city].filter(Boolean).join(', ') || '-'}
-                      </Text>
-                    </Box>
-                  </Td>
                   <Td>{customer.tax_number || '-'}</Td>
                   <Td>
                     <Badge 
@@ -519,7 +605,7 @@ export default function CustomerManagement() {
                       {getStatusText(customer.status)}
                     </Badge>
                   </Td>
-                  <Td>{customer.registrationDate || '-'}</Td>
+                  <Td>{formatDate(customer.registrationDate)}</Td>
                   <Td>
                     <Stack direction="row" spacing={1}>
                       <IconButton
@@ -607,24 +693,46 @@ export default function CustomerManagement() {
                 <FormLabel color={labelColor}>Telefon</FormLabel>
                 <Input
                   value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  placeholder="Telefon numarasını girin"
+                  onChange={handlePhoneChange}
+                  placeholder="5XXXXXXXXX (başında sıfır olmadan)"
+                  maxLength={10}
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 />
+                {formData.phone && formData.phone.length > 0 && formData.phone[0] !== '5' && (
+                  <Text fontSize="xs" color="red.500" mt={1}>
+                    Telefon numarası 5 ile başlamalıdır
+                  </Text>
+                )}
+                {formData.phone && formData.phone.length > 0 && formData.phone.length < 10 && (
+                  <Text fontSize="xs" color="orange.500" mt={1}>
+                    Telefon numarası 10 haneli olmalıdır ({formData.phone.length}/10)
+                  </Text>
+                )}
               </FormControl>
 
               <FormControl>
                 <FormLabel color={labelColor}>TC/Vergi No</FormLabel>
                 <Input
                   value={formData.tax_number}
-                  onChange={(e) => setFormData({...formData, tax_number: e.target.value})}
-                  placeholder="TC Kimlik No veya Vergi No"
+                  onChange={handleTaxNumberChange}
+                  placeholder="TC Kimlik No (11 haneli) veya Vergi No (10 haneli)"
+                  maxLength={11}
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
+                  _placeholder={{ color: 'gray.400' }}
                 />
+                {formData.tax_number && formData.tax_number.length > 0 && (
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    {formData.tax_number.length === 10 ? '✅ Vergi No formatı (10 haneli)' :
+                     formData.tax_number.length === 11 ? '✅ TC Kimlik No formatı (11 haneli)' :
+                     formData.tax_number.length < 10 ? `⚠️ En az 10 haneli olmalıdır (${formData.tax_number.length}/10)` :
+                     '⚠️ TC: 11 haneli, Vergi No: 10 haneli olmalıdır'}
+                  </Text>
+                )}
               </FormControl>
 
               <FormControl>
@@ -645,45 +753,9 @@ export default function CustomerManagement() {
                 </Select>
               </FormControl>
 
-              {/* Address Information */}
+
+
               <FormControl gridColumn={{ base: 1, md: 'span 2' }}>
-                <FormLabel color={labelColor}>Adres</FormLabel>
-                <Textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  placeholder="Detaylı adres bilgisi"
-                  rows={2}
-                  bg={inputBg}
-                  color={inputText}
-                  borderColor={borderColor}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel color={labelColor}>İlçe</FormLabel>
-                <Input
-                  value={formData.district}
-                  onChange={(e) => setFormData({...formData, district: e.target.value})}
-                  placeholder="İlçe"
-                  bg={inputBg}
-                  color={inputText}
-                  borderColor={borderColor}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel color={labelColor}>Şehir</FormLabel>
-                <Input
-                  value={formData.city}
-                  onChange={(e) => setFormData({...formData, city: e.target.value})}
-                  placeholder="Şehir"
-                  bg={inputBg}
-                  color={inputText}
-                  borderColor={borderColor}
-                />
-              </FormControl>
-
-              <FormControl>
                 <FormLabel color={labelColor}>Durum</FormLabel>
                 <Select
                   value={formData.status}
@@ -715,8 +787,7 @@ export default function CustomerManagement() {
               </FormControl>
             </SimpleGrid>
 
-            {/* Vespa Information (Only for new customers) */}
-            {!selectedCustomer && (
+            {/* Vespa Information (Required for all customers) */}
               <>
                 <Divider my={6} />
                 <Accordion allowToggle>
@@ -728,17 +799,17 @@ export default function CustomerManagement() {
                     >
                       <Box flex="1" textAlign="left">
                         <Text fontWeight="bold" color={labelColor}>
-                          🏍️ Vespa Motor Bilgileri (İsteğe Bağlı)
+                          🏍️ Vespa Motor Bilgileri (Zorunlu)
                         </Text>
                         <Text fontSize="sm" color="gray.500">
-                          Müşteriyle birlikte motor bilgilerini de kaydedin
+                          Müşterinin motor bilgileri zorunludur
                         </Text>
                       </Box>
                       <AccordionIcon color={labelColor} />
                     </AccordionButton>
                     <AccordionPanel pb={4}>
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <FormControl>
+                        <FormControl isRequired>
                           <FormLabel color={labelColor}>Vespa Modeli</FormLabel>
                           <Select
                             value={formData.vespa.vespa_model_id}
@@ -769,41 +840,26 @@ export default function CustomerManagement() {
                           )}
                         </FormControl>
 
-                        <FormControl>
+                        <FormControl isRequired>
                           <FormLabel color={labelColor}>Plaka</FormLabel>
                           <Input
                             value={formData.vespa.license_plate}
-                            onChange={(e) => updateVespaData('license_plate', e.target.value.toUpperCase())}
-                            placeholder="34 ABC 123"
+                            onChange={handleLicensePlateChange}
+                            placeholder="34 ABC 123 (sadece harf, rakam ve boşluk)"
+                            maxLength={10}
                             bg={inputBg}
                             color={inputText}
                             borderColor={borderColor}
+                            _placeholder={{ color: 'gray.400' }}
                           />
+                          {formData.vespa.license_plate && formData.vespa.license_plate.length > 0 && (
+                            <Text fontSize="xs" color="gray.500" mt={1}>
+                              ✅ Plaka formatı: {formData.vespa.license_plate}
+                            </Text>
+                          )}
                         </FormControl>
 
-                        <FormControl>
-                          <FormLabel color={labelColor}>Şasi Numarası</FormLabel>
-                          <Input
-                            value={formData.vespa.chassis_number}
-                            onChange={(e) => updateVespaData('chassis_number', e.target.value)}
-                            placeholder="Şasi numarası (opsiyonel)"
-                            bg={inputBg}
-                            color={inputText}
-                            borderColor={borderColor}
-                          />
-                        </FormControl>
 
-                        <FormControl>
-                          <FormLabel color={labelColor}>Satın Alma Tarihi</FormLabel>
-                          <Input
-                            type="date"
-                            value={formData.vespa.purchase_date}
-                            onChange={(e) => updateVespaData('purchase_date', e.target.value)}
-                            bg={inputBg}
-                            color={inputText}
-                            borderColor={borderColor}
-                          />
-                        </FormControl>
 
                         <FormControl>
                           <FormLabel color={labelColor}>Mevcut KM</FormLabel>
@@ -827,7 +883,7 @@ export default function CustomerManagement() {
                             step="1000"
                             value={formData.vespa.service_interval_km}
                             onChange={(e) => updateVespaData('service_interval_km', e.target.value)}
-                            placeholder="5000"
+                            placeholder="3000"
                             bg={inputBg}
                             color={inputText}
                             borderColor={borderColor}
@@ -851,7 +907,6 @@ export default function CustomerManagement() {
                   </AccordionItem>
                 </Accordion>
               </>
-            )}
           </ModalBody>
 
           <ModalFooter bg={modalFooterBg}>

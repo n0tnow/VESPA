@@ -4,12 +4,18 @@ Services API Views - Service records and paint job management
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from .service_functions import (
     get_all_service_records, get_service_by_id,
     create_service_record, update_service_status, add_service_parts,
     get_paint_templates_by_model, get_paint_template_parts,
     create_paint_job, get_paint_job_details,
     get_service_summary, get_service_revenue_by_month
+)
+from .work_type_functions import (
+    get_work_types, get_work_type_by_id, create_work_type,
+    update_work_type, delete_work_type, get_work_types_by_category,
+    search_work_types
 )
 
 
@@ -287,4 +293,168 @@ class ServiceRevenueView(APIView):
         except Exception as e:
             return Response({
                 'error': f'Failed to get revenue data: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ===== WORK TYPES MANAGEMENT =====
+
+class WorkTypesView(APIView):
+    """Work types (İşlem Türleri) management"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Get all work types or search"""
+        try:
+            search_term = request.GET.get('search')
+            category = request.GET.get('category')
+            
+            if search_term:
+                work_types = search_work_types(search_term)
+            else:
+                work_types = get_work_types()
+            
+            # Filter by category if provided
+            if category:
+                work_types = [wt for wt in work_types if wt.get('category') == category]
+            
+            return Response({
+                'work_types': work_types,
+                'count': len(work_types)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to get work types: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request):
+        """Create new work type"""
+        try:
+            data = request.data
+            name = data.get('name')
+            base_price = float(data.get('base_price', 0))
+            description = data.get('description')
+            category = data.get('category')
+            estimated_duration = int(data.get('estimated_duration', 30))
+            
+            if not name:
+                return Response({
+                    'error': 'Work type name is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            work_type_id = create_work_type(
+                name=name,
+                base_price=base_price,
+                description=description,
+                category=category,
+                estimated_duration=estimated_duration
+            )
+            
+            if work_type_id:
+                work_type = get_work_type_by_id(work_type_id)
+                return Response({
+                    'message': 'Work type created successfully',
+                    'work_type': work_type
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    'error': 'Failed to create work type'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to create work type: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class WorkTypeDetailView(APIView):
+    """Individual work type management"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request, work_type_id):
+        """Get work type by ID"""
+        try:
+            work_type = get_work_type_by_id(work_type_id)
+            
+            if work_type:
+                return Response({
+                    'work_type': work_type
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Work type not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to get work type: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def put(self, request, work_type_id):
+        """Update work type"""
+        try:
+            data = request.data
+            
+            success = update_work_type(
+                work_type_id=work_type_id,
+                name=data.get('name'),
+                base_price=float(data.get('base_price')) if data.get('base_price') is not None else None,
+                description=data.get('description'),
+                category=data.get('category'),
+                estimated_duration=int(data.get('estimated_duration')) if data.get('estimated_duration') is not None else None
+            )
+            
+            if success:
+                work_type = get_work_type_by_id(work_type_id)
+                return Response({
+                    'message': 'Work type updated successfully',
+                    'work_type': work_type
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to update work type'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to update work type: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def delete(self, request, work_type_id):
+        """Delete work type (soft delete)"""
+        try:
+            success = delete_work_type(work_type_id)
+            
+            if success:
+                return Response({
+                    'message': 'Work type deleted successfully'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to delete work type'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to delete work type: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class WorkTypesCategoriesView(APIView):
+    """Work types grouped by categories"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Get work types grouped by category"""
+        try:
+            grouped_work_types = get_work_types_by_category()
+            
+            return Response({
+                'categories': grouped_work_types,
+                'total_categories': len(grouped_work_types)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to get work types by category: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -53,41 +53,39 @@ import {
   CardBody,
   Heading,
 } from '@chakra-ui/react';
-import {
-  MdAdd,
-  MdEdit,
-  MdDelete,
-  MdDownload,
-  MdAssessment,
-  MdAccountBalance,
-  MdReceipt,
-  MdTrendingUp,
-  MdTrendingDown,
-  MdAttachMoney,
-  MdCalendarToday,
-  MdCheckCircle,
-  MdPending,
-  MdWarning,
-} from 'react-icons/md';
+import { MdDownload } from 'react-icons/md';
 import Card from 'components/card/Card';
-import MiniStatistics from 'components/card/MiniStatistics';
+import BarChart from 'components/charts/BarChart';
+import PieChart from 'components/charts/PieChart';
 import apiService from 'services/apiService';
 
 export default function TaxReports() {
   const brandColor = useColorModeValue('brand.500', 'white');
   const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const txModal = useDisclosure();
   const [selectedReport, setSelectedReport] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
 
   // State management
-  const [taxReports, setTaxReports] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [currentPeriod, setCurrentPeriod] = useState({
-    year: new Date().getFullYear(),
-    month: new Date().getMonth() + 1
+  const [rangeStart, setRangeStart] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; });
+  const [rangeEnd, setRangeEnd] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0]; });
+  const [typeFilter, setTypeFilter] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
+  const [rangeSummary, setRangeSummary] = useState({ total_income: 0, total_expenses: 0, net: 0, by_method: { cash: 0, card: 0, transfer: 0 }, billed_revenue: { service: 0, parts: 0 } });
+  const [transactions, setTransactions] = useState([]);
+
+  // New Transaction modal state
+  const [newTx, setNewTx] = useState({
+    transaction_date: new Date().toISOString().split('T')[0],
+    transaction_type: 'INCOME',
+    payment_method: 'CASH',
+    amount: 0,
+    description: ''
   });
+  const [savingTx, setSavingTx] = useState(false);
 
   // Form state for new tax report
   const [formData, setFormData] = useState({
@@ -108,94 +106,36 @@ export default function TaxReports() {
     net_vat: 0
   });
 
-  // Load data on mount
   useEffect(() => {
-    loadData();
-    loadTaxSummary();
-  }, [currentPeriod]);
+    // Debounce API calls to prevent excessive requests
+    const timeoutId = setTimeout(() => {
+      loadData();
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [rangeStart, rangeEnd, typeFilter, methodFilter]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError('');
-
-      // This would be a new API endpoint we need to add
-      // const response = await apiService.getTaxReports();
-      // For now, using mock data structure based on database design
-      const mockReports = [
-        {
-          id: 1,
-          report_period_start: '2024-01-01',
-          report_period_end: '2024-01-31',
-          report_type: 'MONTHLY',
-          total_revenue: 125000.00,
-          total_expenses: 45000.00,
-          taxable_income: 80000.00,
-          calculated_tax: 17600.00,
-          paid_tax: 15000.00,
-          remaining_tax: 2600.00,
-          collected_vat: 25000.00,
-          paid_vat: 9000.00,
-          net_vat: 16000.00,
-          status: 'FINALIZED',
-          finalized_date: '2024-02-05',
-          created_date: '2024-02-01'
-        },
-        {
-          id: 2,
-          report_period_start: '2024-02-01',
-          report_period_end: '2024-02-29',
-          report_type: 'MONTHLY',
-          total_revenue: 142000.00,
-          total_expenses: 52000.00,
-          taxable_income: 90000.00,
-          calculated_tax: 19800.00,
-          paid_tax: 0.00,
-          remaining_tax: 19800.00,
-          collected_vat: 28400.00,
-          paid_vat: 10400.00,
-          net_vat: 18000.00,
-          status: 'DRAFT',
-          finalized_date: null,
-          created_date: '2024-03-01'
-        }
-      ];
-
-      setTaxReports(mockReports);
+      const summaryResp = await apiService.getAccountingDashboardRange(rangeStart, rangeEnd);
+      const txResp = await apiService.getCashTransactions({ startDate: rangeStart, endDate: rangeEnd, type: typeFilter, method: methodFilter, limit: 500 });
+      setRangeSummary(summaryResp.range_summary || { total_income: 0, total_expenses: 0, net: 0, by_method: { cash: 0, card: 0, transfer: 0 }, billed_revenue: { service: 0, parts: 0 } });
+      setTransactions(txResp.transactions || txResp || []);
 
     } catch (error) {
-      console.error('Error loading tax reports:', error);
-      setError('Vergi raporları yüklenirken hata oluştu: ' + error.message);
+      console.error('Error loading cash flow:', error);
+      setError('Cari akış verileri yüklenirken hata oluştu: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadTaxSummary = async () => {
-    try {
-      // This would call the accounting dashboard API
-      const dashboardData = await apiService.getDashboardData();
-      
-      setTaxSummary({
-        total_revenue: dashboardData.total_revenue || 0,
-        total_expenses: dashboardData.total_expenses || 0,
-        taxable_income: (dashboardData.total_revenue || 0) - (dashboardData.total_expenses || 0),
-        calculated_tax: ((dashboardData.total_revenue || 0) - (dashboardData.total_expenses || 0)) * 0.22, // 22% income tax
-        collected_vat: (dashboardData.total_revenue || 0) * 0.20, // 20% VAT
-        paid_vat: (dashboardData.total_expenses || 0) * 0.20, // 20% VAT on expenses
-        net_vat: ((dashboardData.total_revenue || 0) * 0.20) - ((dashboardData.total_expenses || 0) * 0.20)
-      });
-
-    } catch (error) {
-      console.error('Error loading tax summary:', error);
-    }
-  };
-
   const handleGenerateReport = () => {
     setSelectedReport(null);
-    const startOfMonth = new Date(currentPeriod.year, currentPeriod.month - 1, 1);
-    const endOfMonth = new Date(currentPeriod.year, currentPeriod.month, 0);
-    
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
     setFormData({
       report_period_start: startOfMonth.toISOString().split('T')[0],
       report_period_end: endOfMonth.toISOString().split('T')[0],
@@ -291,6 +231,48 @@ export default function TaxReports() {
     }).format(amount);
   };
 
+  const typeLabel = (t) => (t === 'INCOME' ? 'Giriş' : t === 'EXPENSE' ? 'Çıkış' : (t || ''));
+  const methodLabel = (m) => ({ CASH: 'Nakit', CARD: 'Kart', TRANSFER: 'Transfer' }[m] || (m || ''));
+
+  const exportToCSV = () => {
+    const header = ['Tarih', 'Tür', 'Yöntem', 'Tutar', 'Açıklama', 'Referans'];
+    const rows = transactions.map(t => [
+      t.transaction_date || '',
+      typeLabel(t.transaction_type),
+      methodLabel(t.payment_method),
+      String(t.amount ?? ''),
+      (t.description || '').replace(/\n/g, ' '),
+      t.reference_number || t.reference_type || ''
+    ]);
+    const csv = [header, ...rows].map(r => r.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cari_akis_${rangeStart}_${rangeEnd}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToPDF = () => {
+    const w = window.open('', 'PRINT', 'height=800,width=1000');
+    if (!w) return;
+    w.document.write('<html><head><title>Cari Akış</title>');
+    w.document.write('<style>table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:8px;text-align:left} th{background:#f5f5f5}</style>');
+    w.document.write('</head><body>');
+    w.document.write(`<h3>Cari Akış (${rangeStart} - ${rangeEnd})</h3>`);
+    w.document.write('<table><thead><tr><th>Tarih</th><th>Tür</th><th>Yöntem</th><th>Tutar</th><th>Açıklama</th><th>Referans</th></tr></thead><tbody>');
+    transactions.forEach(t => {
+      w.document.write(`<tr><td>${t.transaction_date || ''}</td><td>${typeLabel(t.transaction_type)}</td><td>${methodLabel(t.payment_method)}</td><td>${formatCurrency(t.amount || 0)}</td><td>${(t.description || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td><td>${t.reference_number || t.reference_type || ''}</td></tr>`);
+    });
+    w.document.write('</tbody></table>');
+    w.document.write('</body></html>');
+    w.document.close();
+    w.focus();
+    w.print();
+    w.close();
+  };
+
   const reportTypes = [
     { value: 'MONTHLY', label: 'Aylık' },
     { value: 'QUARTERLY', label: 'Üç Aylık' },
@@ -298,42 +280,38 @@ export default function TaxReports() {
   ];
 
   // Calculate statistics
-  const totalTaxOwed = taxReports.reduce((sum, report) => sum + (report.remaining_tax || 0), 0);
-  const totalVATOwed = taxReports.reduce((sum, report) => sum + (report.net_vat || 0), 0);
-  const pendingReports = taxReports.filter(report => report.status === 'DRAFT').length;
+  const totalTaxOwed = 0;
+  const totalVATOwed = 0;
+  const pendingReports = 0;
 
   return (
-    <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
+    <Box pt={{ base: '130px', md: '80px', xl: '80px' }} pb="40px" minHeight="100vh">
       {/* Statistics Cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap="20px" mb="20px">
-        <MiniStatistics
-          startContent={
-            <Icon as={MdAssessment} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Toplam Gelir"
-          value={formatCurrency(taxSummary.total_revenue)}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdAccountBalance} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Ödenecek Vergi"
-          value={formatCurrency(totalTaxOwed)}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdReceipt} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Net KDV"
-          value={formatCurrency(totalVATOwed)}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdPending} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Bekleyen Raporlar"
-          value={pendingReports.toString()}
-        />
+        <Card>
+          <Flex justify="space-between" align="center">
+            <Text color={brandColor} fontWeight="bold">Toplam Giriş</Text>
+            <Text fontWeight="bold">{formatCurrency(rangeSummary.total_income)}</Text>
+          </Flex>
+        </Card>
+        <Card>
+          <Flex justify="space-between" align="center">
+            <Text color={brandColor} fontWeight="bold">Toplam Çıkış</Text>
+            <Text fontWeight="bold">{formatCurrency(rangeSummary.total_expenses)}</Text>
+          </Flex>
+        </Card>
+        <Card>
+          <Flex justify="space-between" align="center">
+            <Text color={brandColor} fontWeight="bold">Net</Text>
+            <Text fontWeight="bold" color={rangeSummary.net >= 0 ? 'green.500' : 'red.500'}>{formatCurrency(rangeSummary.net)}</Text>
+          </Flex>
+        </Card>
+        <Card>
+          <Flex justify="space-between" align="center">
+            <Text color={brandColor} fontWeight="bold">Bu Dönem Faturalandırılan</Text>
+            <Text fontWeight="bold">{formatCurrency((rangeSummary?.billed_revenue?.services || 0) + (rangeSummary?.billed_revenue?.sales || 0))}</Text>
+          </Flex>
+        </Card>
       </SimpleGrid>
 
       {/* Error Alert */}
@@ -346,369 +324,229 @@ export default function TaxReports() {
       )}
 
       {/* Main Content */}
+      {/* Cari Akış – Özet ve Filtreler */}
       <Card>
-        <Tabs index={activeTab} onChange={setActiveTab}>
-          <TabList>
-            <Tab>📊 Vergi Raporları</Tab>
-            <Tab>📈 Mali Özet</Tab>
-            <Tab>⚙️ Vergi Ayarları</Tab>
-          </TabList>
-
-          <TabPanels>
-            {/* Tax Reports Tab */}
-            <TabPanel>
-              <Flex justify="space-between" align="center" mb="20px">
-                <Text fontSize="2xl" fontWeight="bold" color={brandColor}>
-                  Vergi Beyanı Raporları
-                </Text>
-                <HStack spacing={3}>
-                  <Select
-                    w="120px"
-                    value={currentPeriod.year}
-                    onChange={(e) => setCurrentPeriod(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                  >
-                    <option value={2024}>2024</option>
-                    <option value={2023}>2023</option>
-                    <option value={2022}>2022</option>
-                  </Select>
-                  <Select
-                    w="100px"
-                    value={currentPeriod.month}
-                    onChange={(e) => setCurrentPeriod(prev => ({ ...prev, month: parseInt(e.target.value) }))}
-                  >
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        {new Date(0, i).toLocaleDateString('tr-TR', { month: 'long' })}
-                      </option>
-                    ))}
-                  </Select>
-                  <Button
-                    leftIcon={<MdAdd />}
-                    colorScheme="brand"
-                    onClick={handleGenerateReport}
-                  >
-                    Rapor Oluştur
-                  </Button>
-                </HStack>
-              </Flex>
-
-              {/* Loading State */}
-              {loading ? (
-                <Box textAlign="center" py="40px">
-                  <Text>Vergi raporları yükleniyor...</Text>
-                </Box>
-              ) : (
-                /* Tax Reports Table */
-                <TableContainer>
-                  <Table variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th>Dönem</Th>
-                        <Th>Tür</Th>
-                        <Th>Toplam Gelir</Th>
-                        <Th>Vergi Matrahı</Th>
-                        <Th>Hesaplanan Vergi</Th>
-                        <Th>Net KDV</Th>
-                        <Th>Durum</Th>
-                        <Th>İşlemler</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {taxReports.map((report) => (
-                        <Tr key={report.id}>
-                          <Td>
-                            <Box>
-                              <Text fontWeight="bold">
-                                {new Date(report.report_period_start).toLocaleDateString('tr-TR')} - 
-                                {new Date(report.report_period_end).toLocaleDateString('tr-TR')}
-                              </Text>
-                              <Text fontSize="sm" color="gray.500">
-                                {report.report_type === 'MONTHLY' ? 'Aylık' : 
-                                 report.report_type === 'QUARTERLY' ? 'Üç Aylık' : 'Yıllık'}
-                              </Text>
-                            </Box>
-                          </Td>
-                          <Td>{report.report_type}</Td>
-                          <Td>{formatCurrency(report.total_revenue)}</Td>
-                          <Td>{formatCurrency(report.taxable_income)}</Td>
-                          <Td>
-                            <Box>
-                              <Text>{formatCurrency(report.calculated_tax)}</Text>
-                              {report.remaining_tax > 0 && (
-                                <Text fontSize="sm" color="red.500">
-                                  Kalan: {formatCurrency(report.remaining_tax)}
-                                </Text>
-                              )}
-                            </Box>
-                          </Td>
-                          <Td>
-                            <Text color={report.net_vat > 0 ? 'red.500' : 'green.500'}>
-                              {formatCurrency(Math.abs(report.net_vat))}
-                            </Text>
-                          </Td>
-                          <Td>
-                            <Badge colorScheme={getStatusColor(report.status)}>
-                              {getStatusText(report.status)}
-                            </Badge>
-                          </Td>
-                          <Td>
-                            <Stack direction="row" spacing={1}>
-                              <IconButton
-                                icon={<MdEdit />}
-                                size="sm"
-                                colorScheme="blue"
-                                onClick={() => handleEditReport(report)}
-                                isDisabled={report.status === 'FINALIZED'}
-                                title="Düzenle"
-                              />
-                              <IconButton
-                                icon={<MdDownload />}
-                                size="sm"
-                                colorScheme="green"
-                                onClick={() => handleExportPDF(report.id)}
-                                title="PDF İndir"
-                              />
-                              {report.status === 'DRAFT' && (
-                                <IconButton
-                                  icon={<MdCheckCircle />}
-                                  size="sm"
-                                  colorScheme="orange"
-                                  onClick={() => handleFinalizeReport(report.id)}
-                                  title="Kesinleştir"
-                                />
-                              )}
-                            </Stack>
-                          </Td>
-                        </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </TableContainer>
-              )}
-            </TabPanel>
-
-            {/* Financial Summary Tab */}
-            <TabPanel>
-              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
-                Mali Özet - {currentPeriod.month}/{currentPeriod.year}
-              </Text>
-
-              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6} mb="20px">
-                {/* Revenue Card */}
-                <ChakraCard>
-                  <CardHeader>
-                    <Heading size="md">💰 Gelir Bilgileri</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack align="stretch" spacing={3}>
-                      <Stat>
-                        <StatLabel>Toplam Gelir</StatLabel>
-                        <StatNumber>{formatCurrency(taxSummary.total_revenue)}</StatNumber>
-                        <StatHelpText>
-                          <StatArrow type="increase" />
-                          Bu ay
-                        </StatHelpText>
-                      </Stat>
-                      <Divider />
-                      <Stat>
-                        <StatLabel>Toplam Gider</StatLabel>
-                        <StatNumber>{formatCurrency(taxSummary.total_expenses)}</StatNumber>
-                      </Stat>
-                      <Divider />
-                      <Stat>
-                        <StatLabel>Net Kar</StatLabel>
-                        <StatNumber color="green.500">
-                          {formatCurrency(taxSummary.total_revenue - taxSummary.total_expenses)}
-                        </StatNumber>
-                      </Stat>
-                    </VStack>
-                  </CardBody>
-                </ChakraCard>
-
-                {/* Tax Card */}
-                <ChakraCard>
-                  <CardHeader>
-                    <Heading size="md">🏛️ Vergi Bilgileri</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack align="stretch" spacing={3}>
-                      <Stat>
-                        <StatLabel>Vergi Matrahı</StatLabel>
-                        <StatNumber>{formatCurrency(taxSummary.taxable_income)}</StatNumber>
-                      </Stat>
-                      <Divider />
-                      <Stat>
-                        <StatLabel>Gelir Vergisi (%22)</StatLabel>
-                        <StatNumber color="red.500">
-                          {formatCurrency(taxSummary.calculated_tax)}
-                        </StatNumber>
-                      </Stat>
-                      <Progress 
-                        value={(taxSummary.calculated_tax / taxSummary.total_revenue) * 100} 
-                        colorScheme="red" 
-                        size="sm"
-                      />
-                    </VStack>
-                  </CardBody>
-                </ChakraCard>
-
-                {/* VAT Card */}
-                <ChakraCard>
-                  <CardHeader>
-                    <Heading size="md">📋 KDV Bilgileri</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack align="stretch" spacing={3}>
-                      <Stat>
-                        <StatLabel>Tahsil Edilen KDV</StatLabel>
-                        <StatNumber>{formatCurrency(taxSummary.collected_vat)}</StatNumber>
-                      </Stat>
-                      <Divider />
-                      <Stat>
-                        <StatLabel>Ödenen KDV</StatLabel>
-                        <StatNumber>{formatCurrency(taxSummary.paid_vat)}</StatNumber>
-                      </Stat>
-                      <Divider />
-                      <Stat>
-                        <StatLabel>Net KDV</StatLabel>
-                        <StatNumber color={taxSummary.net_vat > 0 ? 'red.500' : 'green.500'}>
-                          {formatCurrency(Math.abs(taxSummary.net_vat))}
-                        </StatNumber>
-                        <StatHelpText>
-                          {taxSummary.net_vat > 0 ? 'Ödenecek' : 'İade'}
-                        </StatHelpText>
-                      </Stat>
-                    </VStack>
-                  </CardBody>
-                </ChakraCard>
-              </SimpleGrid>
-            </TabPanel>
-
-            {/* Tax Settings Tab */}
-            <TabPanel>
-              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
-                Vergi Ayarları
-              </Text>
-
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-                <ChakraCard>
-                  <CardHeader>
-                    <Heading size="md">Vergi Oranları</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack spacing={4}>
-                      <FormControl>
-                        <FormLabel>KDV Oranı (%)</FormLabel>
-                        <Input type="number" defaultValue="20" step="0.01" />
-                      </FormControl>
-                      <FormControl>
-                        <FormLabel>Gelir Vergisi Oranı (%)</FormLabel>
-                        <Input type="number" defaultValue="22" step="0.01" />
-                      </FormControl>
-                      <Button colorScheme="brand" w="full">
-                        Ayarları Kaydet
-                      </Button>
-                    </VStack>
-                  </CardBody>
-                </ChakraCard>
-
-                <ChakraCard>
-                  <CardHeader>
-                    <Heading size="md">Vergi Dairesi Bilgileri</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack spacing={4}>
-                      <FormControl>
-                        <FormLabel>Vergi Dairesi</FormLabel>
-                        <Input defaultValue="Beşiktaş Vergi Dairesi" />
-                      </FormControl>
-                      <FormControl>
-                        <FormLabel>Vergi Numarası</FormLabel>
-                        <Input defaultValue="1234567890" />
-                      </FormControl>
-                      <Button colorScheme="brand" w="full">
-                        Bilgileri Güncelle
-                      </Button>
-                    </VStack>
-                  </CardBody>
-                </ChakraCard>
-              </SimpleGrid>
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
+        {/* Satır 1: Filtreler */}
+        <SimpleGrid columns={{ base: 1, md: 5 }} gap={3} mb="10px">
+          <Input type="date" value={rangeStart} onChange={(e)=>setRangeStart(e.target.value)} />
+          <Input type="date" value={rangeEnd} onChange={(e)=>setRangeEnd(e.target.value)} />
+          <Select placeholder="Tür" value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)}>
+            <option value="INCOME">Giriş</option>
+            <option value="EXPENSE">Çıkış</option>
+          </Select>
+          <Select placeholder="Yöntem" value={methodFilter} onChange={(e)=>setMethodFilter(e.target.value)}>
+            <option value="CASH">Nakit</option>
+            <option value="CARD">Kart</option>
+            <option value="TRANSFER">Transfer</option>
+          </Select>
+          <Button onClick={loadData} colorScheme="brand" variant="solid">Uygula</Button>
+        </SimpleGrid>
+        {/* Satır 2: Aksiyonlar */}
+        <Flex align="center" justify="flex-end" gap={2} mb="10px">
+          <Button onClick={txModal.onOpen} colorScheme="blue" variant="outline">Yeni İşlem</Button>
+          <Button leftIcon={<Icon as={MdDownload} />} onClick={exportToCSV} variant="ghost">CSV</Button>
+          <Button leftIcon={<Icon as={MdDownload} />} onClick={exportToPDF} variant="ghost">PDF</Button>
+        </Flex>
+        <Divider />
+        <SimpleGrid columns={{ base: 1, md: 3 }} gap="20px" mt={4}>
+          <Card>
+            <Text color={brandColor} fontWeight="bold">Toplam Giriş</Text>
+            <Text fontWeight="bold">{formatCurrency(rangeSummary.total_income)}</Text>
+          </Card>
+          <Card>
+            <Text color={brandColor} fontWeight="bold">Toplam Çıkış</Text>
+            <Text fontWeight="bold">{formatCurrency(rangeSummary.total_expenses)}</Text>
+          </Card>
+          <Card>
+            <Text color={brandColor} fontWeight="bold">Servis Geliri (Fatura)</Text>
+            <Text fontWeight="bold">{formatCurrency(rangeSummary?.billed_revenue?.services || rangeSummary?.billed_revenue?.service || 0)}</Text>
+          </Card>
+          <Card>
+            <Text color={brandColor} fontWeight="bold">Satış Geliri (Fatura)</Text>
+            <Text fontWeight="bold">{formatCurrency(rangeSummary?.billed_revenue?.sales || 0)}</Text>
+          </Card>
+        </SimpleGrid>
       </Card>
 
-      {/* Generate/Edit Tax Report Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      {/* Charts Row */}
+      <SimpleGrid columns={{ base: 1, md: 2 }} gap="20px" mt={4}>
+        <Card>
+          <Text fontWeight="bold" mb={2}>Faturalandırılan Gelir (Servis vs Satış)</Text>
+          <Box height="300px" width="100%">
+            <PieChart
+              chartData={[rangeSummary?.billed_revenue?.services || 0, rangeSummary?.billed_revenue?.sales || 0]}
+              chartOptions={{ 
+                labels: ['Servis', 'Satış'], 
+                legend: { position: 'bottom' },
+                chart: { height: 280 }
+              }}
+            />
+          </Box>
+        </Card>
+        <Card>
+          <Text fontWeight="bold" mb={2}>Ödeme Yöntemi Kırılımı</Text>
+          <Box height="300px" width="100%">
+            <BarChart
+              chartData={[{ name: 'Tutar', data: [rangeSummary?.by_method?.cash || 0, rangeSummary?.by_method?.card || 0, rangeSummary?.by_method?.transfer || 0] }]}
+              chartOptions={{ 
+                xaxis: { categories: ['Nakit', 'Kart', 'Transfer'] }, 
+                dataLabels: { enabled: false }, 
+                plotOptions: { bar: { borderRadius: 6 } },
+                chart: { height: 280 }
+              }}
+            />
+          </Box>
+        </Card>
+      </SimpleGrid>
+
+      {/* Transactions Table */}
+      <Card mt={4}>
+        <Flex justify="space-between" align="center" mb="10px">
+          <Text fontSize="lg" fontWeight="bold" color={brandColor}>İşlemler</Text>
+        </Flex>
+        <TableContainer maxHeight="500px" overflowY="auto" borderRadius="md" border="1px" borderColor="gray.200">
+          <Table size="sm" variant="simple">
+            <Thead position="sticky" top={0} bg="white" zIndex={1}>
+              <Tr>
+                <Th>Tarih</Th>
+                <Th>Tür</Th>
+                <Th>Yöntem</Th>
+                <Th isNumeric>Tutar</Th>
+                <Th>Açıklama</Th>
+                <Th>Referans</Th>
+                <Th isNumeric>Aksiyon</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {transactions.length === 0 ? (
+                <Tr>
+                  <Td colSpan={7}>
+                    <Text fontSize="sm" color="gray.500" textAlign="center" py={8}>
+                      {loading ? 'Yükleniyor...' : 'Kayıt bulunamadı.'}
+                    </Text>
+                  </Td>
+                </Tr>
+              ) : (
+                transactions.map((t, idx) => (
+                  <Tr key={`${t.id || 'tx'}-${idx}`} _hover={{ bg: 'blackAlpha.50' }}>
+                    <Td whiteSpace="nowrap">{t.transaction_date || ''}</Td>
+                    <Td>
+                      <Badge colorScheme={t.transaction_type === 'INCOME' ? 'green' : 'red'}>
+                        {typeLabel(t.transaction_type)}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Badge colorScheme={t.payment_method === 'CASH' ? 'yellow' : t.payment_method === 'CARD' ? 'blue' : 'purple'}>
+                        {methodLabel(t.payment_method)}
+                      </Badge>
+                    </Td>
+                    <Td isNumeric whiteSpace="nowrap">{formatCurrency(t.amount || 0)}</Td>
+                    <Td maxWidth="200px" isTruncated title={t.description || ''}>{t.description || ''}</Td>
+                    <Td maxWidth="150px" isTruncated title={t.reference_number || t.reference_type || ''}>{t.reference_number || t.reference_type || ''}</Td>
+                    <Td isNumeric>
+                      <HStack spacing={1} justify="flex-end">
+                        <Button size="xs" variant="outline" onClick={()=>{
+                          setNewTx({
+                            transaction_date: (t.transaction_date || '').split('T')[0] || new Date().toISOString().split('T')[0],
+                            transaction_type: t.transaction_type,
+                            payment_method: t.payment_method,
+                            amount: t.amount,
+                            description: t.description || '',
+                            reference_type: t.reference_type,
+                            reference_id: t.reference_id,
+                            id: t.id,
+                          });
+                          txModal.onOpen();
+                        }}>Düzenle</Button>
+                        <Button size="xs" variant="ghost" colorScheme="red" onClick={async ()=>{
+                          if(!window.confirm('Silmek istediğinize emin misiniz?')) return;
+                          try {
+                            await apiService.deleteCashTransaction(t.id);
+                            await loadData();
+                          } catch(e){ setError('Silinirken hata: ' + (e?.message||'')); }
+                        }}>Sil</Button>
+                      </HStack>
+                    </Td>
+                  </Tr>
+                ))
+              )}
+            </Tbody>
+          </Table>
+        </TableContainer>
+        
+        {/* Pagination Info */}
+        {transactions.length > 0 && (
+          <Flex justify="space-between" align="center" mt={3} px={2}>
+            <Text fontSize="sm" color="gray.600">
+              Toplam {transactions.length} işlem gösteriliyor
+            </Text>
+            {transactions.length >= 500 && (
+              <Text fontSize="sm" color="orange.500" fontWeight="semibold">
+                ⚠️ Sonuçlar 500 ile sınırlandırıldı. Daha spesifik filtreler kullanın.
+              </Text>
+            )}
+          </Flex>
+        )}
+      </Card>
+
+      {/* Yeni İşlem Modal */}
+      <Modal isOpen={txModal.isOpen} onClose={txModal.onClose} size="md">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>
-            {selectedReport ? 'Vergi Raporu Düzenle' : 'Yeni Vergi Raporu Oluştur'}
-          </ModalHeader>
+          <ModalHeader>{newTx.id ? 'İşlemi Düzenle' : 'Yeni İşlem'}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
-              <HStack spacing={4} w="100%">
+              <FormControl isRequired>
+                <FormLabel>Tarih</FormLabel>
+                <Input type="date" value={newTx.transaction_date} onChange={(e)=>setNewTx(v=>({...v, transaction_date: e.target.value}))} />
+              </FormControl>
+              <HStack w="100%" spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Başlangıç Tarihi</FormLabel>
-                  <Input
-                    type="date"
-                    value={formData.report_period_start}
-                    onChange={(e) => setFormData(prev => ({ ...prev, report_period_start: e.target.value }))}
-                  />
+                  <FormLabel>Tür</FormLabel>
+                  <Select value={newTx.transaction_type} onChange={(e)=>setNewTx(v=>({...v, transaction_type: e.target.value}))}>
+                    <option value="INCOME">Giriş</option>
+                    <option value="EXPENSE">Çıkış</option>
+                  </Select>
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Bitiş Tarihi</FormLabel>
-                  <Input
-                    type="date"
-                    value={formData.report_period_end}
-                    onChange={(e) => setFormData(prev => ({ ...prev, report_period_end: e.target.value }))}
-                  />
+                  <FormLabel>Yöntem</FormLabel>
+                  <Select value={newTx.payment_method} onChange={(e)=>setNewTx(v=>({...v, payment_method: e.target.value}))}>
+                    <option value="CASH">Nakit</option>
+                    <option value="CARD">Kart</option>
+                    <option value="TRANSFER">Transfer</option>
+                  </Select>
                 </FormControl>
               </HStack>
-
               <FormControl isRequired>
-                <FormLabel>Rapor Türü</FormLabel>
-                <Select
-                  value={formData.report_type}
-                  onChange={(e) => setFormData(prev => ({ ...prev, report_type: e.target.value }))}
-                >
-                  {reportTypes.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </Select>
+                <FormLabel>Tutar</FormLabel>
+                <Input type="number" min="0" step="0.01" value={newTx.amount} onChange={(e)=>setNewTx(v=>({...v, amount: parseFloat(e.target.value || '0')}))} />
               </FormControl>
-
               <FormControl>
-                <FormLabel>Notlar</FormLabel>
-                <Textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Rapor hakkında notlar..."
-                />
+                <FormLabel>Açıklama</FormLabel>
+                <Textarea rows={2} value={newTx.description} onChange={(e)=>setNewTx(v=>({...v, description: e.target.value}))} />
               </FormControl>
-
-              {!selectedReport && (
-                <Alert status="info" borderRadius="md">
-                  <AlertIcon />
-                  <Box>
-                    <AlertTitle>Bilgi!</AlertTitle>
-                    <AlertDescription>
-                      Rapor oluşturulduktan sonra seçilen dönemdeki tüm gelir ve gider kayıtları 
-                      otomatik olarak hesaplanacaktır.
-                    </AlertDescription>
-                  </Box>
-                </Alert>
-              )}
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
+            <Button variant="ghost" mr={3} onClick={txModal.onClose}>
               İptal
             </Button>
-            <Button colorScheme="brand" onClick={handleSaveReport} isLoading={loading}>
-              {selectedReport ? 'Güncelle' : 'Oluştur'}
-            </Button>
+            <Button colorScheme="brand" isLoading={savingTx} onClick={async ()=>{
+              try {
+                setSavingTx(true);
+                if(newTx.id){
+                  const { id, ...rest } = newTx;
+                  await apiService.updateCashTransaction(id, rest);
+                } else {
+                  await apiService.createCashTransaction(newTx);
+                }
+                txModal.onClose();
+                await loadData();
+              } catch (e) {
+                setError('İşlem kaydedilirken hata oluştu: ' + (e?.message || ''));
+              } finally { setSavingTx(false); }
+            }}>Kaydet</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

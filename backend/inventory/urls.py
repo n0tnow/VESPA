@@ -18,6 +18,7 @@ urlpatterns = [
     # Parts
     path('parts/', views.PartsView.as_view(), name='parts'),
     path('parts/<int:part_id>/', views.PartDetailView.as_view(), name='part-detail'),
+    path('parts/<int:part_id>/locations/', views.PartLocationsView.as_view(), name='part-locations'),
     path('parts/<int:part_id>/prices/', views.PartPricesView.as_view(), name='part-prices'),
     
     # Vespa Models

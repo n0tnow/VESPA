@@ -57,7 +57,7 @@ import {
   MdInfo,
 } from 'react-icons/md';
 import Card from 'components/card/Card';
-import MiniStatistics from 'components/card/MiniStatistics';
+// MiniStatistics kaldırıldı
 import apiService from 'services/apiService';
 
 export default function SystemSettings() {
@@ -131,11 +131,23 @@ export default function SystemSettings() {
       setLoading(true);
       setError('');
 
-      // This would be a new API endpoint we need to add
-      // const response = await apiService.getSystemSettings();
-      
-      // For now, using the initialized state as mock data
-      // In real implementation, this would populate from database
+      // Email
+      const emailResp = await apiService.updateEmailSettings({}); // noop GET yok; aşağıda gerçek GET eklendiğinde değiştirilebilir
+      // Company
+      const companyResp = await apiService.getCompanySettings().catch(()=>({}));
+      if(companyResp.settings){ setCompanySettings(prev=>({
+        COMPANY_NAME: companyResp.settings.COMPANY_NAME || prev.COMPANY_NAME,
+        COMPANY_ADDRESS: companyResp.settings.COMPANY_ADDRESS || prev.COMPANY_ADDRESS,
+        COMPANY_PHONE: companyResp.settings.COMPANY_PHONE || prev.COMPANY_PHONE,
+        COMPANY_EMAIL: companyResp.settings.COMPANY_EMAIL || prev.COMPANY_EMAIL,
+        COMPANY_WEBSITE: companyResp.settings.COMPANY_WEBSITE || prev.COMPANY_WEBSITE,
+      })); }
+      const stockResp = await apiService.getStockSettings().catch(()=>({}));
+      if(stockResp.settings){ setStockSettings(prev=>({
+        LOW_STOCK_THRESHOLD: stockResp.settings.LOW_STOCK_THRESHOLD || prev.LOW_STOCK_THRESHOLD,
+        CRITICAL_STOCK_THRESHOLD: stockResp.settings.CRITICAL_STOCK_THRESHOLD || prev.CRITICAL_STOCK_THRESHOLD,
+        AUTO_STOCK_UPDATE: stockResp.settings.AUTO_STOCK_UPDATE === 'true' || prev.AUTO_STOCK_UPDATE,
+      })); }
       
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -153,26 +165,17 @@ export default function SystemSettings() {
       switch (category) {
         case 'email':
           settingsToSave = emailSettings;
-          break;
-        case 'currency':
-          settingsToSave = currencySettings;
-          break;
-        case 'tax':
-          settingsToSave = taxSettings;
-          break;
-        case 'appointment':
-          settingsToSave = appointmentSettings;
+          await apiService.updateEmailSettings(settingsToSave);
           break;
         case 'company':
           settingsToSave = companySettings;
+          await apiService.updateCompanySettings(settingsToSave);
           break;
         case 'stock':
           settingsToSave = stockSettings;
+          await apiService.updateStockSettings(settingsToSave);
           break;
       }
-
-      // This would be a new API endpoint
-      // await apiService.updateSystemSettings(category, settingsToSave);
 
       toast({
         title: 'Başarılı!',
@@ -296,37 +299,7 @@ export default function SystemSettings() {
 
   return (
     <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
-      {/* Statistics Cards */}
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap="20px" mb="20px">
-        <MiniStatistics
-          startContent={
-            <Icon as={MdSettings} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Toplam Ayar"
-          value="24"
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdEmail} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Email Aktif"
-          value={emailSettings.LOW_STOCK_EMAIL_ENABLED ? 'Evet' : 'Hayır'}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdAttachMoney} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Otomatik Kur"
-          value={currencySettings.AUTO_CURRENCY_UPDATE ? 'Aktif' : 'Pasif'}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdBusiness} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Sistem Durumu"
-          value="Çalışıyor"
-        />
-      </SimpleGrid>
+      {/* Header stats removed to eliminate MiniStatistics dependency */}
 
       {/* Error Alert */}
       {error && (
@@ -342,9 +315,7 @@ export default function SystemSettings() {
         <Tabs index={activeTab} onChange={setActiveTab}>
           <TabList>
             <Tab>📧 Email Ayarları</Tab>
-            <Tab>💱 Döviz Kuru</Tab>
-            <Tab>🏛️ Vergi Ayarları</Tab>
-            <Tab>📅 Randevu Ayarları</Tab>
+            <Tab>👤 Kullanıcı</Tab>
             <Tab>🏢 Şirket Bilgileri</Tab>
             <Tab>📦 Stok Ayarları</Tab>
           </TabList>
@@ -441,196 +412,37 @@ export default function SystemSettings() {
               </SettingCard>
             </TabPanel>
 
-            {/* Currency Settings Tab */}
+            {/* User Settings Tab */}
             <TabPanel>
-              <SettingCard
-                title="Döviz Kuru Ayarları"
-                icon={MdAttachMoney}
-                category="currency"
-              >
-                <VStack spacing={4} align="stretch">
+              <SettingCard title="Kullanıcı Ayarları" icon={MdSettings} category="user">
+                <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
                   <FormControl>
-                    <FormLabel>API URL</FormLabel>
-                    <Input
-                      value={currencySettings.CURRENCY_API_URL}
-                      onChange={(e) => setCurrencySettings(prev => ({ ...prev, CURRENCY_API_URL: e.target.value }))}
-                      isReadOnly={editingCategory !== 'currency'}
-                    />
+                    <FormLabel>Yeni Kullanıcı Adı</FormLabel>
+                    <Input placeholder="Yeni kullanıcı adı" id="new-username" />
                   </FormControl>
-
                   <FormControl>
-                    <FormLabel>Güncelleme Sıklığı (dakika)</FormLabel>
-                    <Select
-                      value={currencySettings.CURRENCY_UPDATE_INTERVAL}
-                      onChange={(e) => setCurrencySettings(prev => ({ ...prev, CURRENCY_UPDATE_INTERVAL: e.target.value }))}
-                      isDisabled={editingCategory !== 'currency'}
-                    >
-                      <option value="30">30 dakika</option>
-                      <option value="60">1 saat</option>
-                      <option value="120">2 saat</option>
-                      <option value="360">6 saat</option>
-                      <option value="720">12 saat</option>
-                      <option value="1440">24 saat</option>
-                    </Select>
+                    <FormLabel>Yeni Şifre</FormLabel>
+                    <Input type="password" placeholder="Yeni şifre" id="new-password" />
                   </FormControl>
-
-                  <HStack justify="space-between">
-                    <Text>Otomatik Kur Güncellemesi</Text>
-                    <Switch
-                      isChecked={currencySettings.AUTO_CURRENCY_UPDATE}
-                      onChange={(e) => setCurrencySettings(prev => ({ ...prev, AUTO_CURRENCY_UPDATE: e.target.checked }))}
-                      isDisabled={editingCategory !== 'currency'}
-                    />
-                  </HStack>
-
-                  <Button
-                    leftIcon={<MdRefresh />}
-                    colorScheme="green"
-                    variant="outline"
-                    onClick={handleTestCurrencyAPI}
-                    isLoading={saving}
-                  >
-                    Döviz API Test Et
-                  </Button>
-                </VStack>
+                </SimpleGrid>
+                <HStack mt={4}>
+                  <Button onClick={async()=>{
+                    const v = document.getElementById('new-username').value.trim();
+                    if(!v) return;
+                    try{ await apiService.changeUsername(v); toast({title:'Başarılı', description:'Kullanıcı adı güncellendi', status:'success'});}catch(e){ toast({title:'Hata', description:e.message, status:'error'});} 
+                  }}>Kullanıcı Adını Güncelle</Button>
+                  <Button onClick={async()=>{
+                    const v = document.getElementById('new-password').value;
+                    if(!v) return;
+                    try{ await apiService.changePassword(v); toast({title:'Başarılı', description:'Şifre güncellendi', status:'success'});}catch(e){ toast({title:'Hata', description:e.message, status:'error'});} 
+                  }}>Şifreyi Güncelle</Button>
+                </HStack>
               </SettingCard>
             </TabPanel>
 
-            {/* Tax Settings Tab */}
-            <TabPanel>
-              <SettingCard
-                title="Vergi Ayarları"
-                icon={MdBusiness}
-                category="tax"
-              >
-                <VStack spacing={4} align="stretch">
-                  <HStack spacing={4}>
-                    <FormControl>
-                      <FormLabel>KDV Oranı (%)</FormLabel>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={taxSettings.TAX_RATE}
-                        onChange={(e) => setTaxSettings(prev => ({ ...prev, TAX_RATE: e.target.value }))}
-                        isReadOnly={editingCategory !== 'tax'}
-                      />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Gelir Vergisi Oranı (%)</FormLabel>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={taxSettings.INCOME_TAX_RATE}
-                        onChange={(e) => setTaxSettings(prev => ({ ...prev, INCOME_TAX_RATE: e.target.value }))}
-                        isReadOnly={editingCategory !== 'tax'}
-                      />
-                    </FormControl>
-                  </HStack>
+            
 
-                  <FormControl>
-                    <FormLabel>Vergi Dairesi</FormLabel>
-                    <Input
-                      value={taxSettings.TAX_OFFICE_NAME}
-                      onChange={(e) => setTaxSettings(prev => ({ ...prev, TAX_OFFICE_NAME: e.target.value }))}
-                      isReadOnly={editingCategory !== 'tax'}
-                    />
-                  </FormControl>
-
-                  <FormControl>
-                    <FormLabel>Vergi Numarası</FormLabel>
-                    <Input
-                      value={taxSettings.TAX_NUMBER}
-                      onChange={(e) => setTaxSettings(prev => ({ ...prev, TAX_NUMBER: e.target.value }))}
-                      isReadOnly={editingCategory !== 'tax'}
-                    />
-                  </FormControl>
-
-                  <HStack justify="space-between">
-                    <Text>Otomatik Vergi Hesaplama</Text>
-                    <Switch
-                      isChecked={taxSettings.AUTO_TAX_CALCULATION}
-                      onChange={(e) => setTaxSettings(prev => ({ ...prev, AUTO_TAX_CALCULATION: e.target.checked }))}
-                      isDisabled={editingCategory !== 'tax'}
-                    />
-                  </HStack>
-                </VStack>
-              </SettingCard>
-            </TabPanel>
-
-            {/* Appointment Settings Tab */}
-            <TabPanel>
-              <SettingCard
-                title="Randevu Sistemi Ayarları"
-                icon={MdNotifications}
-                category="appointment"
-              >
-                <VStack spacing={4} align="stretch">
-                  <HStack spacing={4}>
-                    <FormControl>
-                      <FormLabel>Varsayılan Randevu Süresi (dakika)</FormLabel>
-                      <Select
-                        value={appointmentSettings.APPOINTMENT_DURATION_DEFAULT}
-                        onChange={(e) => setAppointmentSettings(prev => ({ ...prev, APPOINTMENT_DURATION_DEFAULT: e.target.value }))}
-                        isDisabled={editingCategory !== 'appointment'}
-                      >
-                        <option value="30">30 dakika</option>
-                        <option value="60">1 saat</option>
-                        <option value="90">1.5 saat</option>
-                        <option value="120">2 saat</option>
-                      </Select>
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>Slot Başına Max Randevu</FormLabel>
-                      <Select
-                        value={appointmentSettings.MAX_APPOINTMENTS_PER_SLOT}
-                        onChange={(e) => setAppointmentSettings(prev => ({ ...prev, MAX_APPOINTMENTS_PER_SLOT: e.target.value }))}
-                        isDisabled={editingCategory !== 'appointment'}
-                      >
-                        <option value="1">1 randevu</option>
-                        <option value="2">2 randevu</option>
-                        <option value="3">3 randevu</option>
-                      </Select>
-                    </FormControl>
-                  </HStack>
-
-                  <HStack spacing={4}>
-                    <FormControl>
-                      <FormLabel>Hatırlatma (gün öncesi)</FormLabel>
-                      <Select
-                        value={appointmentSettings.APPOINTMENT_REMINDER_DAYS}
-                        onChange={(e) => setAppointmentSettings(prev => ({ ...prev, APPOINTMENT_REMINDER_DAYS: e.target.value }))}
-                        isDisabled={editingCategory !== 'appointment'}
-                      >
-                        <option value="1">1 gün önce</option>
-                        <option value="2">2 gün önce</option>
-                        <option value="3">3 gün önce</option>
-                      </Select>
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel>İptal Süresi (saat)</FormLabel>
-                      <Select
-                        value={appointmentSettings.APPOINTMENT_CANCEL_HOURS}
-                        onChange={(e) => setAppointmentSettings(prev => ({ ...prev, APPOINTMENT_CANCEL_HOURS: e.target.value }))}
-                        isDisabled={editingCategory !== 'appointment'}
-                      >
-                        <option value="12">12 saat</option>
-                        <option value="24">24 saat</option>
-                        <option value="48">48 saat</option>
-                      </Select>
-                    </FormControl>
-                  </HStack>
-
-                  <HStack justify="space-between">
-                    <Text>Hafta Sonu Randevuları</Text>
-                    <Switch
-                      isChecked={appointmentSettings.WEEKEND_APPOINTMENTS}
-                      onChange={(e) => setAppointmentSettings(prev => ({ ...prev, WEEKEND_APPOINTMENTS: e.target.checked }))}
-                      isDisabled={editingCategory !== 'appointment'}
-                    />
-                  </HStack>
-                </VStack>
-              </SettingCard>
-            </TabPanel>
+            
 
             {/* Company Settings Tab */}
             <TabPanel>

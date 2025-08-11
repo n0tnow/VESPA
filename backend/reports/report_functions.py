@@ -3,7 +3,7 @@ Complex reporting functions using raw SQL
 Uses DATABASE.txt views and creates comprehensive analytics
 """
 from datetime import datetime, date, timedelta
-from .database import execute_query
+from .database import execute_query, get_db_connection
 
 
 def get_customer_summary_report():
@@ -145,3 +145,48 @@ def get_comprehensive_dashboard():
                 'total_unpaid': 0
             }
         }
+
+
+def get_service_parts_usage(start_date=None, end_date=None, limit=10):
+    """Aggregate service_parts usage by part within optional date range.
+    Returns: list of { part_id, part_code, part_name, total_quantity, usage_count, total_value }
+    """
+    conditions = []
+    params = []
+    if start_date:
+        conditions.append("sr.service_date >= ?")
+        params.append(start_date)
+    if end_date:
+        conditions.append("sr.service_date <= ?")
+        params.append(end_date)
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    query = f"""
+        SELECT 
+            p.id AS part_id,
+            p.part_code,
+            p.part_name,
+            SUM(sp.quantity) AS total_quantity,
+            COUNT(DISTINCT sp.service_record_id) AS usage_count,
+            SUM(sp.quantity * sp.unit_price) AS total_value
+        FROM service_parts sp
+        INNER JOIN parts p ON sp.part_id = p.id
+        INNER JOIN service_records sr ON sp.service_record_id = sr.id
+        {where_clause}
+        GROUP BY p.id, p.part_code, p.part_name
+        ORDER BY total_quantity DESC
+        OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY
+    """
+
+    params.append(limit)
+    try:
+        results = execute_query(query, params)
+        for r in results:
+            # Ensure JSON serializable types
+            r['total_quantity'] = float(r.get('total_quantity', 0) or 0)
+            r['usage_count'] = int(r.get('usage_count', 0) or 0)
+            r['total_value'] = float(r.get('total_value', 0) or 0)
+        return results
+    except Exception as e:
+        print(f"Error in get_service_parts_usage: {e}")
+        return []

@@ -25,7 +25,7 @@ class LineChart extends React.Component {
         series={this.state.chartData}
         type='line'
         width='100%'
-        height='100%'
+        height='320'
       />
     );
   }

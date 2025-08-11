@@ -42,11 +42,17 @@ import {
   AccordionPanel,
   AccordionIcon,
   Divider,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverBody,
 } from '@chakra-ui/react';
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdNotifications, MdDirectionsBike } from 'react-icons/md';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
 import apiService from 'services/apiService';
+import { turkeyLocations } from 'data/turkeyLocations';
+ 
 
 
 export default function CustomerManagement() {
@@ -133,6 +139,8 @@ export default function CustomerManagement() {
     last_name: '',
     email: '',
     phone: '',
+    city: '',
+    district: '',
 
     tax_number: '',
     customer_type: 'INDIVIDUAL',
@@ -165,6 +173,67 @@ export default function CustomerManagement() {
         [field]: value
       }
     }));
+  };
+
+  // Searchable dropdown component for City/District
+  const SearchableSelect = ({ label, options, value, onChange, placeholder, isDisabled }) => {
+    const [search, setSearch] = useState('');
+    const filtered = (options || []).filter((opt) => (opt || '').toLowerCase().includes(search.toLowerCase()));
+    const displayValue = value || '';
+    return (
+      <FormControl isDisabled={isDisabled}>
+        <FormLabel color={labelColor}>{label}</FormLabel>
+        <Popover placement="bottom-start" matchWidth>
+          <PopoverTrigger>
+            <Box
+              as="button"
+              w="100%"
+              textAlign="left"
+              bg={inputBg}
+              color={inputText}
+              border="1px solid"
+              borderColor={borderColor}
+              borderRadius="md"
+              px={3}
+              py={2}
+            >
+              <Text color={displayValue ? inputText : 'gray.400'}>
+                {displayValue || placeholder}
+              </Text>
+            </Box>
+          </PopoverTrigger>
+          <PopoverContent w="100%" maxW="320px">
+            <PopoverBody>
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Ara...`}
+                mb={2}
+              />
+              <Box maxH="200px" overflowY="auto" border="1px solid" borderColor={borderColor} borderRadius="md">
+                {(filtered.length > 0 ? filtered : options || []).map((opt) => (
+                  <Box
+                    key={opt}
+                    px={3}
+                    py={2}
+                    _hover={{ bg: optionBgLight }}
+                    cursor="pointer"
+                    onClick={() => {
+                      onChange(opt);
+                    }}
+                  >
+                    {opt}
+                  </Box>
+                ))}
+                {(!options || options.length === 0) && (
+                  <Box px={3} py={2} color="gray.500">Seçenek yok</Box>
+                )}
+              </Box>
+            </PopoverBody>
+          </PopoverContent>
+        </Popover>
+      </FormControl>
+    );
   };
 
   // Helper function to format date as gg.aa.yyyy
@@ -251,6 +320,8 @@ export default function CustomerManagement() {
       last_name: '',
       email: '',
       phone: '',
+      city: '',
+      district: '',
 
       tax_number: '',
       customer_type: 'INDIVIDUAL',
@@ -283,6 +354,8 @@ export default function CustomerManagement() {
       last_name: customer.last_name || customer.name?.split(' ').slice(1).join(' ') || '',
       email: customer.email || '',
       phone: customer.phone || '',
+      city: customer.city || '',
+      district: customer.district || '',
       tax_number: customer.tax_number || '',
       customer_type: customer.customer_type || 'INDIVIDUAL',
       notes: customer.notes || '',
@@ -378,6 +451,8 @@ export default function CustomerManagement() {
         last_name: formData.last_name,
         email: formData.email,
         phone: formData.phone,
+        city: formData.city,
+        district: formData.district,
         tax_number: formData.tax_number,
         customer_type: formData.customer_type,
         notes: formData.notes,
@@ -592,7 +667,7 @@ export default function CustomerManagement() {
             <Tbody>
               {filteredCustomers.map((customer) => (
                 <Tr key={customer.id}>
-                  <Td>
+                  <Td onClick={() => handleOpenCustomerInfo(customer)} cursor="pointer">
                     <Box>
                       <Text fontWeight="bold">{customer.name}</Text>
                       <Text fontSize="sm" color="gray.500">
@@ -600,14 +675,14 @@ export default function CustomerManagement() {
                       </Text>
                     </Box>
                   </Td>
-                  <Td>
+                  <Td onClick={() => handleOpenCustomerInfo(customer)} cursor="pointer">
                     <Box>
                       <Text>{customer.email || '-'}</Text>
                       <Text fontSize="sm" color="gray.500">{customer.phone}</Text>
                     </Box>
                   </Td>
-                  <Td>{customer.tax_number || '-'}</Td>
-                  <Td>
+                  <Td onClick={() => handleOpenCustomerInfo(customer)} cursor="pointer">{customer.tax_number || '-'}</Td>
+                  <Td onClick={() => handleOpenCustomerInfo(customer)} cursor="pointer">
                     <Badge 
                       colorScheme={customer.vespa_count > 0 ? 'green' : 'gray'}
                       variant="solid"
@@ -623,7 +698,7 @@ export default function CustomerManagement() {
                       {customer.customer_type === 'CORPORATE' ? 'Kurumsal' : 'Bireysel'}
                     </Badge>
                   </Td>
-                  <Td>
+                  <Td onClick={() => handleOpenCustomerInfo(customer)} cursor="pointer">
                     <Badge colorScheme={getStatusColor(customer.status)}>
                       {getStatusText(customer.status)}
                     </Badge>
@@ -637,13 +712,6 @@ export default function CustomerManagement() {
                         colorScheme="blue"
                         onClick={() => handleEditCustomer(customer)}
                         title="Müşteriyi Düzenle"
-                      />
-                      <IconButton
-                        icon={<MdDirectionsBike />}
-                        size="sm"
-                        colorScheme="teal"
-                        onClick={() => handleOpenCustomerInfo(customer)}
-                        title="Müşteri Bilgi Kartı"
                       />
                       <IconButton
                         icon={<MdDelete />}
@@ -743,6 +811,23 @@ export default function CustomerManagement() {
                   </Text>
                 )}
               </FormControl>
+
+              <SearchableSelect
+                label="İl"
+                options={turkeyLocations.map(c => c.city)}
+                value={formData.city}
+                onChange={(city) => setFormData({ ...formData, city, district: '' })}
+                placeholder="İl seçin"
+              />
+
+              <SearchableSelect
+                label="İlçe"
+                options={(turkeyLocations.find(c => c.city === formData.city)?.districts) || []}
+                value={formData.district}
+                onChange={(district) => setFormData({ ...formData, district })}
+                placeholder={formData.city ? 'İlçe seçin' : 'Önce il seçin'}
+                isDisabled={!formData.city}
+              />
 
               <FormControl>
                 <FormLabel color={labelColor}>TC/Vergi No</FormLabel>

@@ -6,7 +6,7 @@ import Navbar from 'components/navbar/NavbarAdmin.js';
 import Sidebar from 'components/sidebar/Sidebar.js';
 import { SidebarContext } from 'contexts/SidebarContext';
 import React, { useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import routes from 'routes.js';
 
 // Custom Chakra theme
@@ -19,6 +19,7 @@ export default function Dashboard(props) {
   const getRoute = () => {
     return window.location.pathname !== '/admin/full-screen-maps';
   };
+  const location = useLocation();
   const getActiveRoute = (routes) => {
     let activeRoute = 'MotoEtiler Vespa Servisi';
     for (let i = 0; i < routes.length; i++) {
@@ -33,9 +34,7 @@ export default function Dashboard(props) {
           return categoryActiveRoute;
         }
       } else {
-        if (
-          window.location.href.indexOf(routes[i].layout + routes[i].path) !== -1
-        ) {
+        if (window.location.pathname === routes[i].layout + routes[i].path) {
           return routes[i].name;
         }
       }
@@ -56,9 +55,7 @@ export default function Dashboard(props) {
           return categoryActiveNavbar;
         }
       } else {
-        if (
-          window.location.href.indexOf(routes[i].layout + routes[i].path) !== -1
-        ) {
+        if (window.location.pathname === routes[i].layout + routes[i].path) {
           return routes[i].secondary;
         }
       }
@@ -79,9 +76,7 @@ export default function Dashboard(props) {
           return categoryActiveNavbar;
         }
       } else {
-        if (
-          window.location.href.indexOf(routes[i].layout + routes[i].path) !== -1
-        ) {
+        if (window.location.pathname === routes[i].layout + routes[i].path) {
           return routes[i].messageNavbar;
         }
       }

@@ -461,6 +461,17 @@ class ApiService {
     return await this.makeRequest('/reports/services/');
   }
 
+  /**
+   * Get most used parts in services (usage by service_parts)
+   */
+  async getServicePartsUsage({ startDate = null, endDate = null, limit = 10 } = {}) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start', startDate);
+    if (endDate) params.append('end', endDate);
+    params.append('limit', String(limit));
+    return await this.makeRequest(`/reports/service-parts-usage/?${params.toString()}`);
+  }
+
   // ===== VESPA MODELS =====
 
   /**
@@ -693,6 +704,89 @@ class ApiService {
    */
   async getWorkTypesCategories() {
     return await this.makeRequest('/services/work-types/categories/');
+  }
+
+  // ===== ACCOUNTING / CASH FLOW =====
+
+  async getAccountingDashboardRange(startDate, endDate) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start', startDate);
+    if (endDate) params.append('end', endDate);
+    return await this.makeRequest(`/accounting/dashboard/?${params.toString()}`);
+  }
+
+  async getCashTransactions({ startDate = null, endDate = null, type = '', method = '', limit = 200, offset = 0 } = {}) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start', startDate);
+    if (endDate) params.append('end', endDate);
+    if (type) params.append('type', type);
+    if (method) params.append('method', method);
+    params.append('limit', String(limit));
+    params.append('offset', String(offset));
+    const data = await this.makeRequest(`/accounting/transactions/?${params.toString()}`);
+    // Normalize to array
+    return Array.isArray(data?.transactions) ? data : { transactions: (data || []), count: (data?.length || 0) };
+  }
+
+  async createCashTransaction(transactionData) {
+    return await this.makeRequest('/accounting/transactions/', {
+      method: 'POST',
+      body: JSON.stringify(transactionData),
+    });
+  }
+
+  async updateCashTransaction(id, transactionData) {
+    return await this.makeRequest('/accounting/transactions/', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...transactionData }),
+    });
+  }
+
+  async deleteCashTransaction(id) {
+    return await this.makeRequest(`/accounting/transactions/?id=${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ===== SETTINGS ENDPOINTS =====
+  async updateEmailSettings(payload) {
+    return await this.makeRequest('/core/settings/email/', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async testEmailSettings(payload) {
+    return await this.makeRequest('/core/settings/email/test/', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async changePassword(newPassword) {
+    return await this.makeRequest('/core/auth/change-password/', { method: 'POST', body: JSON.stringify({ new_password: newPassword }) });
+  }
+  async changeUsername(newUsername) {
+    return await this.makeRequest('/core/auth/change-username/', { method: 'POST', body: JSON.stringify({ new_username: newUsername }) });
+  }
+  async getCompanySettings() {
+    return await this.makeRequest('/core/settings/company/');
+  }
+  async updateCompanySettings(payload) {
+    return await this.makeRequest('/core/settings/company/', { method: 'POST', body: JSON.stringify(payload) });
+  }
+  async getStockSettings() {
+    return await this.makeRequest('/core/settings/stock/');
+  }
+  async updateStockSettings(payload) {
+    return await this.makeRequest('/core/settings/stock/', { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  // ===== SALES ENDPOINTS =====
+  async searchSalesParts(search = '', type = 'ACCESSORY') {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (type) params.append('type', type);
+    const q = params.toString() ? `?${params.toString()}` : '';
+    return await this.makeRequest(`/sales/parts/${q}`);
+  }
+  async createSale({ customer_id = null, items = [], payment_method = 'CASH' }) {
+    return await this.makeRequest('/sales/', { method: 'POST', body: JSON.stringify({ customer_id, items, payment_method }) });
+  }
+  async getSale(saleId) {
+    return await this.makeRequest(`/sales/${saleId}/`);
   }
 }
 

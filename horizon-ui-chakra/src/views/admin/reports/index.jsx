@@ -260,20 +260,70 @@ export default function Reports() {
       setLoading(true);
       setError('');
 
+      // Auto-update currency rates for accurate stock values
+      try {
+        await apiService.makeRequest('/inventory/currency-rates/', 'POST');
+      } catch (error) {
+        console.warn('Currency update failed, continuing with existing rates:', error);
+      }
+
       // Load data from APIs
-      const [customersResponse, servicesResponse, partsResponse, modelsResponse] = await Promise.all([
+      const today = new Date().toISOString().split('T')[0];
+      const monthAgo = (()=>{ const d=new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().split('T')[0]; })();
+      const [customersResponse, servicesResponse, partsResponse, modelsResponse, partsUsageResp] = await Promise.all([
         apiService.getCustomers(1, 1000),
         apiService.getServices(1, 1000),
         apiService.getParts(1, 1000),
-        apiService.getVespaModels()
+        apiService.getVespaModels(),
+        apiService.getServicePartsUsage({ startDate: monthAgo, endDate: today, limit: 10 })
       ]);
 
-      setReportsData({
-        customers: customersResponse.results || [],
-        services: servicesResponse.results || [],
-        parts: partsResponse.results || [],
-        models: modelsResponse || []
-      });
+      // Bu ay gelirini cari akış özetinden çek
+      const startMonth = new Date();
+      startMonth.setDate(1);
+      const startStr = startMonth.toISOString().split('T')[0];
+      const endMonth = new Date(startMonth.getFullYear(), startMonth.getMonth()+1, 0);
+      const endStr = endMonth.toISOString().split('T')[0];
+      const accounting = await apiService.getAccountingDashboardRange(startStr, endStr);
+
+      // Normalize customers
+      const customersRaw = customersResponse.results || customersResponse.customers || [];
+      const customers = (customersRaw || []).map(c => ({
+        id: c.id,
+        name: c.name || [c.first_name, c.last_name].filter(Boolean).join(' '),
+        phone: c.phone || '',
+        email: c.email || ''
+      }));
+
+      // Normalize services
+      const servicesRaw = servicesResponse.results || servicesResponse.services || [];
+      const services = (servicesRaw || []).map(s => ({
+        id: s.id,
+        service_date: s.service_date || s.serviceDate || s.date || null,
+        labor_cost: Number(s.labor_cost || s.laborCost || s.cost || 0),
+        parts_cost: Number(s.parts_cost || s.partsCost || 0),
+        service_type: s.service_type || s.type || 'Diğer',
+        customer_id: s.customer_id || s.customerId,
+        customer_name: s.customer_name || ''
+      }));
+
+      // Normalize parts (inventory)
+      const partsRaw = partsResponse.results || partsResponse.parts || partsResponse || [];
+      const parts = (partsRaw || []).map(p => ({
+        id: p.id,
+        part_name: p.part_name || p.name,
+        category_name: p.category_name || p.category || '-',
+        // Use TRY equivalent price for proper stock value calculation
+        sale_price: Number(p.sale_price_try_today || p.sale_price_tl || p.sale_price || p.price || 0),
+        total_stock: Number(p.total_stock || p.currentStock || 0),
+        min_stock_level: Number(p.min_stock_level || p.minStock || 0),
+        currency_type: p.currency_type || 'TRY'
+      }));
+
+      const models = (modelsResponse.models || modelsResponse || []);
+      const partsUsage = (partsUsageResp.parts_usage || []);
+
+      setReportsData({ customers, services, parts, models, partsUsage, incomeThisMonth: Number(accounting?.range_summary?.total_income || 0) });
 
     } catch (error) {
       console.error('Error loading reports data:', error);
@@ -285,45 +335,36 @@ export default function Reports() {
 
   // Gerçek verilerden hesaplanan raporlar
   const calculateRealData = () => {
-    const customers = reportsData.customers;
-    const services = reportsData.services;
-    const parts = reportsData.parts;
-    const models = reportsData.models;
+    const customers = reportsData.customers || [];
+    const services = reportsData.services || [];
+    const parts = reportsData.parts || [];
+    const models = reportsData.models || [];
 
     // Toplam gelir hesaplama
-    const totalRevenue = services.reduce((sum, service) => {
-      const serviceCost = service.cost || 0;
-      const partsCost = (service.parts || []).reduce((partsSum, part) => {
-        return partsSum + ((part.price || 0) * (part.quantity || 1));
-      }, 0);
-      return sum + serviceCost + partsCost;
-    }, 0);
+    const totalRevenue = services.reduce((sum, s) => sum + Number(s.labor_cost || 0) + Number(s.parts_cost || 0), 0);
 
     // Müşteri analizi
     const customerAnalysis = customers.map(customer => {
-      const customerServices = services.filter(s => s.customerId === customer.id);
-      const totalSpent = customerServices.reduce((sum, service) => {
-        const serviceCost = service.cost || 0;
-        const partsCost = (service.parts || []).reduce((partsSum, part) => {
-          return partsSum + ((part.price || 0) * (part.quantity || 1));
-        }, 0);
-        return sum + serviceCost + partsCost;
-      }, 0);
-      
+      const customerServices = services.filter(s => s.customer_id === customer.id);
+      const totalSpent = customerServices.reduce((sum, s) => sum + Number(s.labor_cost || 0) + Number(s.parts_cost || 0), 0);
+      const last = customerServices.length > 0 ? customerServices.map(s => s.service_date).filter(Boolean).sort().pop() : null;
       return {
         ...customer,
         totalSpent,
         servicesCount: customerServices.length,
-        lastService: customerServices.length > 0 ? 
-          customerServices.sort((a, b) => new Date(b.date) - new Date(a.date))[0].date : null
+        lastService: last
       };
-    }).sort((a, b) => b.totalSpent - a.totalSpent);
+    }).sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0));
 
     // Stok analizi
     const stockAnalysis = parts.map(part => ({
-      ...part,
-      stockStatus: part.currentStock <= part.minStock ? 'low' : 
-                  part.currentStock < part.minStock * 0.5 ? 'critical' : 'normal'
+      id: part.id,
+      name: part.part_name,
+      category: part.category_name,
+      price: part.sale_price,
+      currentStock: part.total_stock,
+      minStock: part.min_stock_level,
+      stockStatus: (part.total_stock || 0) < (part.min_stock_level || 0) * 0.5 ? 'critical' : ((part.total_stock || 0) <= (part.min_stock_level || 0) ? 'low' : 'normal')
     }));
 
     const lowStockItems = stockAnalysis.filter(item => item.stockStatus === 'low');
@@ -361,56 +402,48 @@ export default function Reports() {
 
   const realData = calculateRealData();
 
-  // Aylık gelir verisi (gerçek verilerden hesaplanacak)
-  const calculateMonthlyRevenue = () => {
-    const services = reportsData.services;
-    const monthlyData = {};
-    
-    services.forEach(service => {
-      const date = new Date(service.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = 0;
-      }
-      
-      const serviceCost = service.cost || 0;
-      const partsCost = (service.parts || []).reduce((sum, part) => {
-        return sum + ((part.price || 0) * (part.quantity || 1));
-      }, 0);
-      
-      monthlyData[monthKey] += serviceCost + partsCost;
+  // Aylık gelir verisi (ApexCharts formatı)
+  const calculateMonthlyRevenueApex = () => {
+    const services = reportsData.services || [];
+    const monthlyTotals = new Map(); // key: YYYY-MM, value: number
+    services.forEach((service) => {
+      const dateObj = service.service_date ? new Date(service.service_date) : (service.date ? new Date(service.date) : null);
+      if (!dateObj || isNaN(dateObj)) return;
+      const key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+      const labor = Number(service.labor_cost || service.cost || 0);
+      const partsCost = Number(service.parts_cost || 0);
+      const total = labor + partsCost;
+      monthlyTotals.set(key, (monthlyTotals.get(key) || 0) + total);
     });
 
-    const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran'];
-    const currentYear = new Date().getFullYear();
-    
+    // Son 6 ay kategorileri
+    const now = new Date();
+    const categories = [];
+    const data = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('tr-TR', { month: 'long' });
+      categories.push(label.charAt(0).toUpperCase() + label.slice(1));
+      data.push(Number(monthlyTotals.get(key) || 0));
+    }
+
     return {
-      labels: months,
-      datasets: [{
-        label: 'Gelir',
-        data: months.map((_, index) => {
-          const monthKey = `${currentYear}-${String(index + 1).padStart(2, '0')}`;
-          return monthlyData[monthKey] || Math.floor(Math.random() * 10000) + 20000;
-        }),
-        borderColor: '#4FD1C7',
-        backgroundColor: 'rgba(79, 209, 199, 0.1)',
-      }]
+      chartData: [{ name: 'Gelir', data }],
+      chartOptions: { xaxis: { categories } },
     };
   };
 
-  const monthlyRevenueData = calculateMonthlyRevenue();
+  const monthlyRevenueApex = calculateMonthlyRevenueApex();
 
-  const getCurrentPeriodData = () => {
-    return {
-      revenue: realData.totalRevenue,
-      growth: 12.5, // Gerçek hesaplama yapılabilir
-      serviceRevenue: realData.totalRevenue * 0.6,
-      partsRevenue: realData.totalRevenue * 0.4,
-      services: realData.totalServices,
-      customers: realData.totalCustomers
-    };
-  };
+  const getCurrentPeriodData = () => ({
+    revenue: Number(reportsData.incomeThisMonth || 0),
+    growth: 0,
+    serviceRevenue: 0,
+    partsRevenue: 0,
+    services: realData.totalServices,
+    customers: realData.totalCustomers
+  });
 
   const getGrowthColor = (growth) => {
     return growth > 0 ? 'green' : 'red';
@@ -693,15 +726,55 @@ export default function Reports() {
           <TabPanels>
             {/* Revenue Analysis Tab */}
             <TabPanel>
-              <SimpleGrid columns={{ base: 1, lg: 2 }} gap="20px" mb="20px">
+              <SimpleGrid columns={{ base: 1 }} gap="20px" mb="20px">
                 <Card>
                   <Text fontSize="lg" fontWeight="bold" mb="15px">Aylık Gelir Trendi</Text>
-                  <LineChart chartData={monthlyRevenueData.labels && monthlyRevenueData.datasets[0].data.some(x => x) ? monthlyRevenueData : fallbackMonthlyRevenueData} />
+                  <LineChart chartData={monthlyRevenueApex.chartData} chartOptions={{ ...monthlyRevenueApex.chartOptions, stroke: { curve: 'smooth', width: 3 }, dataLabels: { enabled: false }, yaxis: { labels: { formatter: (v)=>`₺${Math.round(v).toLocaleString('tr-TR')}` } } }} />
+                </Card>
+              </SimpleGrid>
+
+              <SimpleGrid columns={{ base: 1, lg: 2 }} gap="20px">
+                <Card minH="360px">
+                  <Text fontSize="lg" fontWeight="bold" mb="15px">Servis Türü Dağılımı</Text>
+                  <Box h="300px">
+                    <PieChart 
+                      chartData={(realData.serviceTypeData?.datasets?.[0]?.data) || []}
+                      chartOptions={{ labels: realData.serviceTypeData?.labels || [], legend: { position: 'bottom' } }}
+                    />
+                  </Box>
                 </Card>
 
                 <Card>
-                  <Text fontSize="lg" fontWeight="bold" mb="15px">Servis Türü Dağılımı</Text>
-                  <PieChart chartData={realData.serviceTypeData.labels && realData.serviceTypeData.datasets[0].data.some(x => x) ? realData.serviceTypeData : fallbackServiceTypeData} />
+                  <Text fontSize="lg" fontWeight="bold" mb="15px">Serviste En Çok Kullanılan Parçalar (Son 30 Gün)</Text>
+                  <TableContainer>
+                    <Table size="md" variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Parça</Th>
+                          <Th>Kod</Th>
+                          <Th isNumeric>Kull. Adedi</Th>
+                          <Th isNumeric>Hizmet Adedi</Th>
+                          <Th isNumeric>Toplam Tutar</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {(reportsData.partsUsage || []).slice(0,10).map((p)=> (
+                          <Tr key={p.part_id} _hover={{ bg: hoverBg }} cursor="pointer" onClick={()=>handlePartClick(p.part_id)}>
+                            <Td fontWeight="bold">{p.part_name}</Td>
+                            <Td>{p.part_code}</Td>
+                            <Td isNumeric>{p.total_quantity}</Td>
+                            <Td isNumeric>{p.usage_count}</Td>
+                            <Td isNumeric>₺{(p.total_value||0).toLocaleString('tr-TR')}</Td>
+                          </Tr>
+                        ))}
+                        {(!reportsData.partsUsage || reportsData.partsUsage.length === 0) && (
+                          <Tr>
+                            <Td colSpan={5}><Text fontSize="sm" color="gray.500">Kayıt bulunamadı.</Text></Td>
+                          </Tr>
+                        )}
+                      </Tbody>
+                    </Table>
+                  </TableContainer>
                 </Card>
               </SimpleGrid>
 
@@ -729,31 +802,31 @@ export default function Reports() {
                 </Card>
 
                 <Card>
-                  <Text fontSize="lg" fontWeight="bold" mb="15px">En Çok Satan Parçalar</Text>
-                  <VStack spacing={3} align="stretch">
-                    {(realData.stockAnalysis.length > 0 ? realData.stockAnalysis.slice(0, 5) : fallbackParts).map((part, index) => (
-                      <Box 
-                        key={part.name} 
-                        p="3" 
-                        borderRadius="md" 
-                        bg={boxBg}
-                        cursor="pointer"
-                        _hover={{ bg: hoverBg }}
-                        onClick={() => handlePartClick(part.id)}
-                      >
-                        <HStack justify="space-between">
-                          <VStack align="start" spacing={1}>
-                            <Text fontWeight="bold" fontSize="sm">{part.name}</Text>
-                            <Text fontSize="xs" color="gray.500">{part.category}</Text>
-                          </VStack>
-                          <VStack align="end" spacing={1}>
-                            <Text fontWeight="bold" fontSize="sm">₺{part.price}</Text>
-                            <Badge colorScheme="brand" fontSize="xs">{part.currentStock} ADET</Badge>
-                          </VStack>
-                        </HStack>
-                      </Box>
-                    ))}
-                  </VStack>
+                  <Text fontSize="lg" fontWeight="bold" mb="15px">Serviste En Çok Kullanılan Parçalar (Son 30 Gün)</Text>
+                  <TableContainer>
+                    <Table size="sm" variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Parça</Th>
+                          <Th>Kod</Th>
+                          <Th isNumeric>Kull. Adedi</Th>
+                          <Th isNumeric>Hizmet Adedi</Th>
+                          <Th isNumeric>Toplam Tutar</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {(reportsData.partsUsage || []).slice(0,10).map((p)=> (
+                          <Tr key={p.part_id} _hover={{ bg: hoverBg }} cursor="pointer" onClick={()=>handlePartClick(p.part_id)}>
+                            <Td fontWeight="bold">{p.part_name}</Td>
+                            <Td>{p.part_code}</Td>
+                            <Td isNumeric>{p.total_quantity}</Td>
+                            <Td isNumeric>{p.usage_count}</Td>
+                            <Td isNumeric>₺{(p.total_value||0).toLocaleString()}</Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </TableContainer>
                 </Card>
               </SimpleGrid>
             </TabPanel>
@@ -962,9 +1035,14 @@ export default function Reports() {
             {/* Service Analysis Tab */}
             <TabPanel>
               <SimpleGrid columns={{ base: 1, lg: 2 }} gap="20px">
-                <Card>
+                <Card minH="360px">
                   <Text fontSize="lg" fontWeight="bold" mb="15px">Servis Türü Dağılımı</Text>
-                  <PieChart chartData={realData.serviceTypeData.labels && realData.serviceTypeData.datasets[0].data.some(x => x) ? realData.serviceTypeData : fallbackServiceTypeData} />
+                  <Box h="300px">
+                    <PieChart 
+                      chartData={(realData.serviceTypeData?.datasets?.[0]?.data) || []}
+                      chartOptions={{ labels: realData.serviceTypeData?.labels || [], legend: { position: 'bottom' } }}
+                    />
+                  </Box>
                 </Card>
 
                 <Card>
@@ -1056,7 +1134,7 @@ export default function Reports() {
                       leftIcon={<MdDirectionsBike />}
                       variant="outline"
                       justifyContent="flex-start"
-                      onClick={() => navigate('/admin/vespa-models')}
+                      onClick={() => navigate('/admin/stock')}
                     >
                       Vespa Modelleri Raporu
                     </Button>

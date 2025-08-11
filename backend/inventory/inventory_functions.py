@@ -237,7 +237,7 @@ def get_categories_by_type(category_type):
 # ===== PARTS =====
 
 def get_all_parts_with_stock():
-    """Get all parts with total stock from all locations"""
+    """Get all parts with total stock from all locations and price information"""
     connection = get_db_connection()
     cursor = connection.cursor()
     
@@ -246,16 +246,28 @@ def get_all_parts_with_stock():
         p.id, p.part_code, p.part_name, p.part_type,
         pc.category_name, p.description,
         p.min_stock_level, p.max_stock_level,
-        p.brand, p.model, p.color, p.size,
+        p.brand, p.model, p.color, p.size, p.image_path,
         ISNULL(stock_summary.total_stock, 0) as total_stock,
         ISNULL(stock_summary.total_reserved, 0) as total_reserved,
         ISNULL(stock_summary.available_stock, 0) as available_stock,
         CASE 
+            WHEN ISNULL(stock_summary.total_stock, 0) <= 0 THEN 'CRITICAL'
             WHEN ISNULL(stock_summary.total_stock, 0) <= p.min_stock_level THEN 'LOW'
-            WHEN ISNULL(stock_summary.total_stock, 0) <= p.min_stock_level * 0.5 THEN 'CRITICAL'
             ELSE 'NORMAL'
         END as stock_status,
-        p.is_active, p.created_date
+        -- Price information
+        ISNULL(pp.purchase_price, 0) as purchase_price,
+        ISNULL(pp.sale_price, 0) as sale_price,
+        ISNULL(pp.currency_type, 'TRY') as currency_type,
+        pp.effective_date,
+        s.supplier_name,
+        -- Current exchange rates (latest)
+        (SELECT TOP 1 sell_rate FROM currency_rates WHERE currency_code = 'EUR' ORDER BY rate_date DESC) as eur_try_today,
+        (SELECT TOP 1 sell_rate FROM currency_rates WHERE currency_code = 'USD' ORDER BY rate_date DESC) as usd_try_today,
+        -- Exchange rates on purchase date
+        (SELECT TOP 1 sell_rate FROM currency_rates WHERE currency_code = 'EUR' AND rate_date <= pp.effective_date ORDER BY rate_date DESC) as eur_try_on_purchase,
+        (SELECT TOP 1 sell_rate FROM currency_rates WHERE currency_code = 'USD' AND rate_date <= pp.effective_date ORDER BY rate_date DESC) as usd_try_on_purchase,
+        p.is_active, p.created_date, p.updated_date
     FROM parts p
     INNER JOIN part_categories pc ON p.category_id = pc.id
     LEFT JOIN (
@@ -267,6 +279,8 @@ def get_all_parts_with_stock():
         FROM part_stock_locations
         GROUP BY part_id
     ) stock_summary ON p.id = stock_summary.part_id
+    LEFT JOIN part_prices pp ON p.id = pp.part_id AND pp.is_current = 1
+    LEFT JOIN suppliers s ON pp.supplier_id = s.id
     WHERE p.is_active = 1
     ORDER BY p.part_name
     """
@@ -277,6 +291,29 @@ def get_all_parts_with_stock():
     
     parts = []
     for row in rows:
+        # Extract values
+        purchase_price = float(row[17]) if row[17] else 0
+        sale_price = float(row[18]) if row[18] else 0
+        currency_type = row[19] or 'TRY'
+        effective_date = row[20]
+        supplier_name = row[21]
+        eur_try_today = float(row[22]) if row[22] else 35.0
+        usd_try_today = float(row[23]) if row[23] else 32.0
+        eur_try_on_purchase = float(row[24]) if row[24] else 35.0
+        usd_try_on_purchase = float(row[25]) if row[25] else 32.0
+
+        # Calculate TRY prices
+        if currency_type == 'EUR':
+            purchase_price_try_at_purchase = purchase_price * eur_try_on_purchase
+            sale_price_try_today = sale_price * eur_try_today
+        elif currency_type == 'USD':
+            purchase_price_try_at_purchase = purchase_price * usd_try_on_purchase
+            sale_price_try_today = sale_price * usd_try_today
+        else:
+            # TRY currency
+            purchase_price_try_at_purchase = purchase_price
+            sale_price_try_today = sale_price
+
         parts.append({
             'id': row[0],
             'part_code': row[1],
@@ -290,12 +327,26 @@ def get_all_parts_with_stock():
             'model': row[9],
             'color': row[10],
             'size': row[11],
-            'total_stock': row[12],
-            'total_reserved': row[13],
-            'available_stock': row[14],
-            'stock_status': row[15],
-            'is_active': row[16],
-            'created_date': row[17]
+            'image_path': row[12],
+            'total_stock': row[13],
+            'total_reserved': row[14],
+            'available_stock': row[15],
+            'stock_status': row[16],
+            'purchase_price': purchase_price,
+            'sale_price': sale_price,
+            'currency_type': currency_type,
+            'effective_date': effective_date,
+            'supplier_name': supplier_name,
+            # Calculated TRY prices
+            'purchase_price_try_at_purchase': round(purchase_price_try_at_purchase, 2),
+            'sale_price_try_today': round(sale_price_try_today, 2),
+            'eur_try_today': eur_try_today,
+            'usd_try_today': usd_try_today,
+            'eur_try_on_purchase': eur_try_on_purchase,
+            'usd_try_on_purchase': usd_try_on_purchase,
+            'is_active': row[26],
+            'created_date': row[27],
+            'updated_date': row[28]
         })
     
     return parts
@@ -672,6 +723,100 @@ def get_currency_rates():
         })
     
     return rates
+
+
+def update_currency_rates_auto():
+    """Auto-update currency rates if needed (called when creating products)"""
+    from datetime import date, timedelta
+    import requests
+    
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    today = date.today()
+    
+    try:
+        # Check if we have today's rates
+        cursor.execute("""
+            SELECT COUNT(*) FROM currency_rates 
+            WHERE rate_date = ? AND currency_code IN ('EUR', 'USD')
+        """, (today,))
+        
+        existing_count = cursor.fetchone()[0]
+        
+        # If we already have today's rates, skip
+        if existing_count >= 2:
+            connection.close()
+            return True
+        
+        # Fetch new rates
+        eur_rate = None
+        usd_rate = None
+        
+        try:
+            # Try to get EUR rate
+            eur_response = requests.get('https://api.exchangerate.host/latest?base=EUR&symbols=TRY', timeout=5)
+            if eur_response.status_code == 200:
+                eur_data = eur_response.json()
+                if 'rates' in eur_data and 'TRY' in eur_data['rates']:
+                    eur_rate = float(eur_data['rates']['TRY'])
+            
+            # Try to get USD rate
+            usd_response = requests.get('https://api.exchangerate.host/latest?base=USD&symbols=TRY', timeout=5)
+            if usd_response.status_code == 200:
+                usd_data = usd_response.json()
+                if 'rates' in usd_data and 'TRY' in usd_data['rates']:
+                    usd_rate = float(usd_data['rates']['TRY'])
+        except:
+            pass
+        
+        # Fallback to previous day's rates with small adjustment
+        if not eur_rate or not usd_rate:
+            cursor.execute("""
+                SELECT currency_code, sell_rate 
+                FROM currency_rates 
+                WHERE currency_code IN ('EUR', 'USD') 
+                AND rate_date = (SELECT MAX(rate_date) FROM currency_rates WHERE currency_code = currency_rates.currency_code)
+            """)
+            previous_rates = cursor.fetchall()
+            for rate_row in previous_rates:
+                if rate_row[0] == 'EUR' and not eur_rate:
+                    eur_rate = float(rate_row[1])
+                elif rate_row[0] == 'USD' and not usd_rate:
+                    usd_rate = float(rate_row[1])
+        
+        # Default fallback
+        if not eur_rate:
+            eur_rate = 35.0
+        if not usd_rate:
+            usd_rate = 32.0
+        
+        # Insert today's rates
+        if eur_rate:
+            cursor.execute("""
+                MERGE currency_rates AS t
+                USING (SELECT ? AS currency_code, ? AS rate_date) AS s
+                ON t.currency_code = s.currency_code AND t.rate_date = s.rate_date
+                WHEN MATCHED THEN UPDATE SET buy_rate = ?, sell_rate = ?
+                WHEN NOT MATCHED THEN INSERT (currency_code, rate_date, buy_rate, sell_rate) VALUES (?, ?, ?, ?);
+            """, ('EUR', today, eur_rate, eur_rate, 'EUR', today, eur_rate, eur_rate))
+        
+        if usd_rate:
+            cursor.execute("""
+                MERGE currency_rates AS t
+                USING (SELECT ? AS currency_code, ? AS rate_date) AS s
+                ON t.currency_code = s.currency_code AND t.rate_date = s.rate_date
+                WHEN MATCHED THEN UPDATE SET buy_rate = ?, sell_rate = ?
+                WHEN NOT MATCHED THEN INSERT (currency_code, rate_date, buy_rate, sell_rate) VALUES (?, ?, ?, ?);
+            """, ('USD', today, usd_rate, usd_rate, 'USD', today, usd_rate, usd_rate))
+        
+        connection.commit()
+        connection.close()
+        return True
+        
+    except Exception as e:
+        connection.close()
+        print(f"Auto currency update failed: {e}")
+        return False
 
 
 # ===== INVENTORY ANALYTICS =====

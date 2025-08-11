@@ -21,13 +21,13 @@ import MainDashboard from 'views/admin/default';
 import CustomerManagement from 'views/admin/customers';
 import StockManagement from 'views/admin/stock';
 import ServiceTracking from 'views/admin/service';
-import VespaModels from 'views/admin/vespa-models';
 import Reports from 'views/admin/reports';
 import Profile from 'views/admin/profile';
 import AppointmentManagement from 'views/admin/appointments';
 import PaintStudio from 'views/admin/paint-studio';
 import TaxReports from 'views/admin/tax-reports';
 import SystemSettings from 'views/admin/settings';
+import SalesPage from 'views/admin/sales';
 
 // Auth Imports
 import SignInCentered from 'views/auth/signIn';
@@ -46,6 +46,13 @@ const routes = [
     path: '/customers',
     icon: <Icon as={MdGroup} width="20px" height="20px" color="inherit" />,
     component: <CustomerManagement />,
+  },
+  {
+    name: 'Satışlar',
+    layout: '/admin',
+    path: '/sales',
+    icon: <Icon as={MdInventory} width="20px" height="20px" color="inherit" />,
+    component: <SalesPage />,
   },
   {
     name: 'Stok Yönetimi',
@@ -76,18 +83,11 @@ const routes = [
     component: <PaintStudio />,
   },
   {
-    name: 'Vergi Beyanı',
+    name: 'Cari Akış',
     layout: '/admin',
     path: '/tax-reports',
     icon: <Icon as={MdAccountBalance} width="20px" height="20px" color="inherit" />,
     component: <TaxReports />,
-  },
-  {
-    name: 'Vespa Modelleri',
-    layout: '/admin',
-    path: '/vespa-models',
-    icon: <Icon as={MdDirectionsBike} width="20px" height="20px" color="inherit" />,
-    component: <VespaModels />,
   },
   {
     name: 'Raporlar',
@@ -103,13 +103,7 @@ const routes = [
     icon: <Icon as={MdSettings} width="20px" height="20px" color="inherit" />,
     component: <SystemSettings />,
   },
-  {
-    name: 'Profil',
-    layout: '/admin',
-    path: '/profile',
-    icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
-    component: <Profile />,
-  },
+  // Profil sayfası kaldırıldı
   {
     name: 'Giriş',
     layout: '/auth',

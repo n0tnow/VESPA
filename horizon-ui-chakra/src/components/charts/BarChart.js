@@ -17,6 +17,17 @@ class ColumnChart extends Component {
     });
   }
 
+  componentDidUpdate(prevProps) {
+    const dataChanged = JSON.stringify(prevProps.chartData) !== JSON.stringify(this.props.chartData);
+    const optionsChanged = JSON.stringify(prevProps.chartOptions) !== JSON.stringify(this.props.chartOptions);
+    if (dataChanged || optionsChanged) {
+      this.setState({
+        chartData: this.props.chartData,
+        chartOptions: this.props.chartOptions,
+      });
+    }
+  }
+
   render() {
     return (
       <Chart

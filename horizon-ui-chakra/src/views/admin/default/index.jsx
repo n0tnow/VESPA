@@ -69,9 +69,9 @@ export default function VespaDashboard() {
     totalRevenue: 0,
     lowStockItems: 0,
     pendingServices: 0,
+    inProgressServices: 0,
     completedServices: 0,
-    monthlyGrowth: 0,
-    popularModel: "-"
+    monthlyGrowth: 0
   });
   
   const [loading, setLoading] = useState(true);
@@ -86,21 +86,87 @@ export default function VespaDashboard() {
     try {
       setLoading(true);
       setError('');
-      
-      // Get comprehensive dashboard data from backend
-      const data = await apiService.getDashboardData();
-      
+      // Parallel fetch core datasets
+      const todayStr = new Date().toISOString().split('T')[0];
+      const future = new Date();
+      future.setDate(future.getDate() + 14);
+      const futureStr = future.toISOString().split('T')[0];
+
+      const [servicesResp, apptsResp, lowStockResp, customersResp] = await Promise.all([
+        apiService.getServices(1, 100),
+        apiService.getAppointments(todayStr, futureStr),
+        apiService.getLowStockParts().catch(() => ({})),
+        apiService.getCustomers(1, 100)
+      ]);
+
+      const services = servicesResp?.services || servicesResp?.results || servicesResp || [];
+      const appointments = apptsResp?.appointments || apptsResp?.results || apptsResp || [];
+      const critical = lowStockResp?.critical_stock || [];
+      const low = lowStockResp?.low_stock || [];
+      const totalLowStock = (lowStockResp?.total_alerts) ?? (critical.length + low.length);
+      const customers = customersResp?.customers || customersResp?.results || customersResp || [];
+
+      const pendingServices = services.filter(s => (s.status || '').toLowerCase() === 'pending').length;
+      const inProgressServices = services.filter(s => (s.status || '').toLowerCase() === 'in_progress').length;
+      const completedServices = services.filter(s => (s.status || '').toLowerCase() === 'completed').length;
+      // Bu Ay Gelir: cari akışla tutarlılık için bu ayki INCOME toplamını kullan
+      const startMonth = new Date();
+      startMonth.setDate(1);
+      const startStr = startMonth.toISOString().split('T')[0];
+      const endMonth = new Date(startMonth.getFullYear(), startMonth.getMonth()+1, 0);
+      const endStr = endMonth.toISOString().split('T')[0];
+      const cashSummary = await apiService.getAccountingDashboardRange(startStr, endStr);
+      let totalRevenue = Number(cashSummary?.range_summary?.billed_revenue?.services || cashSummary?.range_summary?.billed_revenue?.service || 0) + Number(cashSummary?.range_summary?.billed_revenue?.sales || 0);
+      if (!totalRevenue || totalRevenue <= 0) {
+        totalRevenue = Number(cashSummary?.range_summary?.total_income || 0);
+      }
+
       setDashboardData({
-        totalCustomers: data.active_customers || 0,
-        totalServices: data.total_services || 0,
-        totalRevenue: data.total_revenue || 0,
-        lowStockItems: data.low_stock_parts || 0,
-        pendingServices: data.pending_services || 0,
-        completedServices: data.completed_services || 0,
-        monthlyGrowth: data.monthly_growth || 0,
-        popularModel: data.popular_model || "-"
+        totalCustomers: customers.length,
+        totalServices: services.length,
+         totalRevenue: totalRevenue,
+        lowStockItems: totalLowStock || 0,
+        pendingServices,
+        inProgressServices,
+        completedServices,
+        monthlyGrowth: 0
       });
-      
+
+      // Build recent and upcoming lists
+      const recent = [...services]
+        .sort((a, b) => String(b.service_date).localeCompare(String(a.service_date)))
+        .slice(0, 8)
+        .map(s => ({
+          id: s.id,
+          customer: s.customer_name || '-',
+          plate: s.license_plate || '-',
+          type: s.service_type || '-',
+          date: s.service_date || '-',
+          status: (s.status || '').toLowerCase(),
+          amount: s.total_cost || 0
+        }));
+      setRecentServices(recent);
+
+      const upcoming = appointments
+        .sort((a, b) => String(a.appointment_date).localeCompare(String(b.appointment_date)))
+        .slice(0, 6)
+        .map(a => ({
+          customer: a.customer_name || '-',
+          plate: a.license_plate || '-',
+          date: a.appointment_date || '-',
+          type: a.service_type || 'Servis'
+        }));
+      setUpcomingServices(upcoming);
+
+      const lowList = [...critical, ...low]
+        .slice(0, 6)
+        .map(p => ({
+          name: p.part_name || p.name || 'Parça',
+          stock: p.total_stock ?? p.stock ?? 0,
+          min: p.min_stock_level ?? p.min ?? 0
+        }));
+      setLowStockItems(lowList);
+
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       setError('Dashboard verileri yüklenirken hata oluştu');
@@ -108,73 +174,9 @@ export default function VespaDashboard() {
       setLoading(false);
     }
   };
-
-  const recentServices = [
-    {
-      id: 1,
-      customer: "Ahmet Yılmaz",
-      vespa: "Primavera 150",
-      type: "Periyodik Bakım",
-      date: "2024-01-15",
-      status: "completed",
-      amount: 450
-    },
-    {
-      id: 2,
-      customer: "Elif Kaya",
-      vespa: "GTS 300",
-      type: "Onarım",
-      date: "2024-01-16",
-      status: "in_progress",
-      amount: 850
-    },
-    {
-      id: 3,
-      customer: "Mehmet Özkan",
-      vespa: "Sprint 150",
-      type: "Acil Onarım",
-      date: "2024-01-17",
-      status: "pending",
-      amount: 320
-    },
-    {
-      id: 4,
-      customer: "Fatma Demir",
-      vespa: "LX 150",
-      type: "Garantili Bakım",
-      date: "2024-01-18",
-      status: "completed",
-      amount: 275
-    }
-  ];
-
-  const upcomingServices = [
-    {
-      customer: "Ali Vural",
-      vespa: "GTS 300",
-      date: "2024-01-20",
-      type: "Periyodik Bakım"
-    },
-    {
-      customer: "Zeynep Kaya",
-      vespa: "Primavera 150",
-      date: "2024-01-22",
-      type: "Onarım"
-    },
-    {
-      customer: "Murat Yıldız",
-      vespa: "Sprint 150",
-      date: "2024-01-25",
-      type: "Bakım"
-    }
-  ];
-
-  const lowStockItems = [
-    { name: "Fren Balata Seti", stock: 3, min: 10 },
-    { name: "Motor Yağı", stock: 5, min: 15 },
-    { name: "Lastik 120/70", stock: 2, min: 8 },
-    { name: "Akü 12V", stock: 1, min: 5 }
-  ];
+  const [recentServices, setRecentServices] = useState([]);
+  const [upcomingServices, setUpcomingServices] = useState([]);
+  const [lowStockItems, setLowStockItems] = useState([]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -241,10 +243,10 @@ export default function VespaDashboard() {
         />
         <MiniStatistics
           startContent={
-            <Icon as={MdDirectionsBike} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
+            <Icon as={MdBuild} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
           }
-          name='Popüler Model'
-          value={dashboardData.popularModel}
+          name='Açık İş Emri'
+          value={(dashboardData.pendingServices + dashboardData.inProgressServices).toString()}
         />
       </SimpleGrid>
 
@@ -293,7 +295,7 @@ export default function VespaDashboard() {
               <Thead>
                 <Tr>
                   <Th>Müşteri</Th>
-                  <Th>Vespa</Th>
+                   <Th>Plaka</Th>
                   <Th>Tür</Th>
                   <Th>Tarih</Th>
                   <Th>Durum</Th>
@@ -304,7 +306,7 @@ export default function VespaDashboard() {
                 {recentServices.map((service) => (
                   <Tr key={service.id}>
                     <Td fontWeight="bold">{service.customer}</Td>
-                    <Td>{service.vespa}</Td>
+                    <Td>{service.plate}</Td>
                     <Td>{service.type}</Td>
                     <Td>{service.date}</Td>
                     <Td>

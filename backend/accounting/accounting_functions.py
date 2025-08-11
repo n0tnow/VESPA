@@ -281,29 +281,29 @@ def create_cash_transaction(data):
     try:
         cursor.execute("""
             INSERT INTO cash_transactions (
-                transaction_date, transaction_type, amount, currency_type,
-                payment_method, description, reference_type, reference_id,
-                processed_by
+                transaction_date, transaction_type, payment_method, amount,
+                reference_type, reference_id, description, receipt_number,
+                created_by
             ) 
             OUTPUT INSERTED.id
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data.get('transaction_date', date.today()),
             data['transaction_type'],  # INCOME or EXPENSE
-            data['amount'],
-            data.get('currency_type', 'TRY'),
             data.get('payment_method', 'CASH'),
-            data.get('description', ''),
+            data['amount'],
             data.get('reference_type'),
             data.get('reference_id'),
-            data.get('processed_by', 1)
+            data.get('description', ''),
+            data.get('receipt_number', None),
+            data.get('created_by', 1)
         ))
         
         transaction_id = cursor.fetchone()[0]
         
-        # Update invoice payment status if this is an invoice payment
+        # Update invoice paid amount if this is an invoice payment
         if data.get('reference_type') == 'INVOICE' and data.get('reference_id'):
-            _update_invoice_payment_status(cursor, data['reference_id'])
+            _update_invoice_paid_amount(cursor, data['reference_id'])
         
         connection.commit()
         return transaction_id
@@ -315,36 +315,99 @@ def create_cash_transaction(data):
         connection.close()
 
 
-def _update_invoice_payment_status(cursor, invoice_id):
-    """Update invoice payment status based on payments"""
-    cursor.execute("""
-        SELECT 
-            i.total_amount,
-            ISNULL(SUM(ct.amount), 0) as paid_amount
-        FROM invoices i
-        LEFT JOIN cash_transactions ct ON i.id = ct.reference_id 
-            AND ct.reference_type = 'INVOICE' AND ct.transaction_type = 'INCOME'
-        WHERE i.id = ?
-        GROUP BY i.total_amount
-    """, (invoice_id,))
-    
-    row = cursor.fetchone()
-    if row:
-        total_amount = row[0]
-        paid_amount = row[1]
-        
-        if paid_amount >= total_amount:
-            payment_status = 'PAID'
-        elif paid_amount > 0:
-            payment_status = 'PARTIAL'
-        else:
-            payment_status = 'UNPAID'
-        
-        cursor.execute("""
-            UPDATE invoices 
-            SET payment_status = ?, updated_date = GETDATE()
+def update_cash_transaction(transaction_id, data):
+    """Update cash transaction by id"""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            UPDATE cash_transactions
+            SET transaction_date = ?,
+                transaction_type = ?,
+                payment_method = ?,
+                amount = ?,
+                reference_type = ?,
+                reference_id = ?,
+                description = ?,
+                receipt_number = ?
             WHERE id = ?
-        """, (payment_status, invoice_id))
+            """,
+            (
+                data.get('transaction_date', date.today()),
+                data.get('transaction_type'),
+                data.get('payment_method', 'CASH'),
+                data.get('amount', 0),
+                data.get('reference_type'),
+                data.get('reference_id'),
+                data.get('description', ''),
+                data.get('receipt_number', None),
+                transaction_id,
+            ),
+        )
+
+        # If reference is invoice, resync paid amount
+        if data.get('reference_type') == 'INVOICE' and data.get('reference_id'):
+            _update_invoice_paid_amount(cursor, data['reference_id'])
+
+        connection.commit()
+        return True
+    except Exception as e:
+        connection.rollback()
+        raise e
+    finally:
+        connection.close()
+
+
+def delete_cash_transaction(transaction_id):
+    """Delete cash transaction and resync invoice paid amount if needed"""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    try:
+        # Fetch reference before delete
+        cursor.execute(
+            "SELECT reference_type, reference_id FROM cash_transactions WHERE id = ?",
+            (transaction_id,),
+        )
+        row = cursor.fetchone()
+        ref_type, ref_id = (row[0], row[1]) if row else (None, None)
+
+        cursor.execute("DELETE FROM cash_transactions WHERE id = ?", (transaction_id,))
+
+        if ref_type == 'INVOICE' and ref_id:
+            _update_invoice_paid_amount(cursor, ref_id)
+
+        connection.commit()
+        return True
+    except Exception as e:
+        connection.rollback()
+        raise e
+    finally:
+        connection.close()
+
+def _update_invoice_paid_amount(cursor, invoice_id):
+    """Sync invoices.paid_amount from cash_transactions (INCOME, reference_type=INVOICE)."""
+    cursor.execute(
+        """
+        SELECT ISNULL(SUM(ct.amount), 0) as paid_amount
+        FROM cash_transactions ct
+        WHERE ct.reference_type = 'INVOICE' AND ct.reference_id = ? AND ct.transaction_type = 'INCOME'
+        """,
+        (invoice_id,),
+    )
+    row = cursor.fetchone()
+    paid_amount = float(row[0]) if row and row[0] is not None else 0.0
+    # Update invoices.paid_amount; set payment_date if fully paid
+    cursor.execute(
+        """
+        UPDATE invoices
+        SET paid_amount = ?,
+            payment_date = CASE WHEN ? >= ISNULL(total_amount, 0) THEN CAST(GETDATE() AS DATE) ELSE payment_date END
+        WHERE id = ?
+        """,
+        (paid_amount, paid_amount, invoice_id),
+    )
 
 
 def get_daily_cash_summary(summary_date=None):
@@ -502,8 +565,8 @@ def get_accounting_summary():
     query = """
     SELECT 
         COUNT(DISTINCT i.id) as total_invoices,
-        COUNT(DISTINCT CASE WHEN i.payment_status = 'UNPAID' THEN i.id END) as unpaid_invoices,
-        SUM(CASE WHEN i.payment_status = 'UNPAID' THEN i.total_amount ELSE 0 END) as total_unpaid_amount,
+        COUNT(DISTINCT CASE WHEN ISNULL(i.paid_amount, 0) < ISNULL(i.total_amount, 0) THEN i.id END) as unpaid_invoices,
+        SUM(CASE WHEN ISNULL(i.paid_amount, 0) < ISNULL(i.total_amount, 0) THEN (ISNULL(i.total_amount, 0) - ISNULL(i.paid_amount, 0)) ELSE 0 END) as total_unpaid_amount,
         SUM(CASE WHEN ct.transaction_type = 'INCOME' AND ct.transaction_date >= DATEADD(month, -1, GETDATE()) THEN ct.amount ELSE 0 END) as monthly_income,
         SUM(CASE WHEN ct.transaction_type = 'EXPENSE' AND ct.transaction_date >= DATEADD(month, -1, GETDATE()) THEN ct.amount ELSE 0 END) as monthly_expenses
     FROM invoices i
@@ -522,4 +585,166 @@ def get_accounting_summary():
         'monthly_income': float(row[3]) if row[3] else 0,
         'monthly_expenses': float(row[4]) if row[4] else 0,
         'monthly_profit': (float(row[3]) if row[3] else 0) - (float(row[4]) if row[4] else 0)
+    }
+
+
+# ===== CARİ (CASH FLOW) HELPERS =====
+
+def get_cash_transactions_filtered(start_date=None, end_date=None, transaction_type=None,
+                                   payment_method=None, limit=200, offset=0):
+    """List cash transactions with optional filters"""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    conditions = []
+    params = []
+
+    if start_date:
+        conditions.append("CAST(transaction_date AS DATE) >= ?")
+        params.append(start_date)
+    if end_date:
+        conditions.append("CAST(transaction_date AS DATE) <= ?")
+        params.append(end_date)
+    if transaction_type:
+        conditions.append("transaction_type = ?")
+        params.append(transaction_type)
+    if payment_method:
+        conditions.append("payment_method = ?")
+        params.append(payment_method)
+
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    query = f"""
+    SELECT 
+        id, transaction_date, transaction_type, amount,
+        payment_method, description, reference_type, reference_id
+    FROM cash_transactions
+    {where_clause}
+    ORDER BY transaction_date DESC, id DESC
+    OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
+    """
+
+    params.extend([offset, limit])
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    connection.close()
+
+    transactions = []
+    for row in rows:
+        transactions.append({
+            'id': row[0],
+            'transaction_date': row[1],
+            'transaction_type': row[2],
+            'amount': float(row[3]) if row[3] else 0,
+            'payment_method': row[4],
+            'description': row[5],
+            'reference_type': row[6],
+            'reference_id': row[7]
+        })
+
+    return transactions
+
+
+def get_cash_summary_range(start_date=None, end_date=None):
+    """Get cash summary totals for a date range with method breakdown and basic revenue sources."""
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    # Totals and method breakdown
+    conditions = []
+    params = []
+    if start_date:
+        conditions.append("CAST(transaction_date AS DATE) >= ?")
+        params.append(start_date)
+    if end_date:
+        conditions.append("CAST(transaction_date AS DATE) <= ?")
+        params.append(end_date)
+    where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    cursor.execute(f"""
+        SELECT 
+            SUM(CASE WHEN transaction_type = 'INCOME' THEN amount ELSE 0 END) as total_income,
+            SUM(CASE WHEN transaction_type = 'EXPENSE' THEN amount ELSE 0 END) as total_expenses,
+            SUM(CASE WHEN transaction_type = 'INCOME' AND payment_method = 'CASH' THEN amount ELSE 0 END) as cash_income,
+            SUM(CASE WHEN transaction_type = 'INCOME' AND payment_method = 'CARD' THEN amount ELSE 0 END) as card_income,
+            SUM(CASE WHEN transaction_type = 'INCOME' AND payment_method = 'TRANSFER' THEN amount ELSE 0 END) as transfer_income
+        FROM cash_transactions
+        {where_clause}
+    """, params)
+    totals = cursor.fetchone()
+
+    total_income = float(totals[0]) if totals and totals[0] else 0
+    total_expenses = float(totals[1]) if totals and totals[1] else 0
+    cash_income = float(totals[2]) if totals and totals[2] else 0
+    card_income = float(totals[3]) if totals and totals[3] else 0
+    transfer_income = float(totals[4]) if totals and totals[4] else 0
+
+    # Billed revenue breakdown: services vs sales, within date range
+    inv_conditions = []
+    inv_params = []
+    if start_date:
+        inv_conditions.append("invoice_date >= ?")
+        inv_params.append(start_date)
+    if end_date:
+        inv_conditions.append("invoice_date <= ?")
+        inv_params.append(end_date)
+    inv_where = ("WHERE " + " AND ".join(inv_conditions)) if inv_conditions else ""
+
+    # Sales billed (all SALE invoices, total amount)
+    cursor.execute(f"""
+        SELECT ISNULL(SUM(total_amount), 0)
+        FROM invoices
+        {inv_where} {(' AND ' if inv_where else ' WHERE ')} invoice_type = 'SALE'
+    """, inv_params)
+    row_sales = cursor.fetchone()
+    sales_billed = float(row_sales[0]) if row_sales and row_sales[0] is not None else 0.0
+
+    # Service billed: subtotal minus parts for non-SALE invoices
+    cursor.execute(f"""
+        SELECT ISNULL(SUM(subtotal), 0)
+        FROM invoices i
+        {inv_where} {(' AND ' if inv_where else ' WHERE ')} i.invoice_type <> 'SALE'
+    """, inv_params)
+    row_service_sub = cursor.fetchone()
+    service_subtotal_sum = float(row_service_sub[0]) if row_service_sub and row_service_sub[0] is not None else 0.0
+
+    cursor.execute(f"""
+        SELECT ISNULL(SUM(ii.line_total), 0)
+        FROM invoice_items ii
+        INNER JOIN invoices i ON ii.invoice_id = i.id
+        {inv_where} {(' AND ' if inv_where else ' WHERE ')} i.invoice_type <> 'SALE'
+    """, inv_params)
+    row_service_parts = cursor.fetchone()
+    service_parts_total = float(row_service_parts[0]) if row_service_parts and row_service_parts[0] is not None else 0.0
+    services_billed = max(0.0, service_subtotal_sum - service_parts_total)
+
+    # Total parts across all invoices (optional, legacy)
+    cursor.execute(f"""
+        SELECT ISNULL(SUM(ii.line_total), 0)
+        FROM invoice_items ii
+        INNER JOIN invoices i ON ii.invoice_id = i.id
+        {inv_where}
+    """, inv_params)
+    row_parts_all = cursor.fetchone()
+    parts_billed_total = float(row_parts_all[0]) if row_parts_all and row_parts_all[0] is not None else 0.0
+
+    connection.close()
+
+    return {
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'net': total_income - total_expenses,
+        'by_method': {
+            'cash': cash_income,
+            'card': card_income,
+            'transfer': transfer_income
+        },
+        'billed_revenue': {
+            'services': services_billed,
+            'sales': sales_billed,
+            'parts_total': parts_billed_total,
+            # backward compatibility keys
+            'service': services_billed,
+            'parts': parts_billed_total
+        }
     }

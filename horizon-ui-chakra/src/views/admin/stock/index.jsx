@@ -48,6 +48,20 @@ import {
   TabPanel,
   Progress,
   Image,
+  HStack,
+  VStack,
+  Center,
+  Spinner,
+  Divider,
+  Tooltip,
+  Tag,
+  TagLabel,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  StatArrow,
+  useToast
 } from '@chakra-ui/react';
 import { 
   MdAdd, 
@@ -59,452 +73,661 @@ import {
   MdTrendingUp,
   MdTrendingDown,
   MdStore,
-  MdLocalShipping
+  MdLocalShipping,
+  MdVisibility,
+  MdLocationOn,
+  MdShoppingCart,
+  MdBarChart,
+  MdFilterList,
+  MdRefresh,
+  MdImage,
+  MdBusiness,
+  MdWarehouse
 } from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
 import Card from 'components/card/Card';
 import MiniStatistics from 'components/card/MiniStatistics';
 import apiService from 'services/apiService';
 
 export default function StockManagement() {
-  const brandColor = useColorModeValue('brand.500', 'white');
-  const boxBg = useColorModeValue('secondaryGray.300', 'whiteAlpha.100');
-  // Color definitions for all components
-  const modalBg = useColorModeValue('white', 'gray.800');
-  const modalCloseColor = useColorModeValue('black', 'white');
-  const itemBoxBg = useColorModeValue('white', 'gray.700');
+  const navigate = useNavigate();
+  const toast = useToast();
+  
+  // Colors
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
-  const modalHeaderColor = useColorModeValue('brand.600', 'brand.200');
-  const modalTextColor = useColorModeValue('gray.800', 'gray.100');
-  const inputBg = useColorModeValue('gray.50', 'gray.700');
-  const inputTextColor = useColorModeValue('gray.800', 'gray.100');
-  const inputBorderColor = useColorModeValue('gray.200', 'gray.600');
-  const buttonBg = useColorModeValue('brand.500', 'brand.400');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.600', 'gray.300');
+  const primaryTextColor = useColorModeValue('gray.800', 'white');
+  const secondaryTextColor = useColorModeValue('gray.500', 'gray.400');
+  const brandColor = useColorModeValue('brand.500', 'brand.300');
+  const hoverBg = useColorModeValue('gray.50', 'gray.700');
+  const locationCardBg = useColorModeValue('gray.50', 'gray.700');
+  const modalBg = useColorModeValue('white', 'gray.800');
+  const modalHeaderColor = useColorModeValue('gray.800', 'white');
+  const inputBg = useColorModeValue('white', 'gray.700');
+  const placeholderColor = useColorModeValue('gray.400', 'gray.500');
+  const iconColor = useColorModeValue('gray.500', 'gray.400');
+  const selectOptionBg = useColorModeValue('white', 'gray.700');
+  const selectOptionColor = useColorModeValue('black', 'white');
   
-  // Additional dark mode fixes
-  const cancelButtonHoverBg = useColorModeValue('gray.100', 'gray.700');
-  const optionTextColor = useColorModeValue('black', 'white');
-  const selectBg = useColorModeValue('white', 'gray.700');
+  // Modals
+  const detailModal = useDisclosure();
+  const locationModal = useDisclosure();
+  const addProductModal = useDisclosure();
   
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedItem, setSelectedItem] = useState(null);
+  // State
+  const [parts, setParts] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [selectedPart, setSelectedPart] = useState(null);
+  const [selectedPartLocations, setSelectedPartLocations] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [activeTab, setActiveTab] = useState(0);
-  const [zoomImage, setZoomImage] = useState(null);
-  const [isZoomOpen, setIsZoomOpen] = useState(false);
-  const buttonTextColor = useColorModeValue('white', 'gray.900');
-  const buttonHoverBg = useColorModeValue('brand.600', 'brand.300');
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [sortBy, setSortBy] = useState('name');
+  
+  // New product form state
+  const [newProduct, setNewProduct] = useState({
+    part_name: '',
+    part_code: '',
+    part_type: 'PART',
+    category_id: '',
+    brand: '',
+    model: '',
+    color: '',
+    size: '',
+    description: '',
+    min_stock_level: 5,
+    max_stock_level: 100,
+    image_file: null
+  });
+  const [categories, setCategories] = useState([]);
+  const [saving, setSaving] = useState(false);
 
 
 
-  // State management for real API data
-  const [stockItems, setStockItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // Load parts from API
-  useEffect(() => {
-    loadParts();
-  }, []);
-
+  // Data loading functions
   const loadParts = async () => {
     try {
       setLoading(true);
-      setError('');
-      const response = await apiService.getParts(1, 200); // Load first 200 parts
       
-      // Transform API response to match frontend format
-      const partsRaw = response?.parts || response?.results || response || [];
-      const transformedParts = partsRaw.map(part => ({
+      // Auto-update currency rates before loading parts to ensure accurate prices
+      try {
+        await apiService.makeRequest('/inventory/currency-rates/', 'POST');
+      } catch (error) {
+        console.warn('Currency update failed, continuing with existing rates:', error);
+      }
+      
+      const response = await apiService.makeRequest('/inventory/parts/');
+      const partsData = response?.parts || response || [];
+      
+      const transformedParts = partsData.map(part => ({
         id: part.id,
-        name: part.part_name,
-        category: part.category_name || '-',
-        partNumber: part.part_code,
-        currentStock: part.total_stock || 0,
-        minStock: part.min_stock_level || 5,
-        maxStock: part.max_stock_level || 100,
-        price: part.sale_price_tl || part.sale_price || 0,
-        supplier: part.supplier_name || '-',
-        lastUpdated: part.updated_date?.split('T')[0] || '',
-        status: part.stock_status?.toLowerCase() || 'normal',
-        image: part.image_path || '',
-        brand: part.brand || '',
-        model: part.model || '',
-        color: part.color || '',
-        size: part.size || '',
-        description: part.description || '',
-        currency: part.currency_type || 'TRY'
-      })) || [];
+        part_code: part.part_code,
+        part_name: part.part_name,
+        part_type: part.part_type,
+        category_name: part.category_name,
+        brand: part.brand,
+        model: part.model,
+        color: part.color,
+        size: part.size,
+        description: part.description,
+        image_path: part.image_path,
+        total_stock: part.total_stock || 0,
+        available_stock: part.available_stock || 0,
+        reserved_stock: part.reserved_stock || 0,
+        min_stock_level: part.min_stock_level || 5,
+        max_stock_level: part.max_stock_level || 100,
+        stock_status: part.stock_status || 'NORMAL',
+        purchase_price: part.purchase_price || 0,
+        sale_price: part.sale_price || 0,
+        currency_type: part.currency_type || 'TRY',
+        effective_date: part.effective_date,
+        supplier_name: part.supplier_name,
+        purchase_price_try_at_purchase: part.purchase_price_try_at_purchase || 0,
+        sale_price_try_today: part.sale_price_try_today || 0,
+        eur_try_today: part.eur_try_today || 35.0,
+        usd_try_today: part.usd_try_today || 32.0,
+        eur_try_on_purchase: part.eur_try_on_purchase || 35.0,
+        usd_try_on_purchase: part.usd_try_on_purchase || 32.0,
+        last_updated: part.updated_date
+      }));
       
-      setStockItems(transformedParts);
+      setParts(transformedParts);
     } catch (error) {
       console.error('Error loading parts:', error);
-      setError('Parçalar yüklenirken hata oluştu: ' + error.message);
+      toast({
+        title: 'Hata',
+        description: 'Ürünler yüklenirken hata oluştu: ' + error.message,
+        status: 'error',
+        duration: 5000
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const [suppliers, setSuppliers] = useState([]);
+  const loadStorageLocations = async () => {
+    try {
+      const response = await apiService.makeRequest('/inventory/storage-locations/');
+      setLocations(response?.storage_locations || response || []);
+    } catch (error) {
+      console.error('Error loading locations:', error);
+    }
+  };
 
-  // Load suppliers from API
+  const loadCategories = async (partType = null) => {
+    try {
+      const url = partType ? `/inventory/categories/?type=${partType}` : '/inventory/categories/';
+      const response = await apiService.makeRequest(url);
+      setCategories(response?.categories || response || []);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
+
+  const loadPartLocations = async (partId) => {
+    try {
+      const response = await apiService.makeRequest(`/inventory/parts/${partId}/locations/`);
+      setSelectedPartLocations(response?.locations || response || []);
+    } catch (error) {
+      console.error('Error loading part locations:', error);
+    }
+  };
+
+  // Effects
   useEffect(() => {
-    loadSuppliers();
+    loadParts();
+    loadStorageLocations();
+    loadCategories();
   }, []);
 
-  const loadSuppliers = async () => {
-    try {
-      const response = await apiService.getSuppliers();
-      const suppliersRaw = response?.suppliers || response || [];
-      const transformedSuppliers = suppliersRaw.map(supplier => ({
-        id: supplier.id,
-        name: supplier.supplier_name,
-        contact: supplier.email || '-',
-        phone: supplier.phone || '-',
-        address: supplier.address || '-',
-        rating: 5 // Default rating, can be enhanced later
-      }));
-      setSuppliers(transformedSuppliers);
-    } catch (error) {
-      console.error('Error loading suppliers:', error);
-    }
-  };
-
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    partNumber: '',
-    currentStock: 0,
-    minStock: 0,
-    maxStock: 0,
-    price: 0,
-    supplier: '',
-    notes: ''
-  });
-
-  const categories = [
-    'Motor', 'Fren Sistemi', 'Lastik', 'Süspansiyon', 'Transmisyon', 
-    'Elektrik', 'Gövde', 'Aksesuar', 'Bakım'
-  ];
-
-  const filteredItems = stockItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.partNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const lowStockItems = stockItems.filter(item => item.currentStock <= item.minStock);
-  const criticalStockItems = stockItems.filter(item => item.currentStock < item.minStock * 0.5);
-
-  const handleAddItem = () => {
-    setSelectedItem(null);
-    setFormData({
-      name: '',
-      category: '',
-      partNumber: '',
-      currentStock: 0,
-      minStock: 0,
-      maxStock: 0,
-      price: 0,
-      supplier: '',
-      notes: ''
-    });
-    onOpen();
-  };
-
-  const handleEditItem = (item) => {
-    setSelectedItem(item);
-    setFormData({
-      name: item.name,
-      category: item.category,
-      partNumber: item.partNumber,
-      currentStock: item.currentStock,
-      minStock: item.minStock,
-      maxStock: item.maxStock,
-      price: item.price,
-      supplier: item.supplier,
-      notes: item.notes || ''
-    });
-    onOpen();
-  };
-
-  const handleSaveItem = () => {
-    const updatedItem = {
-      ...formData,
-      lastUpdated: new Date().toISOString().split('T')[0],
-      status: getStockStatus(formData.currentStock, formData.minStock)
-    };
-
-    if (selectedItem) {
-      setStockItems(stockItems.map(item =>
-        item.id === selectedItem.id
-          ? { ...item, ...updatedItem }
-          : item
-      ));
-    } else {
-      const newItem = {
-        ...updatedItem,
-        id: Date.now()
-      };
-      setStockItems([...stockItems, newItem]);
-    }
-    onClose();
-  };
-
-  const handleDeleteItem = (itemId) => {
-    setStockItems(stockItems.filter(item => item.id !== itemId));
-  };
-
-  const getStockStatus = (current, min) => {
-    if (current < min * 0.5) return 'critical';
-    if (current <= min) return 'low';
-    return 'normal';
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'normal': return 'green';
-      case 'low': return 'yellow';
-      case 'critical': return 'red';
+  // Utility functions
+  const getStockStatusColor = (status) => {
+    switch (status?.toUpperCase()) {
+      case 'CRITICAL': return 'red';
+      case 'LOW': return 'yellow';
+      case 'NORMAL': return 'green';
       default: return 'gray';
     }
   };
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'normal': return 'Normal';
-      case 'low': return 'Düşük';
-      case 'critical': return 'Kritik';
+  const getStockStatusText = (status) => {
+    switch (status?.toUpperCase()) {
+      case 'CRITICAL': return 'Kritik';
+      case 'LOW': return 'Düşük';
+      case 'NORMAL': return 'Normal';
       default: return 'Bilinmiyor';
     }
   };
 
-  const calculateStockValue = () => {
-    return stockItems.reduce((total, item) => total + (item.currentStock * item.price), 0);
+  const formatLocationDescription = (location) => {
+    if (location.location_type === 'STORE') {
+      return `Mağaza - ${location.location_name}`;
+    } else {
+      // WAREHOUSE
+      let description = 'Depo';
+      if (location.shelf_code) {
+        description += ` - ${location.shelf_code} Rafı`;
+      }
+      if (location.rack_number) {
+        description += ` - ${location.rack_number}. Sıra`;
+      }
+      if (location.level_number) {
+        description += ` - ${location.level_number}. Seviye`;
+      }
+      return description;
+    }
   };
 
-  const getStockPercentage = (current, max) => {
-    return max > 0 ? (current / max) * 100 : 0;
+  const getCurrencySymbol = (currencyType) => {
+    switch (currencyType) {
+      case 'EUR': return '€';
+      case 'USD': return '$';
+      case 'TRY': return '₺';
+      default: return '₺';
+    }
   };
+
+  const handleRowClick = async (part) => {
+    setSelectedPart(part);
+    await loadPartLocations(part.id);
+    detailModal.onOpen();
+  };
+
+  const handleSellProduct = (part) => {
+    // Navigate to sales page and add product to cart
+    navigate('/admin/sales', { 
+      state: { 
+        addToCart: {
+          id: part.id,
+          part_name: part.part_name,
+          price: part.currency_type !== 'TRY' ? part.sale_price_try_today : part.sale_price
+        }
+      }
+    });
+  };
+
+  const handleAddProduct = async () => {
+    try {
+      if (!newProduct.part_name || !newProduct.part_code || !newProduct.category_id) {
+        toast({
+          title: 'Hata',
+          description: 'Ürün adı, kodu ve kategorisi gereklidir',
+          status: 'error',
+          duration: 5000
+        });
+        return;
+      }
+
+      setSaving(true);
+      const formData = new FormData();
+      formData.append('part_name', newProduct.part_name);
+      formData.append('part_code', newProduct.part_code);
+      formData.append('category_id', newProduct.category_id);
+      formData.append('part_type', newProduct.part_type);
+      formData.append('brand', newProduct.brand);
+      formData.append('model', newProduct.model);
+      formData.append('color', newProduct.color);
+      formData.append('size', newProduct.size);
+      formData.append('description', newProduct.description);
+      formData.append('min_stock_level', newProduct.min_stock_level);
+      formData.append('max_stock_level', newProduct.max_stock_level);
+      
+      if (newProduct.image_file) {
+        formData.append('image', newProduct.image_file);
+      }
+
+      const response = await fetch('http://localhost:8000/api/inventory/parts/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Ürün ekleme başarısız');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: 'Başarılı',
+        description: `${newProduct.part_name} başarıyla eklendi`,
+        status: 'success',
+        duration: 5000
+      });
+
+      // Reset form
+      setNewProduct({
+        part_name: '',
+        part_code: '',
+        part_type: 'PART',
+        category_id: '',
+        brand: '',
+        model: '',
+        color: '',
+        size: '',
+        description: '',
+        min_stock_level: 5,
+        max_stock_level: 100,
+        image_file: null
+      });
+
+      addProductModal.onClose();
+      loadParts(); // Reload parts list
+      
+    } catch (error) {
+      console.error('Error adding product:', error);
+      toast({
+        title: 'Hata',
+        description: error.message,
+        status: 'error',
+        duration: 5000
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Filtering and sorting
+  const filteredParts = parts.filter(part => {
+    const matchesSearch = part.part_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         part.part_code.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'ALL' || part.part_type === filterType;
+    const matchesStatus = filterStatus === 'ALL' || part.stock_status === filterStatus;
+    return matchesSearch && matchesType && matchesStatus;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'name': return a.part_name.localeCompare(b.part_name);
+      case 'stock': return b.total_stock - a.total_stock;
+      case 'status': return a.stock_status.localeCompare(b.stock_status);
+      default: return 0;
+    }
+  });
+
+  // Statistics
+  const totalParts = parts.length;
+  const lowStockParts = parts.filter(p => p.stock_status === 'LOW').length;
+  const criticalStockParts = parts.filter(p => p.stock_status === 'CRITICAL').length;
+  const totalValue = parts.reduce((sum, p) => {
+    const priceInTry = p.currency_type !== 'TRY' ? p.sale_price_try_today : p.sale_price;
+    return sum + (p.total_stock * priceInTry);
+  }, 0);
+
+
 
   return (
-    <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
-      {/* Statistics Cards */}
+    <Box pt={{ base: '130px', md: '80px', xl: '80px' }} bg={bgColor} minH="100vh">
+      {/* Header */}
+      <Card mb={6}>
+        <Flex justify="space-between" align="center" mb={4}>
+          <VStack align="start" spacing={1}>
+            <Text fontSize="2xl" fontWeight="bold" color={primaryTextColor}>Stok Yönetimi</Text>
+            <Text color={secondaryTextColor}>Mağaza ve depo stok durumunu görüntüleyin ve yönetin</Text>
+          </VStack>
+          <HStack>
+            <Button leftIcon={<Icon as={MdRefresh} />} variant="outline" onClick={loadParts} isLoading={loading}>
+              Yenile
+            </Button>
+            <Button 
+              leftIcon={<Icon as={MdAdd} />} 
+              colorScheme="brand"
+              onClick={() => {
+                loadCategories(newProduct.part_type);
+                addProductModal.onOpen();
+              }}
+            >
+              Yeni Ürün
+            </Button>
+          </HStack>
+        </Flex>
+
+        {/* Filters */}
+        <Flex gap={4} mb={4} align="center" wrap="wrap">
+          <HStack flex={1} maxW="400px">
+            <Icon as={MdSearch} color={iconColor} />
+            <Input 
+              placeholder="Ürün adı veya kodu ara..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              bg={inputBg}
+              border="1px"
+              borderColor={borderColor}
+              color={primaryTextColor}
+              _placeholder={{ color: placeholderColor }}
+            />
+          </HStack>
+          
+          <Select 
+            value={filterType} 
+            onChange={(e) => setFilterType(e.target.value)} 
+            w="150px" 
+            bg={inputBg}
+            color={primaryTextColor}
+            borderColor={borderColor}
+          >
+            <option value="ALL" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Tüm Tipler</option>
+            <option value="PART" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Yedek Parça</option>
+            <option value="ACCESSORY" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Aksesuar</option>
+          </Select>
+
+          <Select 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value)} 
+            w="150px" 
+            bg={inputBg}
+            color={primaryTextColor}
+            borderColor={borderColor}
+          >
+            <option value="ALL" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Tüm Durumlar</option>
+            <option value="NORMAL" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Normal</option>
+            <option value="LOW" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Düşük</option>
+            <option value="CRITICAL" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Kritik</option>
+          </Select>
+
+          <Select 
+            value={sortBy} 
+            onChange={(e) => setSortBy(e.target.value)} 
+            w="150px" 
+            bg={inputBg}
+            color={primaryTextColor}
+            borderColor={borderColor}
+          >
+            <option value="name" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Ada Göre</option>
+            <option value="stock" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Stoka Göre</option>
+            <option value="status" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Duruma Göre</option>
+          </Select>
+        </Flex>
+      </Card>
+
+      {/* Statistics */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap="20px" mb="20px">
-        <MiniStatistics
-          startContent={
-            <Icon as={MdInventory} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Toplam Ürün"
-          value={stockItems.length.toString()}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdWarning} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Düşük Stok"
-          value={lowStockItems.length.toString()}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdStore} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Stok Değeri"
-          value={`₺${calculateStockValue().toLocaleString()}`}
-        />
-        <MiniStatistics
-          startContent={
-            <Icon as={MdLocalShipping} w="56px" h="56px" bg={boxBg} borderRadius="16px" p="12px" />
-          }
-          name="Tedarikçi"
-          value={suppliers.length.toString()}
-        />
+        <Card p={6}>
+          <Stat>
+            <StatLabel>Toplam Ürün</StatLabel>
+            <StatNumber color={brandColor}>{totalParts}</StatNumber>
+            <StatHelpText>
+              <Icon as={MdInventory} mr={1} />
+              Tüm ürünler
+            </StatHelpText>
+          </Stat>
+        </Card>
+        
+        <Card p={6}>
+          <Stat>
+            <StatLabel>Düşük Stok</StatLabel>
+            <StatNumber color="yellow.500">{lowStockParts}</StatNumber>
+            <StatHelpText>
+              <Icon as={MdWarning} mr={1} />
+              Minimum seviye
+            </StatHelpText>
+          </Stat>
+        </Card>
+        
+        <Card p={6}>
+          <Stat>
+            <StatLabel>Kritik Stok</StatLabel>
+            <StatNumber color="red.500">{criticalStockParts}</StatNumber>
+            <StatHelpText>
+              <Icon as={MdTrendingDown} mr={1} />
+              Acil tedarik
+            </StatHelpText>
+          </Stat>
+        </Card>
+        
+        <Card p={6}>
+          <Stat>
+            <StatLabel>Toplam Değer</StatLabel>
+            <StatNumber color="green.500">₺{totalValue.toLocaleString()}</StatNumber>
+            <StatHelpText>
+              <Icon as={MdTrendingUp} mr={1} />
+              Stok değeri
+            </StatHelpText>
+          </Stat>
+        </Card>
       </SimpleGrid>
 
-      {/* Critical Stock Alert */}
-      {criticalStockItems.length > 0 && (
+      {/* Alerts */}
+      {criticalStockParts > 0 && (
         <Alert status="error" mb="20px" borderRadius="12px">
           <AlertIcon />
           <Box>
             <AlertTitle>Kritik Stok Durumu!</AlertTitle>
             <AlertDescription>
-              {criticalStockItems.length} ürünün stoğu kritik seviyede. Acil tedarik gerekiyor.
+              {criticalStockParts} ürünün stoğu kritik seviyede. Acil tedarik gerekiyor.
             </AlertDescription>
           </Box>
         </Alert>
       )}
 
-      {/* Low Stock Alert */}
-      {lowStockItems.length > 0 && (
+      {lowStockParts > 0 && (
         <Alert status="warning" mb="20px" borderRadius="12px">
           <AlertIcon />
           <Box>
             <AlertTitle>Düşük Stok Uyarısı!</AlertTitle>
             <AlertDescription>
-              {lowStockItems.length} ürünün stoğu minimum seviyede veya altında.
+              {lowStockParts} ürünün stoğu minimum seviyede veya altında.
             </AlertDescription>
           </Box>
         </Alert>
       )}
 
-      {/* Main Content */}
+      {/* Main Table */}
       <Card>
-        <Tabs index={activeTab} onChange={setActiveTab}>
-          <TabList>
-            <Tab>Stok Yönetimi</Tab>
-            <Tab>Tedarikçiler</Tab>
-            <Tab>Stok Analizi</Tab>
-          </TabList>
-
-          <TabPanels>
-            {/* Stock Management Tab */}
-            <TabPanel>
-              <Flex justify="space-between" align="center" mb="20px">
-                <Text fontSize="2xl" fontWeight="bold" color={brandColor}>
-                  Stok Yönetimi
-                </Text>
-                <Button
-                  leftIcon={<MdAdd />}
-                  colorScheme="brand"
-                  onClick={handleAddItem}
-                >
-                  Yeni Ürün Ekle
-                </Button>
-              </Flex>
-
-              {/* Search and Filter */}
-              <Stack direction={{ base: 'column', md: 'row' }} spacing={4} mb="20px">
-                <InputGroup>
-                  <InputLeftElement pointerEvents="none">
-                    <Icon as={MdSearch} color="gray.300" />
-                  </InputLeftElement>
-                  <Input
-                    placeholder="Ürün ara..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    bg={inputBg}
-                    color={inputTextColor}
-                    borderColor={inputBorderColor}
-                  />
-                </InputGroup>
-                <Select
-                  placeholder="Kategori filtresi"
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  w={{ base: '100%', md: '200px' }}
-                  bg={inputBg}
-                  color={inputTextColor}
-                  borderColor={inputBorderColor}
-                >
-                  <option value="all" style={{ backgroundColor: selectBg, color: optionTextColor }}>Tümü</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat} style={{ backgroundColor: selectBg, color: optionTextColor }}>{cat}</option>
-                  ))}
-                </Select>
-              </Stack>
-
-              {/* Error State */}
-              {error && (
-                <Alert status="error" mb="20px" borderRadius="12px">
-                  <AlertIcon />
-                  <AlertTitle>Hata!</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {/* Loading State */}
               {loading ? (
-                <Box textAlign="center" py="40px">
-                  <Text>Parçalar yükleniyor...</Text>
-                </Box>
-              ) : (
-              /* Stock Table */
+          <Center py={10}>
+            <VStack>
+              <Spinner size="xl" color={brandColor} />
+              <Text color={primaryTextColor}>Stok verileri yükleniyor...</Text>
+            </VStack>
+          </Center>
+        ) : (
               <TableContainer>
-                <Table variant="simple">
+            <Table variant="simple" size="sm">
                   <Thead>
                     <Tr>
                       <Th>Görsel</Th>
-                      <Th>ÜRÜN ADI</Th>
-                      <Th>Kategori</Th>
-                      <Th>Parça No</Th>
-                      <Th>Mevcut Stok</Th>
-                      <Th>Min/Max</Th>
+                  <Th>Ürün Bilgileri</Th>
+                  <Th>Tip</Th>
+                  <Th>Stok Durumu</Th>
+                  <Th>Lokasyonlar</Th>
                       <Th>Fiyat</Th>
-                      <Th>Tedarikçi</Th>
                       <Th>Durum</Th>
                       <Th>İşlemler</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {filteredItems.map((item) => (
-                      <Tr key={item.id}>
-                        <Td>
-                          <Box
-                            bg={itemBoxBg}
-                            borderRadius="md"
-                            boxShadow="md"
-                            p="1"
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="center"
-                            w="48px"
-                            h="48px"
+                {filteredParts.map((part) => (
+                  <Tr 
+                    key={part.id} 
                             cursor="pointer"
-                            onClick={() => {
-                              if (item.image) {
-                                setZoomImage(item.image);
-                                setIsZoomOpen(true);
-                              }
-                            }}
-                          >
+                    _hover={{ bg: hoverBg }}
+                    onClick={() => handleRowClick(part)}
+                  >
+                    <Td>
+                      <Box w="40px" h="40px" borderRadius="md" overflow="hidden" bg="gray.100">
                             <Image
-                              src={item.image || 'https://via.placeholder.com/40x40?text=No+Image'}
-                              alt={item.name}
-                              boxSize="40px"
-                              objectFit="contain"
-                              borderRadius="md"
-                              fallbackSrc="https://via.placeholder.com/40x40?text=No+Image"
+                          src={part.image_path || '/placeholder-product.png'}
+                          alt={part.part_name}
+                          w="100%"
+                          h="100%"
+                          objectFit="cover"
+                          fallbackSrc="/placeholder-product.png"
                             />
                           </Box>
                         </Td>
-                        <Td>{item.name}</Td>
-                        <Td>{item.category}</Td>
-                        <Td>{item.partNumber}</Td>
-                        <Td>
-                          <Box>
-                            <Text fontWeight="bold">{item.currentStock}</Text>
-                            <Progress
-                              value={getStockPercentage(item.currentStock, item.maxStock)}
-                              colorScheme={getStatusColor(item.status)}
+                    <Td>
+                      <VStack align="start" spacing={1}>
+                        <Text fontWeight="bold" fontSize="sm" color={primaryTextColor}>{part.part_name}</Text>
+                        <Text fontSize="xs" color={secondaryTextColor}>{part.part_code}</Text>
+                        <Text fontSize="xs" color={secondaryTextColor}>{part.category_name}</Text>
+                        {(part.brand || part.model) && (
+                          <Text fontSize="xs" color={secondaryTextColor}>
+                            {part.brand} {part.model}
+                          </Text>
+                        )}
+                      </VStack>
+                    </Td>
+                    <Td>
+                      <Badge colorScheme={part.part_type === 'PART' ? 'blue' : 'purple'}>
+                        {part.part_type === 'PART' ? 'Yedek Parça' : 'Aksesuar'}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <VStack align="start" spacing={1}>
+                        <HStack>
+                          <Text fontWeight="bold" color={primaryTextColor}>{part.total_stock}</Text>
+                          <Text fontSize="xs" color={secondaryTextColor}>toplam</Text>
+                        </HStack>
+                        <HStack>
+                          <Text fontSize="xs" color="green.500">{part.available_stock} müsait</Text>
+                          {part.reserved_stock > 0 && (
+                            <Text fontSize="xs" color="orange.500">{part.reserved_stock} rezerve</Text>
+                          )}
+                        </HStack>
+                        <Text fontSize="xs" color={secondaryTextColor}>
+                          Min: {part.min_stock_level} / Max: {part.max_stock_level}
+                        </Text>
+                      </VStack>
+                    </Td>
+                    <Td>
+                      <Button
+                        leftIcon={<Icon as={MdLocationOn} />}
                               size="sm"
-                              w="60px"
-                            />
-                          </Box>
-                        </Td>
-                        <Td>{item.minStock} / {item.maxStock}</Td>
-                        <Td>₺{item.price.toLocaleString()}</Td>
-                        <Td>{item.supplier}</Td>
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPart(part);
+                          loadPartLocations(part.id);
+                          locationModal.onOpen();
+                        }}
+                      >
+                        Konumlar
+                      </Button>
+                    </Td>
+                                        <Td>
+                      <VStack align="start" spacing={1}>
+                        {part.currency_type !== 'TRY' ? (
+                          <>
+                            <Text fontWeight="bold" color="green.600" fontSize="sm">
+                              ₺{part.sale_price_try_today?.toLocaleString() || 0}
+                            </Text>
+                            <Text fontSize="xs" color={secondaryTextColor}>
+                              Satış: {getCurrencySymbol(part.currency_type)}{part.sale_price?.toLocaleString() || 0}
+                            </Text>
+                            <Text fontSize="xs" color={secondaryTextColor}>
+                              Alış: {getCurrencySymbol(part.currency_type)}{part.purchase_price?.toLocaleString() || 0}
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <Text fontWeight="bold" color="green.600">
+                              ₺{part.sale_price?.toLocaleString() || 0}
+                            </Text>
+                            <Text fontSize="xs" color={secondaryTextColor}>
+                              Alış: ₺{part.purchase_price?.toLocaleString() || 0}
+                            </Text>
+                          </>
+                        )}
+                        <Badge size="xs" colorScheme={part.currency_type === 'TRY' ? 'green' : part.currency_type === 'EUR' ? 'blue' : 'purple'}>
+                          {part.currency_type}
+                        </Badge>
+                      </VStack>
+                    </Td>
                         <Td>
-                          <Badge colorScheme={getStatusColor(item.status)}>
-                            {getStatusText(item.status)}
+                      <Badge colorScheme={getStockStatusColor(part.stock_status)}>
+                        {getStockStatusText(part.stock_status)}
                           </Badge>
                         </Td>
                         <Td>
-                          <Stack direction="row" spacing={1}>
+                      <HStack>
+                        <Tooltip label="Detayları Görüntüle">
                             <IconButton
-                              icon={<MdEdit />}
+                            icon={<Icon as={MdVisibility} />}
                               size="sm"
-                              colorScheme="blue"
-                              onClick={() => handleEditItem(item)}
-                            />
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRowClick(part);
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip label="Satış Yap">
                             <IconButton
-                              icon={<MdDelete />}
+                            icon={<Icon as={MdShoppingCart} />}
                               size="sm"
-                              colorScheme="red"
-                              onClick={() => handleDeleteItem(item.id)}
-                            />
-                          </Stack>
+                            colorScheme="green"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSellProduct(part);
+                            }}
+                          />
+                        </Tooltip>
+                      </HStack>
                         </Td>
                       </Tr>
                     ))}
@@ -513,310 +736,501 @@ export default function StockManagement() {
               </TableContainer>
               )}
 
-              {!loading && filteredItems.length === 0 && (
-                <Box textAlign="center" py="40px">
-                  <Text fontSize="lg" color="gray.500">
-                    {searchTerm || filterCategory !== 'all' 
-                      ? 'Arama kriterlerinize uygun ürün bulunamadı.'
-                      : 'Henüz ürün eklenmemiş.'
-                    }
-                  </Text>
-                </Box>
-              )}
-            </TabPanel>
-
-            {/* Suppliers Tab */}
-            <TabPanel>
-              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
-                Tedarikçiler
+                {!loading && filteredParts.length === 0 && (
+          <Center py={10}>
+            <VStack>
+              <Icon as={MdInventory} boxSize={12} color={iconColor} />
+              <Text color={secondaryTextColor}>
+                {searchTerm || filterType !== 'ALL' || filterStatus !== 'ALL'
+                  ? 'Arama kriterlerinize uygun ürün bulunamadı.'
+                  : 'Henüz ürün eklenmemiş.'
+                }
               </Text>
-              
-              <TableContainer>
-                <Table variant="simple">
-                  <Thead>
-                    <Tr>
-                      <Th>Tedarikçi Adı</Th>
-                      <Th>İletişim</Th>
-                      <Th>Telefon</Th>
-                      <Th>Adres</Th>
-                      <Th>Değerlendirme</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {suppliers.map((supplier) => (
-                      <Tr key={supplier.id}>
-                        <Td fontWeight="bold">{supplier.name}</Td>
-                        <Td>{supplier.contact}</Td>
-                        <Td>{supplier.phone}</Td>
-                        <Td>{supplier.address}</Td>
-                        <Td>
-                          <Badge colorScheme={supplier.rating >= 4 ? 'green' : 'yellow'}>
-                            {supplier.rating}/5
-                          </Badge>
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </TableContainer>
-            </TabPanel>
-
-            {/* Stock Analysis Tab */}
-            <TabPanel>
-              <Text fontSize="2xl" fontWeight="bold" color={brandColor} mb="20px">
-                Stok Analizi
-              </Text>
-              
-              <SimpleGrid columns={{ base: 1, md: 2 }} gap="20px">
-                <Card>
-                  <Text fontSize="lg" fontWeight="bold" mb="10px">Kategori Bazlı Stok Dağılımı</Text>
-                  {categories.map(category => {
-                    const categoryItems = stockItems.filter(item => item.category === category);
-                    const categoryValue = categoryItems.reduce((sum, item) => sum + (item.currentStock * item.price), 0);
-                    const totalValue = calculateStockValue();
-                    const percentage = totalValue > 0 ? (categoryValue / totalValue) * 100 : 0;
-                    
-                    return (
-                      <Box key={category} mb="10px">
-                        <Flex justify="space-between" mb="5px">
-                          <Text fontSize="sm">{category}</Text>
-                          <Text fontSize="sm">₺{categoryValue.toLocaleString()}</Text>
-                        </Flex>
-                        <Progress value={percentage} colorScheme="brand" size="sm" />
-                      </Box>
-                    );
-                  })}
-                </Card>
-
-                <Card>
-                  <Text fontSize="lg" fontWeight="bold" mb="10px">Stok Durumu Özeti</Text>
-                  <Stack spacing={4}>
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Normal Stok</Text>
-                        <Text fontWeight="bold" color="green.500">
-                          {stockItems.filter(item => item.status === 'normal').length}
-                        </Text>
-                      </Flex>
-                    </Box>
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Düşük Stok</Text>
-                        <Text fontWeight="bold" color="yellow.500">
-                          {stockItems.filter(item => item.status === 'low').length}
-                        </Text>
-                      </Flex>
-                    </Box>
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Kritik Stok</Text>
-                        <Text fontWeight="bold" color="red.500">
-                          {stockItems.filter(item => item.status === 'critical').length}
-                        </Text>
-                      </Flex>
-                    </Box>
-                    <Box>
-                      <Flex justify="space-between">
-                        <Text>Toplam Stok Değeri</Text>
-                        <Text fontWeight="bold" color={brandColor}>
-                          ₺{calculateStockValue().toLocaleString()}
-                        </Text>
-                      </Flex>
-                    </Box>
-                  </Stack>
-                </Card>
-              </SimpleGrid>
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
+            </VStack>
+          </Center>
+        )}
       </Card>
 
-      {/* Add/Edit Item Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg" isCentered>
+      {/* Product Detail Modal */}
+      <Modal isOpen={detailModal.isOpen} onClose={detailModal.onClose} size="xl">
         <ModalOverlay />
-        <ModalContent bg={modalBg} color={modalTextColor} borderRadius="2xl" boxShadow="2xl">
-          <ModalHeader color={modalHeaderColor} fontWeight="bold">
-            {selectedItem ? 'Ürün Düzenle' : 'Yeni Ürün Ekle'}
+        <ModalContent bg={modalBg}>
+          <ModalHeader color={modalHeaderColor}>
+            <HStack>
+              <Icon as={MdVisibility} />
+              <Text>Ürün Detayları</Text>
+            </HStack>
           </ModalHeader>
-          <ModalCloseButton color={modalTextColor} />
+          <ModalCloseButton />
           <ModalBody>
-            <Stack spacing={4}>
-              <FormControl isRequired>
-                <FormLabel color={modalTextColor}>Ürün Adı</FormLabel>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="Ürün adını girin"
-                  bg={inputBg}
-                  color={inputTextColor}
-                  borderColor={inputBorderColor}
-                  _placeholder={{ color: 'gray.400' }}
-                />
-              </FormControl>
+            {selectedPart && (
+              <VStack align="stretch" spacing={4}>
+                <HStack align="start" spacing={4}>
+                  <Box w="120px" h="120px" borderRadius="lg" overflow="hidden" bg="gray.100">
+                    <Image
+                      src={selectedPart.image_path || '/placeholder-product.png'}
+                      alt={selectedPart.part_name}
+                      w="100%"
+                      h="100%"
+                      objectFit="cover"
+                    />
+                  </Box>
+                  <VStack align="start" flex={1} spacing={2}>
+                    <Text fontSize="xl" fontWeight="bold" color={primaryTextColor}>{selectedPart.part_name}</Text>
+                    <Text color={secondaryTextColor}>{selectedPart.part_code}</Text>
+                    <HStack>
+                      <Badge colorScheme={selectedPart.part_type === 'PART' ? 'blue' : 'purple'}>
+                        {selectedPart.part_type === 'PART' ? 'Yedek Parça' : 'Aksesuar'}
+                      </Badge>
+                      <Badge colorScheme={getStockStatusColor(selectedPart.stock_status)}>
+                        {getStockStatusText(selectedPart.stock_status)}
+                      </Badge>
+                    </HStack>
+                  </VStack>
+                </HStack>
 
-              <FormControl isRequired>
-                <FormLabel color={modalTextColor}>Kategori</FormLabel>
-                <Select
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  placeholder="Kategori seçin"
-                  bg={inputBg}
-                  color={inputTextColor}
-                  borderColor={inputBorderColor}
-                  _placeholder={{ color: 'gray.400' }}
-                >
-                  {categories.map(cat => (
-                    <option key={cat} value={cat} style={{ backgroundColor: selectBg, color: optionTextColor }}>{cat}</option>
-                  ))}
-                </Select>
-              </FormControl>
+                <Divider />
 
-              <FormControl isRequired>
-                <FormLabel color={modalTextColor}>Parça Numarası</FormLabel>
-                <Input
-                  value={formData.partNumber}
-                  onChange={(e) => setFormData({...formData, partNumber: e.target.value})}
-                  placeholder="Parça numarasını girin"
-                  bg={inputBg}
-                  color={inputTextColor}
-                  borderColor={inputBorderColor}
-                  _placeholder={{ color: 'gray.400' }}
-                />
-              </FormControl>
+                <SimpleGrid columns={2} gap={4}>
+                  <VStack align="start">
+                    <Text fontWeight="bold" color={primaryTextColor}>Stok Bilgileri</Text>
+                    <Text color={primaryTextColor}>Toplam Stok: <Text as="span" fontWeight="bold">{selectedPart.total_stock}</Text></Text>
+                    <Text color={primaryTextColor}>Müsait Stok: <Text as="span" fontWeight="bold" color="green.500">{selectedPart.available_stock}</Text></Text>
+                    <Text color={primaryTextColor}>Rezerve Stok: <Text as="span" fontWeight="bold" color="orange.500">{selectedPart.reserved_stock}</Text></Text>
+                    <Text color={primaryTextColor}>Min/Max: <Text as="span" fontWeight="bold">{selectedPart.min_stock_level}/{selectedPart.max_stock_level}</Text></Text>
+                  </VStack>
+                  
+                  <VStack align="start">
+                    <Text fontWeight="bold" color={primaryTextColor}>Fiyat Bilgileri</Text>
+                    
+                    {selectedPart.currency_type !== 'TRY' ? (
+                      <>
+                        <Text color={primaryTextColor}>
+                          Alış Fiyatı ({selectedPart.currency_type}): 
+                          <Text as="span" fontWeight="bold" ml={2}>
+                            {getCurrencySymbol(selectedPart.currency_type)}{selectedPart.purchase_price?.toLocaleString()}
+                          </Text>
+                        </Text>
+                        <Text color={primaryTextColor}>
+                          Alış Fiyatı (Alış Günü TRY): 
+                          <Text as="span" fontWeight="bold" ml={2}>
+                            ₺{selectedPart.purchase_price_try_at_purchase?.toLocaleString()}
+                          </Text>
+                        </Text>
+                        <Text color={primaryTextColor}>
+                          Satış Fiyatı ({selectedPart.currency_type}): 
+                          <Text as="span" fontWeight="bold" ml={2}>
+                            {getCurrencySymbol(selectedPart.currency_type)}{selectedPart.sale_price?.toLocaleString()}
+                          </Text>
+                        </Text>
+                        <Text color={primaryTextColor}>
+                          Satış Fiyatı (Güncel TRY): 
+                          <Text as="span" fontWeight="bold" color="green.500" ml={2}>
+                            ₺{selectedPart.sale_price_try_today?.toLocaleString()}
+                          </Text>
+                        </Text>
+                        {selectedPart.effective_date && (
+                          <Text fontSize="xs" color={secondaryTextColor}>
+                            * Alış tarihi: {new Date(selectedPart.effective_date).toLocaleDateString('tr-TR')}
+                          </Text>
+                        )}
+                        <Text fontSize="xs" color={secondaryTextColor}>
+                          * Güncel kur: {selectedPart.currency_type === 'EUR' ? selectedPart.eur_try_today : selectedPart.usd_try_today} TRY
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text color={primaryTextColor}>
+                          Alış Fiyatı: 
+                          <Text as="span" fontWeight="bold" ml={2}>
+                            ₺{selectedPart.purchase_price?.toLocaleString()}
+                          </Text>
+                        </Text>
+                        <Text color={primaryTextColor}>
+                          Satış Fiyatı: 
+                          <Text as="span" fontWeight="bold" color="green.500" ml={2}>
+                            ₺{selectedPart.sale_price?.toLocaleString()}
+                          </Text>
+                        </Text>
+                      </>
+                    )}
+                    
+                    <Text color={primaryTextColor}>Para Birimi: <Text as="span" fontWeight="bold">{selectedPart.currency_type}</Text></Text>
+                    <Text color={primaryTextColor}>Tedarikçi: <Text as="span" fontWeight="bold">{selectedPart.supplier_name || '-'}</Text></Text>
+                  </VStack>
+                </SimpleGrid>
 
-              <Stack direction="row" spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel color={modalTextColor}>Mevcut Stok</FormLabel>
-                  <NumberInput
-                    value={formData.currentStock}
-                    onChange={(value) => setFormData({...formData, currentStock: parseInt(value) || 0})}
-                    min={0}
-                  >
-                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
+                {selectedPart.description && (
+                  <>
+                    <Divider />
+                    <VStack align="start">
+                      <Text fontWeight="bold" color={primaryTextColor}>Açıklama</Text>
+                      <Text color={primaryTextColor}>{selectedPart.description}</Text>
+                    </VStack>
+                  </>
+                )}
 
-                <FormControl isRequired>
-                  <FormLabel color={modalTextColor}>Min Stok</FormLabel>
-                  <NumberInput
-                    value={formData.minStock}
-                    onChange={(value) => setFormData({...formData, minStock: parseInt(value) || 0})}
-                    min={0}
-                  >
-                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
-              </Stack>
+                <Divider />
 
-              <Stack direction="row" spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel color={modalTextColor}>Max Stok</FormLabel>
-                  <NumberInput
-                    value={formData.maxStock}
-                    onChange={(value) => setFormData({...formData, maxStock: parseInt(value) || 0})}
-                    min={0}
-                  >
-                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel color={modalTextColor}>Fiyat (₺)</FormLabel>
-                  <NumberInput
-                    value={formData.price}
-                    onChange={(value) => setFormData({...formData, price: parseFloat(value) || 0})}
-                    min={0}
-                  >
-                    <NumberInputField bg={inputBg} color={inputTextColor} borderColor={inputBorderColor} _placeholder={{ color: 'gray.400' }} />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
-                </FormControl>
-              </Stack>
-
-              <FormControl isRequired>
-                <FormLabel color={modalTextColor}>Tedarikçi</FormLabel>
-                <Select
-                  value={formData.supplier}
-                  onChange={(e) => setFormData({...formData, supplier: e.target.value})}
-                  placeholder="Tedarikçi seçin"
-                  bg={inputBg}
-                  color={inputTextColor}
-                  borderColor={inputBorderColor}
-                  _placeholder={{ color: 'gray.400' }}
-                >
-                  {suppliers.map(supplier => (
-                    <option key={supplier.id} value={supplier.name} style={{ backgroundColor: selectBg, color: optionTextColor }}>{supplier.name}</option>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel color={modalTextColor}>Notlar</FormLabel>
-                <Textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                  placeholder="Ürün hakkında notlar"
-                  rows={3}
-                  bg={inputBg}
-                  color={inputTextColor}
-                  borderColor={inputBorderColor}
-                  _placeholder={{ color: 'gray.400' }}
-                />
-              </FormControl>
-            </Stack>
+                <VStack align="start">
+                  <Text fontWeight="bold" color={primaryTextColor}>Lokasyon Bilgileri</Text>
+                  {selectedPartLocations.length > 0 ? (
+                    <SimpleGrid columns={1} gap={2} w="100%">
+                      {selectedPartLocations.map((loc, index) => (
+                        <HStack key={index} p={2} bg={locationCardBg} borderRadius="md">
+                          <Icon as={loc.location_type === 'STORE' ? MdStore : MdWarehouse} color={iconColor} />
+                          <VStack align="start" spacing={0}>
+                            <Text fontSize="sm" fontWeight="bold" color={primaryTextColor}>
+                              {formatLocationDescription(loc)}
+                            </Text>
+                            <Text fontSize="xs" color={secondaryTextColor}>
+                              Kod: {loc.location_code}
+                            </Text>
+                            <Text fontSize="xs" color={primaryTextColor}>
+                              <Text as="span" fontWeight="bold">{loc.current_stock}</Text> adet 
+                              {loc.reserved_stock > 0 && ` (${loc.reserved_stock} rezerve)`}
+                            </Text>
+                          </VStack>
+                        </HStack>
+                      ))}
+                    </SimpleGrid>
+                  ) : (
+                    <Text color={secondaryTextColor}>Lokasyon bilgileri yükleniyor...</Text>
+                  )}
+                </VStack>
+              </VStack>
+            )}
           </ModalBody>
-
-          <ModalFooter bg={modalBg} borderBottomRadius="2xl">
-            <Button variant="ghost" mr={3} onClick={onClose} color={buttonTextColor} bg="transparent" _hover={{ bg: cancelButtonHoverBg }}>
-              İptal
+          <ModalFooter>
+            <Button mr={3} onClick={detailModal.onClose}>
+              Kapat
             </Button>
-            <Button
-              bg={buttonBg}
-              color={buttonTextColor}
-              _hover={{ bg: buttonHoverBg }}
-              onClick={handleSaveItem}
-              fontWeight="bold"
-              px={6}
-              borderRadius="lg"
-            >
-              {selectedItem ? 'Güncelle' : 'Ekle'}
+            <Button colorScheme="green" leftIcon={<Icon as={MdShoppingCart} />} onClick={() => handleSellProduct(selectedPart)}>
+              Satış Yap
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
-      {/* Zoom Image Modal */}
-      <Modal isOpen={isZoomOpen} onClose={() => setIsZoomOpen(false)} size="xl" isCentered>
+      {/* Location Modal */}
+      <Modal isOpen={locationModal.isOpen} onClose={locationModal.onClose} size="lg">
         <ModalOverlay />
-        <ModalContent bg={modalBg} borderRadius="lg" boxShadow="2xl">
-          <ModalCloseButton color={modalCloseColor} />
-          <ModalBody p={0} display="flex" alignItems="center" justifyContent="center">
-            <Image
-              src={zoomImage}
-              alt="Büyük Ürün Görseli"
-              w="100%"
-              maxH="70vh"
-              objectFit="contain"
-              borderRadius="lg"
-              bg={cardBg}
-              fallbackSrc="https://via.placeholder.com/400x400?text=No+Image"
-            />
+        <ModalContent bg={modalBg}>
+          <ModalHeader color={modalHeaderColor}>
+            <HStack>
+              <Icon as={MdLocationOn} />
+              <Text>Stok Lokasyonları</Text>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {selectedPart && (
+              <VStack align="stretch" spacing={4}>
+                <Text fontWeight="bold" color={primaryTextColor}>{selectedPart.part_name} - {selectedPart.part_code}</Text>
+                <Divider />
+                {selectedPartLocations.length > 0 ? (
+                  selectedPartLocations.map((loc, index) => (
+                    <Card key={index} p={4}>
+                      <HStack justify="space-between" align="start">
+                        <HStack>
+                          <Icon 
+                            as={loc.location_type === 'STORE' ? MdStore : MdWarehouse} 
+                            color={loc.location_type === 'STORE' ? 'blue.500' : 'orange.500'}
+                            boxSize={6}
+                          />
+                          <VStack align="start" spacing={1}>
+                            <Text fontWeight="bold" color={primaryTextColor}>
+                              {formatLocationDescription(loc)}
+                            </Text>
+                            <Text fontSize="sm" color={secondaryTextColor}>
+                              Kod: {loc.location_code}
+                            </Text>
+                            <Text fontSize="sm" color={secondaryTextColor}>
+                              {loc.location_name}
+                            </Text>
+                          </VStack>
+                        </HStack>
+                        <VStack align="end" spacing={1}>
+                          <Text fontSize="lg" fontWeight="bold" color="green.500">
+                            {loc.current_stock} adet
+                          </Text>
+                          {loc.reserved_stock > 0 && (
+                            <Text fontSize="sm" color="orange.500">
+                              {loc.reserved_stock} rezerve
+                            </Text>
+                          )}
+                          <Text fontSize="sm" color="blue.500">
+                            {loc.available_stock} müsait
+                          </Text>
+                        </VStack>
+                      </HStack>
+                    </Card>
+                  ))
+                ) : (
+                  <Center py={6}>
+                    <Text color={secondaryTextColor}>Bu ürün için lokasyon bilgisi bulunamadı.</Text>
+                  </Center>
+                )}
+              </VStack>
+            )}
           </ModalBody>
+          <ModalFooter>
+            <Button onClick={locationModal.onClose}>Kapat</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Add Product Modal */}
+      <Modal isOpen={addProductModal.isOpen} onClose={addProductModal.onClose} size="xl">
+        <ModalOverlay />
+        <ModalContent bg={modalBg}>
+          <ModalHeader color={modalHeaderColor}>
+            <HStack>
+              <Icon as={MdAdd} />
+              <Text>Yeni Ürün Ekle</Text>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <Text color={secondaryTextColor} fontSize="sm">
+                Sisteme yeni bir ürün veya parça ekleyin. Tüm alanları dikkatli bir şekilde doldurun.
+              </Text>
+              
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel color={primaryTextColor}>Ürün Adı</FormLabel>
+                  <Input 
+                    placeholder="Örn: Vespa Kaskı" 
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    _placeholder={{ color: placeholderColor }}
+                    value={newProduct.part_name}
+                    onChange={(e) => setNewProduct(prev => ({...prev, part_name: e.target.value}))}
+                  />
+                </FormControl>
+                
+                <FormControl isRequired>
+                  <FormLabel color={primaryTextColor}>Ürün Kodu</FormLabel>
+                  <Input 
+                    placeholder="Örn: VK-001" 
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    _placeholder={{ color: placeholderColor }}
+                    value={newProduct.part_code}
+                    onChange={(e) => setNewProduct(prev => ({...prev, part_code: e.target.value}))}
+                  />
+                </FormControl>
+                
+                <FormControl isRequired>
+                  <FormLabel color={primaryTextColor}>
+                    <HStack>
+                      <Text>Ürün Tipi</Text>
+                      <Badge colorScheme="blue" size="sm">Önce seçin</Badge>
+                    </HStack>
+                  </FormLabel>
+                  <Select 
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    value={newProduct.part_type}
+                    onChange={(e) => {
+                      const selectedType = e.target.value;
+                      setNewProduct(prev => ({
+                        ...prev, 
+                        part_type: selectedType,
+                        category_id: ''
+                      }));
+                      loadCategories(selectedType);
+                    }}
+                  >
+                    <option value="PART" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Yedek Parça</option>
+                    <option value="ACCESSORY" style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>Aksesuar</option>
+                  </Select>
+                </FormControl>
+                
+                <FormControl isRequired>
+                  <FormLabel color={primaryTextColor}>
+                    <HStack>
+                      <Text>Kategori</Text>
+                      {!newProduct.part_type && (
+                        <Badge colorScheme="orange" size="sm">Tip seçin</Badge>
+                      )}
+                    </HStack>
+                  </FormLabel>
+                  <Select 
+                    placeholder={
+                      !newProduct.part_type 
+                        ? "Önce ürün tipi seçin" 
+                        : categories.length === 0 
+                        ? "Kategoriler yükleniyor..." 
+                        : "Kategori seçin"
+                    }
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    _placeholder={{ color: placeholderColor }}
+                    value={newProduct.category_id}
+                    onChange={(e) => setNewProduct(prev => ({...prev, category_id: e.target.value}))}
+                    isDisabled={!newProduct.part_type || categories.length === 0}
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id} style={{ backgroundColor: selectOptionBg, color: selectOptionColor }}>
+                        {cat.category_name}
+                      </option>
+                    ))}
+                  </Select>
+                  {newProduct.part_type && categories.length > 0 && (
+                    <Text fontSize="xs" color="green.500" mt={1}>
+                      ✅ {newProduct.part_type === 'ACCESSORY' ? 'Aksesuar' : 'Yedek Parça'} kategorileri gösteriliyor
+                    </Text>
+                  )}
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel color={primaryTextColor}>Marka</FormLabel>
+                  <Input 
+                    placeholder="Örn: Vespa" 
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    _placeholder={{ color: placeholderColor }}
+                    value={newProduct.brand}
+                    onChange={(e) => setNewProduct(prev => ({...prev, brand: e.target.value}))}
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel color={primaryTextColor}>Model</FormLabel>
+                  <Input 
+                    placeholder="Örn: Primavera" 
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    _placeholder={{ color: placeholderColor }}
+                    value={newProduct.model}
+                    onChange={(e) => setNewProduct(prev => ({...prev, model: e.target.value}))}
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel color={primaryTextColor}>Renk</FormLabel>
+                  <Input 
+                    placeholder="Örn: Siyah" 
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    _placeholder={{ color: placeholderColor }}
+                    value={newProduct.color}
+                    onChange={(e) => setNewProduct(prev => ({...prev, color: e.target.value}))}
+                  />
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel color={primaryTextColor}>Beden/Boyut</FormLabel>
+                  <Input 
+                    placeholder="Örn: L, XL, 42" 
+                    bg={inputBg}
+                    color={primaryTextColor}
+                    borderColor={borderColor}
+                    _placeholder={{ color: placeholderColor }}
+                    value={newProduct.size}
+                    onChange={(e) => setNewProduct(prev => ({...prev, size: e.target.value}))}
+                  />
+                </FormControl>
+              </SimpleGrid>
+              
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl>
+                  <FormLabel color={primaryTextColor}>Min Stok Seviyesi</FormLabel>
+                  <NumberInput 
+                    min={1} 
+                    value={newProduct.min_stock_level}
+                    onChange={(value) => setNewProduct(prev => ({...prev, min_stock_level: parseInt(value) || 5}))}
+                  >
+                    <NumberInputField 
+                      bg={inputBg}
+                      color={primaryTextColor}
+                      borderColor={borderColor}
+                    />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+                
+                <FormControl>
+                  <FormLabel color={primaryTextColor}>Max Stok Seviyesi</FormLabel>
+                  <NumberInput 
+                    min={1} 
+                    value={newProduct.max_stock_level}
+                    onChange={(value) => setNewProduct(prev => ({...prev, max_stock_level: parseInt(value) || 100}))}
+                  >
+                    <NumberInputField 
+                      bg={inputBg}
+                      color={primaryTextColor}
+                      borderColor={borderColor}
+                    />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </FormControl>
+              </SimpleGrid>
+              
+              <FormControl>
+                <FormLabel color={primaryTextColor}>Ürün Görseli</FormLabel>
+                <Input 
+                  type="file" 
+                  accept="image/*"
+                  bg={inputBg}
+                  color={primaryTextColor}
+                  borderColor={borderColor}
+                  onChange={(e) => setNewProduct(prev => ({...prev, image_file: e.target.files[0]}))}
+                />
+                <Text fontSize="xs" color={secondaryTextColor} mt={1}>
+                  JPG, PNG veya WebP formatında görsel yükleyebilirsiniz
+                </Text>
+              </FormControl>
+              
+              <FormControl>
+                <FormLabel color={primaryTextColor}>Açıklama</FormLabel>
+                <Textarea 
+                  placeholder="Ürün hakkında detaylı açıklama..."
+                  rows={3}
+                  bg={inputBg}
+                  color={primaryTextColor}
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor }}
+                  value={newProduct.description}
+                  onChange={(e) => setNewProduct(prev => ({...prev, description: e.target.value}))}
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          
+          <ModalFooter>
+            <Button 
+              variant="ghost" 
+              mr={3} 
+              onClick={addProductModal.onClose}
+              color={secondaryTextColor}
+            >
+              İptal
+            </Button>
+            <Button
+              colorScheme="brand"
+              onClick={handleAddProduct}
+              isLoading={saving}
+              loadingText="Ekleniyor..."
+            >
+              Ürünü Ekle
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Box>

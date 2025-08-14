@@ -242,11 +242,49 @@ class ApiService {
     return await this.makeRequest(`/inventory/parts/${partId}/`);
   }
 
+  /** Get compatible models of a part */
+  async getPartCompatibility(partId) {
+    return await this.makeRequest(`/inventory/parts/${partId}/compatibility/`);
+  }
+
+  /** Gallery images of a part */
+  async getPartImages(partId) {
+    return await this.makeRequest(`/inventory/parts/${partId}/images/`);
+  }
+  async deletePartImage(partId, imageId) {
+    return await this.makeRequest(`/inventory/parts/${partId}/images/?image_id=${imageId}`, { method: 'DELETE' });
+  }
+
+  /** Update part details (multipart/form-data or JSON) */
+  async updatePart(partId, payload, isMultipart = false) {
+    if (isMultipart) {
+      // Caller should pass FormData and headers will be set automatically (no content-type)
+      return await this.makeRequest(`/inventory/parts/${partId}/`, {
+        method: 'PUT',
+        body: payload,
+        headers: {
+          ...(this.getAuthHeaders()),
+          // Remove default JSON content-type to allow boundary header
+          'Content-Type': undefined,
+        }
+      });
+    }
+    return await this.makeRequest(`/inventory/parts/${partId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
   /**
    * Get parts by Vespa model
    */
   async getPartsByModel(modelId) {
     return await this.makeRequest(`/inventory/parts/?model=${modelId}`);
+  }
+
+  /** Get per-location stock for a part */
+  async getPartLocations(partId) {
+    return await this.makeRequest(`/inventory/parts/${partId}/locations/`);
   }
 
   /**
@@ -319,6 +357,16 @@ class ApiService {
   async createService(serviceData) {
     return await this.makeRequest('/services/', {
       method: 'POST',
+      body: JSON.stringify(serviceData),
+    });
+  }
+
+  /**
+   * Update existing service record
+   */
+  async updateService(serviceId, serviceData) {
+    return await this.makeRequest(`/services/${serviceId}/`, {
+      method: 'PUT',
       body: JSON.stringify(serviceData),
     });
   }

@@ -86,6 +86,29 @@ class ServiceDetailView(APIView):
             return Response({
                 'error': f'Failed to get service: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def put(self, request, service_id):
+        """Update service record"""
+        try:
+            from .service_functions import update_service_record
+            
+            success = update_service_record(service_id, request.data)
+            
+            if success:
+                service = get_service_by_id(service_id)
+                return Response({
+                    'message': 'Service record updated successfully',
+                    'service': service
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to update service'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            return Response({
+                'error': f'Failed to update service: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ServiceStatusView(APIView):

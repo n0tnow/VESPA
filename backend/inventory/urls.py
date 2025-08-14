@@ -20,6 +20,8 @@ urlpatterns = [
     path('parts/<int:part_id>/', views.PartDetailView.as_view(), name='part-detail'),
     path('parts/<int:part_id>/locations/', views.PartLocationsView.as_view(), name='part-locations'),
     path('parts/<int:part_id>/prices/', views.PartPricesView.as_view(), name='part-prices'),
+    path('parts/<int:part_id>/compatibility/', views.PartCompatibilityView.as_view(), name='part-compatibility'),
+    path('parts/<int:part_id>/images/', views.PartImagesView.as_view(), name='part-images'),
     
     # Vespa Models
     path('vespa-models/', views.VespaModelsView.as_view(), name='vespa-models'),

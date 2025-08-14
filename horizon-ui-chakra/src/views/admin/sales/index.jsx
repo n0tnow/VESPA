@@ -8,51 +8,32 @@ import {
 } from '@chakra-ui/react';
 import { 
   MdViewList, MdViewModule, MdAdd, MdSearch, MdFilterList, MdShoppingCart,
-  MdAttachMoney, MdEdit, MdDelete, MdVisibility, MdImage
+  MdAttachMoney, MdDelete, MdVisibility, MdImage
 } from 'react-icons/md';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Card from 'components/card/Card';
 import apiService from 'services/apiService';
 
 export default function SalesPage(){
   const toast = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [parts, setParts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  // categories removed from this page
   const [typeFilter, setTypeFilter] = useState('ACCESSORY');
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'card'
   const [loading, setLoading] = useState(false);
   
   // Modals
   const detailModal = useDisclosure();
-  const addPartModal = useDisclosure();
-  const categoryModal = useDisclosure();
+  // category modal removed from this page
   
   // State
   const [selectedPart, setSelectedPart] = useState(null);
   const [cart, setCart] = useState([]); // {part_id, part_name, unit_price, quantity}
   const [method, setMethod] = useState('CASH');
   const [saving, setSaving] = useState(false);
-
-  // New Product Form State
-  const [newProduct, setNewProduct] = useState({
-    part_name: '',
-    part_code: '',
-    category_id: '',
-    part_type: 'ACCESSORY',
-    brand: '',
-    model: '',
-    color: '',
-    size: '',
-    purchase_price: '',
-    sale_price: '',
-    currency_type: 'USD',
-    initial_stock: '',
-    description: '',
-    image_url: '',
-    image_file: null
-  });
 
   // Colors
   const bgColor = useColorModeValue('gray.50', 'gray.900');
@@ -73,18 +54,10 @@ export default function SalesPage(){
     }
   };
 
-  const loadCategories = async (partType = null) => {
-    try {
-      const url = partType ? `/inventory/categories/?type=${partType}` : '/inventory/categories/';
-      const res = await apiService.makeRequest(url);
-      setCategories(res.categories || []);
-    } catch(e) {
-      console.error('Kategori yükleme hatası:', e);
-    }
-  };
+  // category functions removed
 
   useEffect(()=>{ loadParts(); }, [typeFilter, search]);
-  useEffect(()=>{ loadCategories(); }, []);
+  // category loading removed
 
   // Check if a product should be added to cart from stock page
   useEffect(() => {
@@ -130,91 +103,7 @@ export default function SalesPage(){
     } finally { setSaving(false); }
   };
 
-  const handleAddProduct = async () => {
-    try {
-      if (!newProduct.part_name || !newProduct.part_code || !newProduct.category_id) {
-        toast({ title: 'Hata', description: 'Ürün adı, kodu ve kategorisi gereklidir', status: 'error' });
-        return;
-      }
-
-      setSaving(true);
-      
-      // FormData oluştur (görsel yükleme için)
-      const formData = new FormData();
-      formData.append('part_name', newProduct.part_name);
-      formData.append('part_code', newProduct.part_code);
-      formData.append('category_id', newProduct.category_id);
-      formData.append('part_type', newProduct.part_type);
-      if (newProduct.brand) formData.append('brand', newProduct.brand);
-      if (newProduct.model) formData.append('model', newProduct.model);
-      if (newProduct.color) formData.append('color', newProduct.color);
-      if (newProduct.size) formData.append('size', newProduct.size);
-      if (newProduct.description) formData.append('description', newProduct.description);
-      formData.append('min_stock_level', '5');
-      formData.append('max_stock_level', '100');
-      
-      // Fiyat bilgilerini ekle (güncel kur ile kaydedilecek)
-      if (newProduct.purchase_price) formData.append('purchase_price', newProduct.purchase_price);
-      if (newProduct.sale_price) formData.append('sale_price', newProduct.sale_price);
-      formData.append('currency_type', newProduct.currency_type);
-      
-      // Görsel dosyası varsa ekle
-      if (newProduct.image_file) {
-        formData.append('image', newProduct.image_file);
-      }
-
-      // API çağrısı yap
-      const response = await fetch('http://localhost:8000/api/inventory/parts/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error('Ürün ekleme başarısız');
-      }
-
-      const result = await response.json();
-
-      // Fiyat bilgileri backend'de otomatik olarak eklendi
-      console.log('Product created with price info:', result);
-
-      toast({ 
-        title: 'Başarılı', 
-        description: `${newProduct.part_name} başarıyla eklendi`, 
-        status: 'success' 
-      });
-
-      // Formu temizle
-      setNewProduct({
-        part_name: '',
-        part_code: '',
-        category_id: '',
-        part_type: 'ACCESSORY',
-        brand: '',
-        model: '',
-        color: '',
-        size: '',
-        purchase_price: '',
-        sale_price: '',
-        currency_type: 'USD',
-        initial_stock: '',
-        description: '',
-        image_url: '',
-        image_file: null
-      });
-
-      addPartModal.onClose();
-      loadParts(); // Listeyi yenile
-
-    } catch(e) {
-      toast({ title: 'Hata', description: e.message, status: 'error' });
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Sales page no longer supports creating products. Use stock page instead.
 
   return (
     <Box pt={{ base: '130px', md: '80px', xl: '80px' }} bg={bgColor} minH="100vh">
@@ -227,15 +116,11 @@ export default function SalesPage(){
           </VStack>
           <HStack>
             <Button leftIcon={<Icon as={MdAdd} />} colorScheme="brand" onClick={() => {
-              // Modal açılırken varsayılan tip için kategorileri yükle
-              loadCategories(newProduct.part_type);
-              addPartModal.onOpen();
+              navigate('/admin/stock', { state: { openAddProduct: true } });
             }}>
               Yeni Ürün Ekle
             </Button>
-            <Button leftIcon={<Icon as={MdEdit} />} variant="outline" onClick={categoryModal.onOpen}>
-              Kategoriler
-            </Button>
+            {/* Kategori yönetimi satış sayfasından kaldırıldı */}
           </HStack>
         </Flex>
 
@@ -773,358 +658,9 @@ export default function SalesPage(){
         </ModalContent>
       </Modal>
 
-      {/* Add New Product Modal */}
-      <Modal isOpen={addPartModal.isOpen} onClose={addPartModal.onClose} size='xl'>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            <HStack>
-              <Icon as={MdAdd} color={brandColor} />
-              <Text>Yeni Ürün Ekle</Text>
-            </HStack>
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack align="stretch" spacing={4}>
-              <Text color={textColor} fontSize="sm">
-                Sisteme yeni bir ürün veya parça ekleyin. Tüm alanları dikkatli bir şekilde doldurun.
-              </Text>
-              
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Ürün Adı</FormLabel>
-                  <Input 
-                    placeholder="Örn: Vespa Kaskı" 
-                    bg={cardBg}
-                    value={newProduct.part_name}
-                    onChange={(e) => setNewProduct(prev => ({...prev, part_name: e.target.value}))}
-                  />
-                </FormControl>
-                
-                <FormControl isRequired>
-                  <FormLabel>Ürün Kodu</FormLabel>
-                  <Input 
-                    placeholder="Örn: VK-001" 
-                    bg={cardBg}
-                    value={newProduct.part_code}
-                    onChange={(e) => setNewProduct(prev => ({...prev, part_code: e.target.value}))}
-                  />
-                </FormControl>
-                
-                <FormControl isRequired>
-                  <FormLabel>
-                    <HStack>
-                      <Text>Ürün Tipi</Text>
-                      <Badge colorScheme="blue" size="sm">Önce seçin</Badge>
-                    </HStack>
-                  </FormLabel>
-                  <Select 
-                    bg={cardBg}
-                    value={newProduct.part_type}
-                    onChange={(e) => {
-                      const selectedType = e.target.value;
-                      setNewProduct(prev => ({
-                        ...prev, 
-                        part_type: selectedType,
-                        category_id: '' // Kategori seçimini temizle
-                      }));
-                      // Seçilen tipe göre kategorileri yükle
-                      loadCategories(selectedType);
-                    }}
-                  >
-                    <option value="ACCESSORY">Aksesuar</option>
-                    <option value="PART">Yedek Parça</option>
-                  </Select>
-                </FormControl>
-                
-                <FormControl isRequired>
-                  <FormLabel>
-                    <HStack>
-                      <Text>Kategori</Text>
-                      {!newProduct.part_type && (
-                        <Badge colorScheme="orange" size="sm">Tip seçin</Badge>
-                      )}
-                    </HStack>
-                  </FormLabel>
-                  <Select 
-                    placeholder={
-                      !newProduct.part_type 
-                        ? "Önce ürün tipi seçin" 
-                        : categories.length === 0 
-                        ? "Kategoriler yükleniyor..." 
-                        : "Kategori seçin"
-                    }
-                    bg={cardBg}
-                    value={newProduct.category_id}
-                    onChange={(e) => setNewProduct(prev => ({...prev, category_id: e.target.value}))}
-                    isDisabled={!newProduct.part_type || categories.length === 0}
-                  >
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.category_name}</option>
-                    ))}
-                  </Select>
-                  {newProduct.part_type && categories.length > 0 && (
-                    <Text fontSize="xs" color="green.500" mt={1}>
-                      ✅ {newProduct.part_type === 'ACCESSORY' ? 'Aksesuar' : 'Yedek Parça'} kategorileri gösteriliyor
-                    </Text>
-                  )}
-                </FormControl>
-                
-                <FormControl>
-                  <FormLabel>Marka</FormLabel>
-                  <Input 
-                    placeholder="Örn: Vespa" 
-                    bg={cardBg}
-                    value={newProduct.brand}
-                    onChange={(e) => setNewProduct(prev => ({...prev, brand: e.target.value}))}
-                  />
-                </FormControl>
-                
-                <FormControl>
-                  <FormLabel>Model</FormLabel>
-                  <Input 
-                    placeholder="Örn: Primavera" 
-                    bg={cardBg}
-                    value={newProduct.model}
-                    onChange={(e) => setNewProduct(prev => ({...prev, model: e.target.value}))}
-                  />
-                </FormControl>
-                
-                <FormControl>
-                  <FormLabel>Renk</FormLabel>
-                  <Input 
-                    placeholder="Örn: Kırmızı" 
-                    bg={cardBg}
-                    value={newProduct.color}
-                    onChange={(e) => setNewProduct(prev => ({...prev, color: e.target.value}))}
-                  />
-                </FormControl>
-                
-                <FormControl>
-                  <FormLabel>Beden</FormLabel>
-                  <Input 
-                    placeholder="Örn: L" 
-                    bg={cardBg}
-                    value={newProduct.size}
-                    onChange={(e) => setNewProduct(prev => ({...prev, size: e.target.value}))}
-                  />
-                </FormControl>
-              </SimpleGrid>
+      {/* Add New Product Modal removed. Use stock page to add products. */}
 
-              <Divider />
-
-              <Text fontSize="md" fontWeight="semibold">Fiyat Bilgileri</Text>
-              
-              <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Para Birimi</FormLabel>
-                  <Select 
-                    bg={cardBg}
-                    value={newProduct.currency_type}
-                    onChange={(e) => setNewProduct(prev => ({...prev, currency_type: e.target.value}))}
-                  >
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="TRY">TRY (₺)</option>
-                  </Select>
-                </FormControl>
-                
-                <FormControl isRequired>
-                  <FormLabel>Alış Fiyatı ({newProduct.currency_type})</FormLabel>
-                  <NumberInput min={0} bg={cardBg}>
-                    <NumberInputField 
-                      placeholder="0.00"
-                      value={newProduct.purchase_price}
-                      onChange={(e) => setNewProduct(prev => ({...prev, purchase_price: e.target.value}))}
-                    />
-                  </NumberInput>
-                </FormControl>
-                
-                <FormControl isRequired>
-                  <FormLabel>Satış Fiyatı ({newProduct.currency_type})</FormLabel>
-                  <NumberInput min={0} bg={cardBg}>
-                    <NumberInputField 
-                      placeholder="0.00"
-                      value={newProduct.sale_price}
-                      onChange={(e) => setNewProduct(prev => ({...prev, sale_price: e.target.value}))}
-                    />
-                  </NumberInput>
-                </FormControl>
-                
-                <FormControl isRequired>
-                  <FormLabel>Başlangıç Stok</FormLabel>
-                  <NumberInput min={0} bg={cardBg}>
-                    <NumberInputField 
-                      placeholder="0"
-                      value={newProduct.initial_stock}
-                      onChange={(e) => setNewProduct(prev => ({...prev, initial_stock: e.target.value}))}
-                    />
-                  </NumberInput>
-                </FormControl>
-              </SimpleGrid>
-              
-              <Text fontSize="sm" color={textColor} fontStyle="italic">
-                * Güncel döviz kurları otomatik olarak alınacak ve database'e kaydedilecektir
-              </Text>
-
-              <FormControl>
-                <FormLabel>Açıklama</FormLabel>
-                <Textarea 
-                  placeholder="Ürün hakkında detaylı bilgi..." 
-                  bg={cardBg}
-                  rows={3}
-                  value={newProduct.description}
-                  onChange={(e) => setNewProduct(prev => ({...prev, description: e.target.value}))}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Ürün Görseli</FormLabel>
-                <VStack align="stretch" spacing={3}>
-                  <Input 
-                    type="file"
-                    accept="image/*"
-                    bg={cardBg}
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        setNewProduct(prev => ({...prev, image_file: file}));
-                      }
-                    }}
-                  />
-                  {newProduct.image_file && (
-                    <Box p={3} bg={bgColor} borderRadius="md">
-                      <Text fontSize="sm" color={textColor}>
-                        📎 Seçili dosya: {newProduct.image_file.name}
-                      </Text>
-                    </Box>
-                  )}
-                  <Text fontSize="xs" color={textColor}>
-                    * JPG, PNG veya GIF formatında görsel yükleyebilirsiniz
-                  </Text>
-                </VStack>
-              </FormControl>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <HStack>
-              <Button variant="ghost" onClick={addPartModal.onClose}>
-                İptal
-              </Button>
-              <Button 
-                colorScheme="brand"
-                leftIcon={<Icon as={MdAdd} />}
-                onClick={handleAddProduct}
-                isLoading={saving}
-                loadingText="Ekleniyor..."
-              >
-                Ürünü Ekle
-              </Button>
-            </HStack>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Category Management Modal */}
-      <Modal isOpen={categoryModal.isOpen} onClose={categoryModal.onClose} size='lg'>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            <HStack>
-              <Icon as={MdEdit} color={brandColor} />
-              <Text>Kategori Yönetimi</Text>
-            </HStack>
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack align="stretch" spacing={4}>
-              <Text color={textColor} fontSize="sm">
-                Ürün kategorilerini görüntüleyin, düzenleyin ve yeni kategori ekleyin.
-              </Text>
-              
-              {/* Add New Category */}
-              <Box p={4} bg={bgColor} borderRadius="md">
-                <Text fontWeight="semibold" mb={3}>Yeni Kategori Ekle</Text>
-                <HStack>
-                  <Input 
-                    placeholder="Kategori adı..." 
-                    bg={cardBg}
-                  />
-                  <Button colorScheme="brand" size="sm">
-                    Ekle
-                  </Button>
-                </HStack>
-              </Box>
-
-              {/* Categories List */}
-              <VStack align="stretch" spacing={2}>
-                <Text fontWeight="semibold">Mevcut Kategoriler ({categories.length})</Text>
-                <Box maxH="300px" overflowY="auto">
-                  {categories.map(category => (
-                    <Flex 
-                      key={category.id} 
-                      justify="space-between" 
-                      align="center" 
-                      p={3} 
-                      bg={cardBg} 
-                      borderRadius="md" 
-                      borderWidth="1px"
-                      borderColor={borderColor}
-                    >
-                      <VStack align="start" spacing={0}>
-                        <Text fontWeight="semibold">{category.category_name}</Text>
-                        <Text fontSize="sm" color={textColor}>ID: {category.id}</Text>
-                      </VStack>
-                      <HStack>
-                        <IconButton
-                          size="sm"
-                          icon={<Icon as={MdEdit} />}
-                          variant="ghost"
-                          aria-label="Kategoriyi düzenle"
-                          onClick={() => {
-                            toast({
-                              title: 'Geliştirme aşamasında',
-                              description: 'Kategori düzenleme özelliği yakında eklenecek',
-                              status: 'info'
-                            });
-                          }}
-                        />
-                        <IconButton
-                          size="sm"
-                          icon={<Icon as={MdDelete} />}
-                          variant="ghost"
-                          colorScheme="red"
-                          aria-label="Kategoriyi sil"
-                          onClick={() => {
-                            toast({
-                              title: 'Geliştirme aşamasında',
-                              description: 'Kategori silme özelliği yakında eklenecek',
-                              status: 'info'
-                            });
-                          }}
-                        />
-                      </HStack>
-                    </Flex>
-                  ))}
-                  {categories.length === 0 && (
-                    <Center py={8}>
-                      <VStack>
-                        <Text color={textColor}>Henüz kategori bulunmuyor</Text>
-                        <Text fontSize="sm" color={textColor}>Yukarıdaki formdan yeni kategori ekleyebilirsiniz</Text>
-                      </VStack>
-                    </Center>
-                  )}
-                </Box>
-              </VStack>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button onClick={categoryModal.onClose}>
-              Kapat
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {/* Kategori yönetimi modalı satış sayfasından kaldırıldı */}
     </Box>
   );
 }

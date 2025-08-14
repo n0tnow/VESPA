@@ -9,6 +9,71 @@ Implements DATABASE.txt service system with:
 from datetime import datetime, date
 from .database import get_db_connection
 
+# Cache flag to avoid recreating tables on every call
+_SERVICE_TABLES_ENSURED = False
+_DEFAULT_STORAGE_LOCATION_ID = None
+
+
+def _ensure_service_work_items_table():
+    """Ensure service_work_items table exists (SQL Server)."""
+    global _SERVICE_TABLES_ENSURED
+    if _SERVICE_TABLES_ENSURED:
+        return
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute(
+            """
+            IF NOT EXISTS (
+                SELECT * FROM sys.objects 
+                WHERE object_id = OBJECT_ID(N'[dbo].[service_work_items]') AND type in (N'U')
+            )
+            BEGIN
+                CREATE TABLE [dbo].[service_work_items] (
+                    [id] INT IDENTITY(1,1) PRIMARY KEY,
+                    [service_record_id] INT NOT NULL,
+                    [work_type_id] INT NOT NULL,
+                    [quantity] INT NOT NULL DEFAULT 1,
+                    [unit_price] DECIMAL(10,2) NOT NULL,
+                    [line_total] DECIMAL(10,2) NOT NULL,
+                    [notes] NVARCHAR(MAX) NULL,
+                    [created_date] DATETIME2 DEFAULT GETDATE(),
+                    CONSTRAINT FK_swi_service FOREIGN KEY ([service_record_id]) REFERENCES [dbo].[service_records]([id]) ON DELETE CASCADE,
+                    CONSTRAINT FK_swi_work_type FOREIGN KEY ([work_type_id]) REFERENCES [dbo].[work_types]([id])
+                )
+            END
+            """
+        )
+        connection.commit()
+        _SERVICE_TABLES_ENSURED = True
+    finally:
+        connection.close()
+
+
+def _get_default_storage_location_id():
+    """Pick a default storage location id to register stock movements.
+    Preference order: STORE then any available location. Cached after first lookup.
+    """
+    global _DEFAULT_STORAGE_LOCATION_ID
+    if _DEFAULT_STORAGE_LOCATION_ID is not None:
+        return _DEFAULT_STORAGE_LOCATION_ID
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            SELECT TOP 1 id FROM storage_locations 
+            WHERE location_type = 'STORE' 
+            ORDER BY id ASC
+        """)
+        row = cursor.fetchone()
+        if not row:
+            cursor.execute("SELECT TOP 1 id FROM storage_locations ORDER BY id ASC")
+            row = cursor.fetchone()
+        _DEFAULT_STORAGE_LOCATION_ID = row[0] if row else None
+        return _DEFAULT_STORAGE_LOCATION_ID
+    finally:
+        connection.close()
+
 
 # ===== SERVICE RECORDS =====
 
@@ -45,7 +110,8 @@ def get_all_service_records(limit=100, offset=0, status_filter=None, customer_id
         cv.license_plate,
         vm.model_name,
         ISNULL(parts_total.total_parts_cost, 0) as parts_cost,
-        (sr.labor_cost + ISNULL(parts_total.total_parts_cost, 0)) as total_cost,
+        ISNULL(wi_total.total_work_items_cost, 0) as work_items_cost,
+        (sr.labor_cost + ISNULL(parts_total.total_parts_cost, 0) + ISNULL(wi_total.total_work_items_cost, 0)) as total_cost,
         c.id as customer_id,
         cv.id as customer_vespa_id
     FROM service_records sr
@@ -59,6 +125,13 @@ def get_all_service_records(limit=100, offset=0, status_filter=None, customer_id
         FROM service_parts 
         GROUP BY service_record_id
     ) parts_total ON sr.id = parts_total.service_record_id
+    LEFT JOIN (
+        SELECT 
+            service_record_id,
+            SUM(line_total) as total_work_items_cost
+        FROM service_work_items
+        GROUP BY service_record_id
+    ) wi_total ON sr.id = wi_total.service_record_id
     {where_clause}
     ORDER BY sr.service_date DESC, sr.created_date DESC
     OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
@@ -90,9 +163,10 @@ def get_all_service_records(limit=100, offset=0, status_filter=None, customer_id
             'license_plate': row[15],
             'model_name': row[16],
             'parts_cost': float(row[17]) if row[17] else 0,
-            'total_cost': float(row[18]) if row[18] else 0,
-            'customer_id': row[19],
-            'customer_vespa_id': row[20]
+            'work_items_cost': float(row[18]) if row[18] else 0,
+            'total_cost': float(row[19]) if row[19] else 0,
+            'customer_id': row[20],
+            'customer_vespa_id': row[21]
         })
     
     return services
@@ -131,7 +205,7 @@ def get_service_by_id(service_id):
     # Get service parts
     parts_query = """
     SELECT 
-        sp.id, sp.quantity, sp.unit_price, sp.currency_type,
+        sp.part_id, sp.quantity, sp.unit_price, sp.currency_type,
         p.part_code, p.part_name, p.part_type,
         pc.category_name
     FROM service_parts sp
@@ -143,6 +217,21 @@ def get_service_by_id(service_id):
     
     cursor.execute(parts_query, (service_id,))
     parts_rows = cursor.fetchall()
+
+    # Get work items
+    work_items_query = """
+    IF OBJECT_ID('dbo.service_work_items', 'U') IS NOT NULL
+    SELECT 
+        swi.work_type_id, wt.name, wt.base_price, swi.quantity, swi.unit_price, swi.line_total
+    FROM service_work_items swi
+    INNER JOIN work_types wt ON swi.work_type_id = wt.id
+    WHERE swi.service_record_id = ?
+    ORDER BY wt.name
+    ELSE
+    SELECT NULL, NULL, NULL, NULL, NULL, NULL
+    """
+    cursor.execute(work_items_query, (service_id,))
+    work_items_rows = cursor.fetchall()
     connection.close()
     
     service = {
@@ -179,66 +268,341 @@ def get_service_by_id(service_id):
         'parts': []
     }
     
-    total_parts_cost = 0
+    total_parts_cost = 0.0
     for part_row in parts_rows:
-        part_total = part_row[1] * part_row[2]  # quantity * unit_price
+        quantity = int(part_row[1]) if part_row[1] else 0
+        unit_price = float(part_row[2]) if part_row[2] else 0.0
+        part_total = quantity * unit_price
         total_parts_cost += part_total
         
         service['parts'].append({
-            'id': part_row[0],
-            'quantity': part_row[1],
-            'unit_price': float(part_row[2]),
+            'part_id': part_row[0],  # This is now sp.part_id (correct!)
+            'quantity': quantity,
+            'unit_price': unit_price,
             'currency_type': part_row[3],
             'part_code': part_row[4],
             'part_name': part_row[5],
             'part_type': part_row[6],
             'category_name': part_row[7],
-            'total_price': float(part_total)
+            'total_price': part_total
         })
     
+    # Map work items
+    work_items = []
+    total_work_items_cost = 0.0
+    # If table doesn't exist, rows will be a single NULL row; guard that
+    if work_items_rows and not (len(work_items_rows) == 1 and all(v is None for v in work_items_rows[0])):
+        for wi in work_items_rows:
+            qty = int(wi[3]) if wi[3] else 0
+            unit_price = float(wi[4]) if wi[4] else 0.0
+            line_total = float(wi[5]) if wi[5] else qty * unit_price
+            total_work_items_cost += line_total
+            work_items.append({
+                'work_type_id': wi[0],
+                'name': wi[1],
+                'base_price': float(wi[2]) if wi[2] else unit_price,
+                'quantity': qty,
+                'unit_price': unit_price,
+                'line_total': line_total,
+            })
+
+    service['work_items'] = work_items
+    service['work_items_cost'] = total_work_items_cost
     service['parts_cost'] = total_parts_cost
-    service['total_cost'] = service['labor_cost'] + total_parts_cost
+    service['total_cost'] = float(service['labor_cost']) + total_parts_cost + total_work_items_cost
     
     return service
 
 
+def _get_all_locations_by_priority(cursor):
+    """Return list of (id, location_type) ordered by priority: STORE first, then others."""
+    cursor.execute("""
+        SELECT id, location_type FROM storage_locations
+        ORDER BY CASE WHEN location_type='STORE' THEN 0 ELSE 1 END, id
+    """)
+    return cursor.fetchall() or []
+
+
+def _get_available_qty(cursor, part_id, location_id):
+    """Compute available quantity at a location using stock_movements (IN - OUT)."""
+    cursor.execute(
+        """
+        SELECT SUM(CASE WHEN movement_type='IN' THEN quantity
+                        WHEN movement_type='OUT' THEN -quantity
+                        WHEN movement_type='ADJUSTMENT' THEN quantity
+                        ELSE 0 END) as qty
+        FROM stock_movements WHERE part_id = ? AND storage_location_id = ?
+        """,
+        (part_id, location_id)
+    )
+    row = cursor.fetchone()
+    return int(row[0]) if row and row[0] is not None else 0
+
+
+def _allocate_and_register_stock_out(cursor, service_id, service_number, part_id, required_qty, warnings_accumulator):
+    """Allocate stock OUT movements prioritizing STORE, then other locations. Append warnings as needed."""
+    locations = _get_all_locations_by_priority(cursor)
+    remaining = int(required_qty)
+    total_available = 0
+    store_available = 0
+    for loc_id, loc_type in locations:
+        avail = _get_available_qty(cursor, part_id, loc_id)
+        total_available += max(0, avail)
+        if loc_type == 'STORE':
+            store_available = max(0, avail)
+
+    if total_available < remaining:
+        warnings_accumulator.append(f"Yetersiz stok: Parça {part_id} için ihtiyaç {remaining}, mevcut {total_available} (Mağaza {store_available}).")
+        # yine de mevcut kadar düşmeyelim; servis kaydı tutarlılığı için istisna atalım
+        raise Exception(f"Insufficient stock for part {part_id}: required {remaining}, available {total_available}")
+
+    # Allocate from STORE first
+    for loc_id, loc_type in locations:
+        if remaining <= 0:
+            break
+        avail = _get_available_qty(cursor, part_id, loc_id)
+        take = min(max(0, avail), remaining)
+        if take > 0:
+            cursor.execute(
+                """
+                INSERT INTO stock_movements (
+                    part_id, storage_location_id, movement_type, quantity,
+                    reference_type, reference_id, description
+                ) VALUES (?, ?, 'OUT', ?, 'SERVICE', ?, ?)
+                """,
+                (
+                    part_id,
+                    loc_id,
+                    int(take),
+                    service_id,
+                    f"Service #{service_number} parça tüketimi"
+                )
+            )
+            remaining -= take
+
+    if store_available < required_qty and total_available >= required_qty:
+        warnings_accumulator.append(f"Mağazada stok yetersiz (var: {store_available}), depo kullanıldı. Parça {part_id} için toplam {required_qty} düşüldü.")
+
+
 def create_service_record(data):
-    """Create new service record"""
+    """Create new service record with parts"""
     connection = get_db_connection()
     cursor = connection.cursor()
     
-    # Generate service number
-    service_number = _generate_service_number()
+    try:
+        # Generate service number
+        service_number = _generate_service_number()
+        
+        insert_query = """
+        INSERT INTO service_records (
+            service_number, customer_vespa_id, service_type, service_date,
+            mileage_at_service, technician_name, status, description,
+            customer_complaints, work_done, labor_cost, start_date
+        ) 
+        OUTPUT INSERTED.id
+        VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)
+        """
+        
+        cursor.execute(insert_query, (
+            service_number,
+            data['customer_vespa_id'],
+            data['service_type'],
+            data.get('service_date', date.today()),
+            data.get('mileage_at_service', 0),
+            data.get('technician_name', ''),
+            data.get('description', ''),
+            data.get('customer_complaints', ''),
+            data.get('work_done', ''),
+            float(data.get('labor_cost', 0)),
+            data.get('start_date', datetime.now())
+        ))
+        
+        service_id = cursor.fetchone()[0]
+        
+        # Ensure work items table exists (no-op if already exists)
+        _ensure_service_work_items_table()
+
+        # Add used parts if provided
+        used_parts = data.get('used_parts', [])
+        warnings = []
+        if used_parts:
+            for part_data in used_parts:
+                print(f"🔧 Processing part: ID={part_data['part_id']}, Quantity={part_data['quantity']}, Cost={part_data.get('cost', 0)}")
+                
+                # Verify part exists
+                cursor.execute("SELECT id, part_name FROM parts WHERE id = ?", (part_data['part_id'],))
+                part_exists = cursor.fetchone()
+                if not part_exists:
+                    print(f"❌ ERROR: Part ID {part_data['part_id']} does not exist in parts table!")
+                    raise Exception(f"Part ID {part_data['part_id']} not found in parts table")
+                
+                print(f"✅ Part exists: {part_exists[1]} (ID: {part_exists[0]})")
+                
+                unit_price = 0
+                if part_data['quantity'] > 0:
+                    cost = float(part_data.get('cost', 0))
+                    unit_price = cost / part_data['quantity']
+                
+                cursor.execute("""
+                    INSERT INTO service_parts (
+                        service_record_id, part_id, quantity, unit_price, currency_type
+                    ) VALUES (?, ?, ?, ?, ?)
+                """, (
+                    service_id,
+                    part_data['part_id'],
+                    part_data['quantity'],
+                    float(unit_price),
+                    'TRY'
+                ))
+                # Allocate stock OUT across locations with warnings
+                _allocate_and_register_stock_out(cursor, service_id, service_number, part_data['part_id'], part_data['quantity'], warnings)
+        # Add work items if provided
+        work_items = data.get('work_items', [])
+        if work_items:
+            for wi in work_items:
+                work_type_id = wi.get('work_type_id') or wi.get('id')
+                quantity = int(wi.get('quantity') or 1)
+                # Validate work type
+                cursor.execute("SELECT id, name, base_price FROM work_types WHERE id = ?", (work_type_id,))
+                wt = cursor.fetchone()
+                if not wt:
+                    raise Exception(f"Work type ID {work_type_id} not found in work_types table")
+                base_price = float(wt[2]) if wt[2] else 0.0
+                provided_cost = wi.get('cost')
+                line_total = float(provided_cost) if provided_cost is not None else (base_price * quantity)
+                unit_price = line_total / quantity if quantity > 0 else 0.0
+                cursor.execute(
+                    """
+                    INSERT INTO service_work_items (
+                        service_record_id, work_type_id, quantity, unit_price, line_total
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (service_id, work_type_id, quantity, float(unit_price), float(line_total))
+                )
+        connection.commit()
+        # Return id and warnings for response
+        return {'service_id': service_id, 'warnings': warnings}
+        
+    except Exception as e:
+        connection.rollback()
+        raise e
+    finally:
+        connection.close()
+
+
+def update_service_record(service_id, data):
+    """Update complete service record with parts"""
+    connection = get_db_connection()
+    cursor = connection.cursor()
     
-    insert_query = """
-    INSERT INTO service_records (
-        service_number, customer_vespa_id, service_type, service_date,
-        mileage_at_service, technician_name, status, description,
-        customer_complaints, work_done, labor_cost, start_date
-    ) 
-    OUTPUT INSERTED.id
-    VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)
-    """
-    
-    cursor.execute(insert_query, (
-        service_number,
-        data['customer_vespa_id'],
-        data['service_type'],
-        data.get('service_date', date.today()),
-        data.get('mileage_at_service', 0),
-        data.get('technician_name', ''),
-        data.get('description', ''),
-        data.get('customer_complaints', ''),
-        data.get('work_done', ''),
-        data.get('labor_cost', 0),
-        data.get('start_date', datetime.now())
-    ))
-    
-    service_id = cursor.fetchone()[0]
-    connection.commit()
-    connection.close()
-    
-    return service_id
+    try:
+        # Update service record
+        # Normalize status and completion date
+        status_value = data.get('status')
+        normalized_status = status_value.upper() if isinstance(status_value, str) else None
+        provided_completion = data.get('completion_date')
+        completion_dt = provided_completion if provided_completion else (datetime.now() if normalized_status == 'COMPLETED' else None)
+
+        update_query = """
+        UPDATE service_records SET
+            service_type = ?, service_date = ?, mileage_at_service = ?,
+            technician_name = ?, description = ?, customer_complaints = ?,
+            work_done = ?, labor_cost = ?, status = ISNULL(?, status),
+            completion_date = ?, updated_date = ?
+        WHERE id = ?
+        """
+        
+        cursor.execute(update_query, (
+            data.get('service_type'),
+            data.get('service_date'),
+            data.get('mileage_at_service', 0),
+            data.get('technician_name', ''),
+            data.get('description', ''),
+            data.get('customer_complaints', ''),
+            data.get('work_done', ''),
+            float(data.get('labor_cost', 0)),
+            normalized_status,
+            completion_dt,
+            datetime.now(),
+            service_id
+        ))
+        
+        # Ensure work items table exists (no-op if already exists)
+        _ensure_service_work_items_table()
+
+        # Delete existing service parts
+        cursor.execute("DELETE FROM service_parts WHERE service_record_id = ?", (service_id,))
+        # Delete previous stock movements for this service
+        cursor.execute("DELETE FROM stock_movements WHERE reference_type = 'SERVICE' AND reference_id = ?", (service_id,))
+        # Delete existing work items
+        cursor.execute("IF OBJECT_ID('dbo.service_work_items','U') IS NOT NULL DELETE FROM service_work_items WHERE service_record_id = ?", (service_id,))
+        
+        # Add updated parts if provided
+        used_parts = data.get('used_parts', [])
+        warnings = []
+        if used_parts:
+            for part_data in used_parts:
+                print(f"🔧 UPDATE: Processing part: ID={part_data['part_id']}, Quantity={part_data['quantity']}, Cost={part_data.get('cost', 0)}")
+                
+                # Verify part exists
+                cursor.execute("SELECT id, part_name FROM parts WHERE id = ?", (part_data['part_id'],))
+                part_exists = cursor.fetchone()
+                if not part_exists:
+                    print(f"❌ UPDATE ERROR: Part ID {part_data['part_id']} does not exist in parts table!")
+                    raise Exception(f"Part ID {part_data['part_id']} not found in parts table")
+                
+                print(f"✅ UPDATE: Part exists: {part_exists[1]} (ID: {part_exists[0]})")
+                
+                unit_price = 0
+                if part_data['quantity'] > 0:
+                    cost = float(part_data.get('cost', 0))
+                    unit_price = cost / part_data['quantity']
+                
+                cursor.execute("""
+                    INSERT INTO service_parts (
+                        service_record_id, part_id, quantity, unit_price, currency_type
+                    ) VALUES (?, ?, ?, ?, ?)
+                """, (
+                    service_id,
+                    part_data['part_id'],
+                    part_data['quantity'],
+                    float(unit_price),
+                    'TRY'
+                ))
+                # Register stock OUT movement
+                _allocate_and_register_stock_out(cursor, service_id, f"UPDATE-{service_id}", part_data['part_id'], part_data['quantity'], warnings)
+        # Add updated work items if provided
+        work_items = data.get('work_items', [])
+        if work_items:
+            for wi in work_items:
+                work_type_id = wi.get('work_type_id') or wi.get('id')
+                quantity = int(wi.get('quantity') or 1)
+                # Validate work type
+                cursor.execute("SELECT id, name, base_price FROM work_types WHERE id = ?", (work_type_id,))
+                wt = cursor.fetchone()
+                if not wt:
+                    raise Exception(f"Work type ID {work_type_id} not found in work_types table")
+                base_price = float(wt[2]) if wt[2] else 0.0
+                provided_cost = wi.get('cost')
+                line_total = float(provided_cost) if provided_cost is not None else (base_price * quantity)
+                unit_price = line_total / quantity if quantity > 0 else 0.0
+                cursor.execute(
+                    """
+                    INSERT INTO service_work_items (
+                        service_record_id, work_type_id, quantity, unit_price, line_total
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (service_id, work_type_id, quantity, float(unit_price), float(line_total))
+                )
+        
+        connection.commit()
+        return {'success': True, 'warnings': warnings}
+        
+    except Exception as e:
+        connection.rollback()
+        raise e
+    finally:
+        connection.close()
 
 
 def update_service_status(service_id, status, completion_date=None, work_done=''):

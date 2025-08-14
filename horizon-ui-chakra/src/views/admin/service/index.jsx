@@ -65,6 +65,8 @@ import {
   MenuList,
   MenuItem,
   Checkbox as ChakraCheckbox,
+  RadioGroup,
+  Radio,
 } from '@chakra-ui/react';
 import { 
   MdAdd, 
@@ -187,11 +189,17 @@ export default function ServiceTracking() {
   const [vespaModels, setVespaModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Part stock cache (by part id): { [id]: { storeQty, warehouseQty, stockNote } }
+  const [partStockById, setPartStockById] = useState({});
 
   // Load data from API
   useEffect(() => {
     loadData();
   }, []);
+
+  // (moved below state declarations)
+
+  
 
   const loadWorkTypes = async () => {
     try {
@@ -213,7 +221,6 @@ export default function ServiceTracking() {
         isActive: wt.is_active
       }));
       
-      console.log('✅ Transformed work types:', transformedWorkTypes);
       setWorkTypes(transformedWorkTypes);
       
       // Populate servicePrices from workTypes data
@@ -329,14 +336,28 @@ export default function ServiceTracking() {
         description: part.description || '',
         image: part.image_path || ''
       })) || [];
+      
+      console.log('📋 Parts loaded:', transformedParts.length, 'items');
+      
       setAvailableParts(transformedParts);
 
       // Load Vespa models from API
       const modelsResponse = await apiService.getVespaModels();
+      console.log('📋 Vespa models response:', modelsResponse);
+      
       const modelsArray = Array.isArray(modelsResponse)
         ? modelsResponse
-        : (modelsResponse?.models || []);
-      const transformedModels = modelsArray.map(model => model.model_name);
+        : (modelsResponse?.vespa_models || modelsResponse?.models || []);
+      
+      console.log('📋 Models array:', modelsArray);
+      
+      // Keep the full model objects with id and name
+      const transformedModels = modelsArray.map(model => ({
+        id: model.id,
+        model_name: model.model_name || model.name
+      }));
+      
+      console.log('📋 Transformed models:', transformedModels);
       setVespaModels(transformedModels);
 
       // Load work types from API
@@ -630,10 +651,85 @@ export default function ServiceTracking() {
     usedParts: [],
     laborCost: 0,
     mileage: 0,
-    nextServiceDate: ''
+    nextServiceDate: '',
+    customerComplaints: '',
+    workDone: '',
+    technicianName: ''
   });
 
   const [selectedParts, setSelectedParts] = useState([]);
+
+  // Walk-in customer support
+  const [isWalkInCustomer, setIsWalkInCustomer] = useState(false);
+  const [walkInCustomerData, setWalkInCustomerData] = useState({
+    name: '',
+    phone: '',
+    vespaModel: '',
+    plateNumber: '',
+    email: ''
+  });
+
+  // Parts search
+  const [partsSearchTerm, setPartsSearchTerm] = useState('');
+
+  // When model changes, load only compatible parts from backend
+  const modelName = (isWalkInCustomer ? (walkInCustomerData?.vespaModel || '') : (selectedCustomer?.vespaModel || ''));
+  useEffect(() => {
+    if (!modelName || !Array.isArray(vespaModels) || vespaModels.length === 0) return;
+    const modelObj = vespaModels.find(m => (m.model_name || m.name) === modelName);
+    if (!modelObj?.id) return;
+
+    (async () => {
+      try {
+        const partsResponse = await apiService.getPartsByModel(modelObj.id);
+        const partsRaw = partsResponse?.parts || partsResponse?.results || (Array.isArray(partsResponse) ? partsResponse : []) || [];
+        const transformedParts = partsRaw.map(part => ({
+          id: part.id,
+          name: part.part_name || part.name,
+          price: part.sale_price_tl || part.sale_price || 0,
+          category: part.category_name || part.category || '-',
+          partCode: part.part_code,
+          description: part.description || '',
+          image: part.image_path || ''
+        }));
+        setAvailableParts(transformedParts);
+        setPartStockById({});
+      } catch (e) {
+        // keep previous parts if fetch fails
+      }
+    })();
+  }, [modelName, vespaModels]);
+
+  // Prefetch stock for visible parts (model + search) after dependencies are initialized
+  useEffect(() => {
+    const modelName = isWalkInCustomer ? (walkInCustomerData?.vespaModel || '') : (selectedCustomer?.vespaModel || '');
+    if (!modelName) return;
+    const visibleParts = getPartsForModel(modelName, partsSearchTerm);
+    const idsToFetch = visibleParts.map(p => p.id).filter(id => !partStockById[id]);
+    if (idsToFetch.length === 0) return;
+
+    (async () => {
+      for (const pid of idsToFetch) {
+        try {
+          const res = await apiService.getPartLocations(pid);
+          // Debug once per part
+          // console.log('📦 Part locations', pid, res);
+          const locations = res?.locations || Array.isArray(res) ? (Array.isArray(res) ? res : res.locations) : [];
+          const getType = (l) => (l.location_type || l.type || l.locationType || (l.location && l.location.type) || '').toString().toUpperCase();
+          const getQty = (l) => Number(l.available_qty ?? l.available_quantity ?? l.current_stock ?? l.stock ?? l.qty ?? l.quantity ?? 0);
+          const storeQty = locations.filter(l => getType(l) === 'STORE').reduce((s, l) => s + getQty(l), 0);
+          const depotQty = locations.filter(l => getType(l) !== 'STORE').reduce((s, l) => s + getQty(l), 0);
+          let note = '';
+          if (storeQty <= 0 && depotQty > 0) note = 'Mağazada yok, depoda mevcut';
+          else if (storeQty <= 0 && depotQty <= 0) note = 'Stok yok';
+          else if (storeQty > 0 && depotQty > 0 && storeQty < 3) note = 'Mağaza düşük stok, depo mevcut';
+          setPartStockById(prev => ({ ...prev, [pid]: { storeQty, warehouseQty: depotQty, stockNote: note } }));
+        } catch (e) {
+          // ignore fetch failure for stock
+        }
+      }
+    })();
+  }, [isWalkInCustomer, walkInCustomerData?.vespaModel, selectedCustomer, partsSearchTerm]);
 
   const [editingPrice, setEditingPrice] = useState(null);
   const [editPrice, setEditPrice] = useState('');
@@ -645,13 +741,18 @@ export default function ServiceTracking() {
     return basePrice + partsCost;
   };
 
-  // Servis türü değiştiğinde fiyatı güncelle
+  // Servis türü değiştiğinde: mevcut ekstra işçiliği koru
   const handleServiceTypeChange = (serviceType) => {
-    setFormData(prev => ({
+    const newServiceFee = getWorkTypePrice(serviceType);
+    setFormData(prev => {
+      const prevServiceFee = getWorkTypePrice(prev.serviceType);
+      const previousExtraLabor = Math.max(0, (prev.laborCost || 0) - (prevServiceFee || 0));
+      return {
       ...prev,
       serviceType,
-      laborCost: getWorkTypePrice(serviceType)
-    }));
+        laborCost: newServiceFee + previousExtraLabor,
+      };
+    });
   };
 
   const filteredServices = serviceRecords.filter(service => {
@@ -679,6 +780,14 @@ export default function ServiceTracking() {
     setSelectedCustomer(null);
     setCustomerServiceHistory([]);
     setWorkItems([]);
+    setIsWalkInCustomer(false);
+    setWalkInCustomerData({
+      name: '',
+      phone: '',
+      vespaModel: '',
+      plateNumber: '',
+      email: ''
+    });
     setFormData({
       customerId: '',
       customerName: '',
@@ -691,14 +800,26 @@ export default function ServiceTracking() {
       usedParts: [],
       laborCost: 0,
       mileage: 0,
-      nextServiceDate: ''
+      nextServiceDate: '',
+      customerComplaints: '',
+      workDone: '',
+      technicianName: ''
     });
     setSelectedParts([]);
+    setPartsSearchTerm('');
     onOpen();
   };
 
-  const handleEditService = (service) => {
+  const handleEditService = async (service) => {
     setSelectedService(service);
+    
+    try {
+      // API'den detaylı servis bilgilerini çek
+      console.log('🔍 Loading detailed service info for ID:', service.id);
+      const detailedServiceResponse = await apiService.getService(service.id);
+      const detailedService = detailedServiceResponse.service || detailedServiceResponse;
+      
+      console.log('📋 Detailed service data:', detailedService);
     
     // Müşteri bilgilerini ayarla
     const customer = customers.find(c => c.id === service.customerId);
@@ -708,6 +829,63 @@ export default function ServiceTracking() {
       setCustomerServiceHistory(history);
     }
     
+      const serviceTypeValue = detailedService.service_type || service.serviceType;
+      setFormData({
+        customerId: service.customerId,
+        customerName: service.customerName,
+        vespaModel: service.vespaModel,
+        plateNumber: service.plateNumber,
+        serviceDate: service.serviceDate,
+        serviceType: serviceTypeValue,
+        status: service.status,
+        description: detailedService.description || service.description,
+        usedParts: detailedService.parts || service.usedParts || [],
+        laborCost: detailedService.labor_cost || service.laborCost || getWorkTypePrice(serviceTypeValue),
+        mileage: detailedService.mileage_at_service || service.mileage,
+        nextServiceDate: detailedService.next_service_date || service.nextServiceDate,
+        customerComplaints: detailedService.customer_complaints || service.customer_complaints || '',
+        workDone: detailedService.work_done || service.work_done || '',
+        technicianName: detailedService.technician_name || service.technician_name || ''
+      });
+      
+      // Kullanılan parçaları yükle ve formatla (sadece geçerli olanları)
+      const serviceParts = detailedService.parts || [];
+      const formattedParts = serviceParts
+        .filter(part => {
+          // Check if part still exists in available parts
+          const partExists = availableParts.find(p => p.id === (part.part_id || part.id));
+          if (!partExists) {
+            console.warn(`⚠️ Skipping deleted part: ID ${part.part_id || part.id} (${part.part_name})`);
+            return false;
+          }
+          return true;
+        })
+        .map(part => ({
+          id: part.part_id || part.id,
+          name: part.part_name,
+          price: part.unit_price,
+          quantity: part.quantity,
+          cost: part.total_price || (part.unit_price * part.quantity)
+        }));
+      setSelectedParts(formattedParts);
+      
+      // Work items - backend'den gelen work_items listesi varsa onu kullan
+      if (Array.isArray(detailedService.work_items)) {
+        setWorkItems(detailedService.work_items.map(wi => ({
+          id: wi.work_type_id,
+          name: wi.name,
+          basePrice: wi.base_price,
+          quantity: wi.quantity || 1
+        })));
+      } else {
+        setWorkItems([]);
+      }
+      
+      console.log('✅ Service edit form loaded with parts:', formattedParts);
+      
+    } catch (error) {
+      console.error('❌ Error loading detailed service info:', error);
+      // Fallback to basic service data
     setFormData({
       customerId: service.customerId,
       customerName: service.customerName,
@@ -717,15 +895,18 @@ export default function ServiceTracking() {
       serviceType: service.serviceType,
       status: service.status,
       description: service.description,
-      usedParts: service.usedParts,
+        usedParts: service.usedParts || [],
       laborCost: service.laborCost,
       mileage: service.mileage,
-      nextServiceDate: service.nextServiceDate
-    });
-    
-    // Parçalar ve işlemler
-    setSelectedParts(service.usedParts || []);
-    setWorkItems(service.workItems || []);
+        nextServiceDate: service.nextServiceDate,
+        customerComplaints: service.customer_complaints || '',
+        workDone: service.work_done || '',
+        technicianName: service.technician_name || ''
+      });
+      
+      setSelectedParts([]);
+      setWorkItems([]);
+    }
     
     onOpen();
   };
@@ -737,24 +918,117 @@ export default function ServiceTracking() {
       const partsCost = selectedParts.reduce((sum, part) => sum + part.cost, 0);
       const totalCost = serviceCost + workCost + partsCost + (formData.laborCost || 0);
 
+      let customerVespaId = null;
+
+      if (isWalkInCustomer) {
+        // Create walk-in customer and vespa record
+        try {
+          // Validate walk-in customer data
+          if (!walkInCustomerData.name || !walkInCustomerData.phone || !walkInCustomerData.plateNumber) {
+            alert('Lütfen müşteri adı, telefon ve plaka bilgilerini giriniz.');
+            return;
+          }
+
+          // Find vespa model ID by name
+          const vespaModelsResponse = await apiService.getVespaModels();
+          const vespaModelsArray = Array.isArray(vespaModelsResponse)
+            ? vespaModelsResponse
+            : (vespaModelsResponse?.vespa_models || vespaModelsResponse?.models || []);
+          
+          const selectedModel = vespaModelsArray.find(model => 
+            (model.model_name || model.name) === walkInCustomerData.vespaModel
+          );
+          
+          if (!selectedModel) {
+            alert('Lütfen geçerli bir vespa modeli seçiniz.');
+            return;
+          }
+
+          // Create customer with vespa data
+          const customerData = {
+            first_name: walkInCustomerData.name.split(' ')[0] || walkInCustomerData.name,
+            last_name: walkInCustomerData.name.split(' ').slice(1).join(' ') || '',
+            phone: walkInCustomerData.phone,
+            email: walkInCustomerData.email || '',
+            customer_type: 'WALK_IN',
+            notes: 'Düzenli olmayan müşteri - servis kaydı',
+            vespa: {
+              vespa_model_id: selectedModel.id,
+              license_plate: walkInCustomerData.plateNumber,
+              current_mileage: formData.mileage || 0
+            }
+          };
+
+          console.log('🔄 Creating walk-in customer:', customerData);
+          const customerResponse = await apiService.createCustomer(customerData);
+          console.log('✅ Walk-in customer created:', customerResponse);
+
+          // Get the created customer's vespa ID
+          const vespaResponse = await apiService.getCustomerVespas(customerResponse.customer.id);
+          if (vespaResponse.vespas && vespaResponse.vespas.length > 0) {
+            customerVespaId = vespaResponse.vespas[0].id;
+          } else {
+            throw new Error('Müşteri vespa kaydı oluşturulamadı');
+          }
+
+        } catch (error) {
+          console.error('❌ Error creating walk-in customer:', error);
+          alert('Müşteri kaydı oluşturulurken hata oluştu: ' + error.message);
+          return;
+        }
+      } else {
+        // For existing customers, we need to get the customer_vespa_id
+        if (formData.customerId && selectedCustomer) {
+          // Try to find the customer's vespa record by matching the plate number
+          try {
+            const vespaResponse = await apiService.getCustomerVespas(formData.customerId);
+            if (vespaResponse.vespas && vespaResponse.vespas.length > 0) {
+              // Find the vespa with matching plate number, or use the first one
+              const matchingVespa = vespaResponse.vespas.find(v => v.license_plate === formData.plateNumber);
+              customerVespaId = matchingVespa ? matchingVespa.id : vespaResponse.vespas[0].id;
+            }
+          } catch (vespaError) {
+            console.error('Error getting customer vespa:', vespaError);
+            alert('Müşterinin vespa bilgileri alınamadı. Lütfen tekrar deneyin.');
+            return;
+          }
+        } else {
+          alert('Lütfen bir müşteri seçiniz.');
+          return;
+        }
+      }
+
       const serviceData = {
-        customer_id: formData.customerId,
-        vespa_model: formData.vespaModel,
-        license_plate: formData.plateNumber,
-        service_date: formData.serviceDate || new Date().toISOString().split('T')[0],
+        customer_vespa_id: customerVespaId,
         service_type: formData.serviceType,
-        status: formData.status,
-        description: `${formData.serviceType} - ${workItems.map(item => item.name).join(', ')} - ${formData.description || 'MotoEtiler servis hizmeti'}`,
+        service_date: formData.serviceDate || new Date().toISOString().split('T')[0],
+        mileage_at_service: formData.mileage || 0,
+        description: selectedService ? 
+          (formData.description || `${formData.serviceType} - MotoEtiler servis hizmeti`) :
+          `${formData.serviceType} - MotoEtiler servis hizmeti`,
+        customer_complaints: formData.customerComplaints || '',
+        work_done: formData.workDone || '',
         labor_cost: formData.laborCost || 0,
+        technician_name: formData.technicianName || '',
+        start_date: new Date().toISOString(),
+        // Additional fields for frontend compatibility
         parts_cost: partsCost,
         total_cost: totalCost,
-        current_mileage: formData.mileage || 0,
         next_service_date: formData.nextServiceDate || null,
-        used_parts: selectedParts.map(part => ({
+        used_parts: selectedParts.map(part => {
+          // Validate part exists in availableParts
+          const partExists = availableParts.find(p => p.id === part.id);
+          if (!partExists) {
+            console.error(`❌ ERROR: Part ID ${part.id} not found in available parts!`);
+            throw new Error(`Parça ID ${part.id} bulunamadı. Lütfen geçerli parçaları seçin.`);
+          }
+          
+          return {
           part_id: part.id,
           quantity: part.quantity,
           cost: part.cost
-        })),
+          };
+        }),
         work_items: workItems.map(item => ({
           work_type_id: item.id,
           quantity: item.quantity,
@@ -763,10 +1037,11 @@ export default function ServiceTracking() {
       };
 
       if (selectedService) {
-        // Update existing service (if API supports it)
-        console.log('Updating service not implemented yet');
-        alert('Servis güncelleme henüz desteklenmiyor.');
-        return;
+        // Update existing service
+        console.log('🔄 Updating service:', selectedService.id, serviceData);
+        const response = await apiService.updateService(selectedService.id, serviceData);
+        console.log('✅ Service updated successfully:', response);
+        alert('Servis başarıyla güncellendi!');
       } else {
         // Create new service
         console.log('🔄 Creating new service:', serviceData);
@@ -791,7 +1066,10 @@ export default function ServiceTracking() {
         usedParts: [],
         laborCost: 0,
         mileage: 0,
-        nextServiceDate: ''
+        nextServiceDate: '',
+        customerComplaints: '',
+        workDone: '',
+        technicianName: ''
       });
       setSelectedService(null);
       setSelectedCustomer(null);
@@ -831,6 +1109,31 @@ export default function ServiceTracking() {
     } catch (error) {
       console.error('❌ Error deleting service:', error);
       alert('Servis silinirken hata oluştu: ' + error.message);
+    }
+  };
+
+  // Servisi tamamla
+  const handleMarkCompleted = async (service) => {
+    try {
+      const payload = {
+        service_type: service.serviceType,
+        service_date: service.serviceDate,
+        mileage_at_service: service.mileage,
+        technician_name: service.technicianName,
+        description: service.description,
+        customer_complaints: service.customerComplaints,
+        work_done: service.workDone,
+        labor_cost: service.laborCost,
+        status: 'COMPLETED',
+        completion_date: new Date().toISOString(),
+        used_parts: (service.usedParts || []).map(p => ({ part_id: p.part_id || p.id, quantity: p.quantity, cost: p.cost || (p.unit_price * p.quantity) })),
+        work_items: (service.workItems || []).map(w => ({ work_type_id: w.work_type_id || w.id, quantity: w.quantity, cost: (w.base_price || w.basePrice) * (w.quantity || 1) }))
+      };
+      await apiService.updateService(service.id, payload);
+      // UI'ı güncelle
+      setServiceRecords(prev => prev.map(s => s.id === service.id ? { ...s, status: 'completed', completionDate: new Date().toISOString() } : s));
+    } catch (e) {
+      alert('Durum güncellenemedi: ' + (e.message || e));
     }
   };
   const handleDeleteCancel = () => {
@@ -888,20 +1191,55 @@ export default function ServiceTracking() {
 
   const handlePartSelection = (partId, isSelected) => {
     const part = availableParts.find(p => p.id === partId);
+    
     if (isSelected) {
+      if (part) {
       setSelectedParts([...selectedParts, { ...part, quantity: 1, selected: true, cost: part.price }]);
+      }
     } else {
       setSelectedParts(selectedParts.filter(p => p.id !== partId));
     }
   };
 
-  // Get parts for selected model (simplified - returns all parts for now)
-  // TODO: Implement part compatibility system with backend API
-  const getPartsForModel = (modelName) => {
-    if (!modelName) return availableParts;
+  // Get parts for selected model (filtering accessories and model compatibility)
+  const getPartsForModel = (modelName, searchTerm = '') => {
+    if (!modelName) return [];
     
-    // For now, return all parts - backend part_model_compatibility table can be used later
-    return availableParts;
+    // Filter out accessories and return only parts compatible with the model
+    let filteredParts = availableParts.filter(part => {
+      // Exclude accessories (only include PART type)
+      const isPartNotAccessory = !part.category || 
+        !part.category.toLowerCase().includes('kask') &&
+        !part.category.toLowerCase().includes('çanta') &&
+        !part.category.toLowerCase().includes('eldiven') &&
+        !part.category.toLowerCase().includes('kilit') &&
+        !part.category.toLowerCase().includes('aksesuar') &&
+        !part.category.toLowerCase().includes('dayama') &&
+        !part.category.toLowerCase().includes('cam') &&
+        part.category !== 'Kasklar' &&
+        part.category !== 'Çantalar' &&
+        part.category !== 'Eldiven' &&
+        part.category !== 'Kilitler' &&
+        part.category !== 'Sırt Dayama' &&
+        part.category !== 'Cam Aksesuar' &&
+        part.category !== 'Çanta Demiri';
+      
+      // For now, return all non-accessory parts
+      // TODO: Later implement model compatibility check using part_model_compatibility table
+      return isPartNotAccessory;
+    });
+
+    // Apply search filter if search term is provided
+    if (searchTerm.trim()) {
+      filteredParts = filteredParts.filter(part =>
+        part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        part.partCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        part.category?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    console.log(`🔧 Filtered parts for ${modelName} with search "${searchTerm}":`, filteredParts.length, 'parts');
+    return filteredParts;
   };
 
   const updatePartQuantity = (partId, quantity) => {
@@ -976,12 +1314,18 @@ export default function ServiceTracking() {
         nextServiceDate: nextServiceDate  // Otomatik 6 ay sonrası
       }));
 
-      // Müşterinin servis geçmişini temizle (yeni müşteriler için)
+      // Müşterinin servis geçmişini yükle
+      try {
+        // Filter existing service records for this customer
+        const customerHistory = serviceRecords.filter(record => 
+          record.customerId === customer.id
+        ).sort((a, b) => new Date(b.serviceDate) - new Date(a.serviceDate));
+        
+        setCustomerServiceHistory(customerHistory);
+      } catch (historyError) {
+        console.error('Error loading customer service history:', historyError);
       setCustomerServiceHistory([]);
-      
-      // TODO: Gelecekte gerçek API'den servis geçmişi çekilecek
-      // const history = await apiService.getCustomerServiceHistory(customer.id);
-      // setCustomerServiceHistory(history || []);
+      }
 
       // API'den müşterinin vespa bilgilerini çek (mevcut kilometre için)
       try {
@@ -1019,57 +1363,49 @@ export default function ServiceTracking() {
     ));
   };
 
-  // Toplam maliyet hesaplama
+  // Toplam maliyet hesaplama (çift sayımı engelle)
+  // laborCost: Servis türü ücreti + varsa ek işçilik
+  // workItems: Ek iş kalemleri
+  // parts: Kullanılan parçalar
   const calculateTotalCost = () => {
-    const serviceCost = getWorkTypePrice(formData.serviceType);
-    const workCost = workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0);
-    const partsCost = selectedParts.reduce((sum, part) => sum + part.cost, 0);
+    const workCost = workItems.reduce((sum, item) => sum + (item.basePrice * (item.quantity || 1)), 0);
+    const partsCost = selectedParts.reduce((sum, part) => sum + (part.cost || 0), 0);
     const laborCost = formData.laborCost || 0;
-    
-    return serviceCost + workCost + partsCost + laborCost;
+    return laborCost + workCost + partsCost;
   };
 
   const handlePrintInvoice = () => {
     setPrintInvoiceService(invoiceService);
     setTimeout(() => {
-      // Print stillerini ekle
       const printStyles = `
         <style>
           @media print {
-            body * { visibility: hidden; }
-            .print-area, .print-area * { visibility: visible; }
-            .print-area { 
-              position: absolute; 
-              left: 0; 
-              top: 0; 
-              width: 100%; 
+            body * { visibility: hidden !important; }
+            .print-fatura, .print-fatura * { visibility: visible !important; }
+            .print-fatura { 
+              position: absolute !important; 
+              left: 0 !important; 
+              top: 0 !important; 
+              width: 100% !important; 
               background: white !important;
               color: black !important;
+              padding: 0 !important;
+              margin: 0 !important;
             }
             .chakra-modal__overlay { display: none !important; }
-            .chakra-modal__content { 
-              position: static !important; 
-              margin: 0 !important; 
-              box-shadow: none !important;
-              background: white !important;
-            }
+            .chakra-modal__content { display: none !important; }
+            table { width: 100% !important; border-collapse: collapse !important; }
+            th, td { border: 1px solid #444 !important; padding: 4px !important; font-size: 12px !important; }
           }
         </style>
       `;
-      
-      // Mevcut head'e print stillerini ekle
       const existingStyles = document.head.querySelector('#print-styles');
       if (existingStyles) existingStyles.remove();
-      
       const styleElement = document.createElement('div');
       styleElement.id = 'print-styles';
       styleElement.innerHTML = printStyles;
       document.head.appendChild(styleElement);
-      
-      // Yazdırma işlemini başlat
       window.print();
-      
-      // Print işlemi bitince stilleri temizle
       setTimeout(() => {
         const printStylesElement = document.head.querySelector('#print-styles');
         if (printStylesElement) printStylesElement.remove();
@@ -1458,12 +1794,58 @@ export default function ServiceTracking() {
                               colorScheme="red"
                               onClick={() => handleDeleteClick(service.id)}
                             />
+                            {service.status !== 'completed' && (
+                              <IconButton
+                                icon={<MdCheck />}
+                                size="sm"
+                                colorScheme="green"
+                                onClick={() => handleMarkCompleted(service)}
+                                title="Tamamla"
+                              />
+                            )}
                             {service.status === 'completed' && (
                               <IconButton
                                 icon={<MdReceipt />}
                                 size="sm"
                                 colorScheme="green"
-                                onClick={() => { setInvoiceService(service); setIsInvoiceOpen(true); }}
+                                onClick={async () => {
+                                  try {
+                                    const detailedResponse = await apiService.getService(service.id);
+                                    const detailed = detailedResponse?.service || detailedResponse || {};
+                                    const parts = (detailed.parts || []).map(part => ({
+                                      id: part.part_id || part.id,
+                                      name: part.part_name,
+                                      quantity: part.quantity,
+                                      price: part.unit_price,
+                                      cost: part.total_price || (part.unit_price * part.quantity)
+                                    }));
+                                    const workItemsSafe = Array.isArray(detailed.work_items) ? detailed.work_items : [];
+                                    const workItemsMapped = workItemsSafe.map(wi => ({
+                                      id: wi.work_type_id,
+                                      name: wi.name,
+                                      quantity: wi.quantity || 1,
+                                      basePrice: wi.unit_price || wi.base_price || 0
+                                    }));
+                                    const invoiceData = {
+                                      ...service,
+                                      customerName: service.customerName || detailed?.customer?.name,
+                                      vespaModel: service.vespaModel || detailed?.vespa?.model_name,
+                                      plateNumber: service.plateNumber || detailed?.vespa?.license_plate,
+                                      mileage: service.mileage || detailed?.mileage_at_service,
+                                      serviceDate: service.serviceDate || detailed?.service_date,
+                                      serviceType: service.serviceType || detailed?.service_type,
+                                      laborCost: detailed?.labor_cost ?? service.laborCost ?? 0,
+                                      totalCost: detailed?.total_cost ?? service.totalCost ?? 0,
+                                      usedParts: parts,
+                                      workItems: workItemsMapped,
+                                    };
+                                    setInvoiceService(invoiceData);
+                                    setIsInvoiceOpen(true);
+                                  } catch (e) {
+                                    setInvoiceService(service);
+                                    setIsInvoiceOpen(true);
+                                  }
+                                }}
                                 title="Fatura Görüntüle"
                               />
                             )}
@@ -1730,9 +2112,203 @@ export default function ServiceTracking() {
           <ModalCloseButton color={textColor} />
           <ModalBody>
             <Stack spacing={4}>
-              {/* Müşteri Seçimi */}
+              {/* Müşteri Türü Seçimi */}
+              <FormControl>
+                <FormLabel color={textColor} fontSize="md" fontWeight="semibold">Müşteri Türü</FormLabel>
+                <CBox p="3" bg={inputBg} borderRadius="md" border="1px solid" borderColor={inputBorderColor}>
+                  <RadioGroup 
+                    value={isWalkInCustomer ? "walkin" : "registered"} 
+                    onChange={(value) => {
+                      setIsWalkInCustomer(value === "walkin");
+                      if (value === "walkin") {
+                        setSelectedCustomer(null);
+                        setFormData(prev => ({...prev, customerId: ''}));
+                      } else {
+                        setWalkInCustomerData({
+                          name: '',
+                          phone: '',
+                          vespaModel: '',
+                          plateNumber: '',
+                          email: ''
+                        });
+                      }
+                    }}
+                  >
+                    <HStack spacing={8} justify="center">
+                      <Radio 
+                        value="registered" 
+                        colorScheme="brand"
+                        size="lg"
+                        _checked={{
+                          bg: brandColor,
+                          borderColor: brandColor,
+                          color: "white"
+                        }}
+                        _focus={{
+                          boxShadow: `0 0 0 3px ${brandColor}40`
+                        }}
+                      >
+                        <CText color={textColor} fontWeight="medium" ml={2}>
+                          📋 Kayıtlı Müşteri
+                        </CText>
+                      </Radio>
+                      <Radio 
+                        value="walkin" 
+                        colorScheme="orange"
+                        size="lg"
+                        _checked={{
+                          bg: "orange.500",
+                          borderColor: "orange.500",
+                          color: "white"
+                        }}
+                        _focus={{
+                          boxShadow: "0 0 0 3px orange.200"
+                        }}
+                      >
+                        <CText color={textColor} fontWeight="medium" ml={2}>
+                          🚶 Düzenli Olmayan Müşteri
+                        </CText>
+                      </Radio>
+                    </HStack>
+                  </RadioGroup>
+                </CBox>
+              </FormControl>
+
+              {/* Walk-in Customer Form */}
+              {isWalkInCustomer && (
+                <CBox p="4" bg={blueBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
+                  <CText fontWeight="bold" mb="4" color={brandColor} fontSize="md">
+                    🆕 Yeni Müşteri Bilgileri:
+                  </CText>
+                  <Stack spacing={3}>
+                    <HStack spacing={4}>
               <FormControl isRequired>
-                <FormLabel color={textColor}>Müşteri Seçimi</FormLabel>
+                        <FormLabel color={textColor} fontSize="sm" fontWeight="medium">Ad Soyad</FormLabel>
+                        <Input
+                          value={walkInCustomerData.name}
+                          onChange={(e) => setWalkInCustomerData({...walkInCustomerData, name: e.target.value})}
+                          placeholder="Müşteri adı soyadı"
+                          bg={inputBg}
+                          color={inputTextColor}
+                          borderColor={inputBorderColor}
+                          _placeholder={{ color: secondaryTextColor }}
+                          _hover={{ borderColor: brandColor }}
+                          _focus={{ 
+                            borderColor: brandColor,
+                            boxShadow: `0 0 0 1px ${brandColor}`
+                          }}
+                          size="sm"
+                        />
+                      </FormControl>
+                      <FormControl isRequired>
+                        <FormLabel color={textColor} fontSize="sm" fontWeight="medium">Telefon</FormLabel>
+                        <Input
+                          value={walkInCustomerData.phone}
+                          onChange={(e) => setWalkInCustomerData({...walkInCustomerData, phone: e.target.value})}
+                          placeholder="0555 123 45 67"
+                          bg={inputBg}
+                          color={inputTextColor}
+                          borderColor={inputBorderColor}
+                          _placeholder={{ color: secondaryTextColor }}
+                          _hover={{ borderColor: brandColor }}
+                          _focus={{ 
+                            borderColor: brandColor,
+                            boxShadow: `0 0 0 1px ${brandColor}`
+                          }}
+                          size="sm"
+                        />
+                      </FormControl>
+                    </HStack>
+                    <HStack spacing={4}>
+                      <FormControl isRequired>
+                        <FormLabel color={textColor} fontSize="sm" fontWeight="medium">Vespa Modeli</FormLabel>
+                        <Select
+                          value={walkInCustomerData.vespaModel}
+                          onChange={(e) => setWalkInCustomerData({...walkInCustomerData, vespaModel: e.target.value})}
+                          placeholder="Model seçin"
+                          bg={inputBg}
+                          color={inputTextColor}
+                          borderColor={inputBorderColor}
+                          _hover={{ borderColor: brandColor }}
+                          _focus={{ 
+                            borderColor: brandColor,
+                            boxShadow: `0 0 0 1px ${brandColor}`
+                          }}
+                          size="sm"
+                          sx={{
+                            '> option': {
+                              backgroundColor: inputBg,
+                              color: inputTextColor,
+                            },
+                            '& option:hover': {
+                              backgroundColor: cardBg,
+                            }
+                          }}
+                        >
+                          {vespaModels.map((model, index) => (
+                            <option 
+                              key={model.id || index} 
+                              value={model.model_name}
+                              style={{ 
+                                backgroundColor: inputBg, 
+                                color: inputTextColor 
+                              }}
+                            >
+                              {model.model_name}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <FormControl isRequired>
+                        <FormLabel color={textColor} fontSize="sm" fontWeight="medium">Plaka</FormLabel>
+                        <Input
+                          value={walkInCustomerData.plateNumber}
+                          onChange={(e) => {
+                            const upperValue = e.target.value.toUpperCase();
+                            setWalkInCustomerData({...walkInCustomerData, plateNumber: upperValue});
+                          }}
+                          placeholder="34 ABC 123"
+                          bg={inputBg}
+                          color={inputTextColor}
+                          borderColor={inputBorderColor}
+                          _placeholder={{ color: secondaryTextColor }}
+                          _hover={{ borderColor: brandColor }}
+                          _focus={{ 
+                            borderColor: brandColor,
+                            boxShadow: `0 0 0 1px ${brandColor}`
+                          }}
+                          size="sm"
+                          textTransform="uppercase"
+                        />
+                      </FormControl>
+                    </HStack>
+                    <FormControl>
+                      <FormLabel color={textColor} fontSize="sm" fontWeight="medium">E-posta (Opsiyonel)</FormLabel>
+                      <Input
+                        value={walkInCustomerData.email}
+                        onChange={(e) => setWalkInCustomerData({...walkInCustomerData, email: e.target.value})}
+                        placeholder="ornek@email.com"
+                        type="email"
+                        bg={inputBg}
+                        color={inputTextColor}
+                        borderColor={inputBorderColor}
+                        _placeholder={{ color: secondaryTextColor }}
+                        _hover={{ borderColor: brandColor }}
+                        _focus={{ 
+                          borderColor: brandColor,
+                          boxShadow: `0 0 0 1px ${brandColor}`
+                        }}
+                        size="sm"
+                      />
+                    </FormControl>
+                  </Stack>
+                </CBox>
+              )}
+
+              {/* Müşteri Seçimi - Sadece kayıtlı müşteriler için */}
+              {!isWalkInCustomer && (
+                <FormControl isRequired>
+                  <FormLabel color={textColor} fontSize="md" fontWeight="semibold">Müşteri Seçimi</FormLabel>
                 <Select
                   value={formData.customerId}
                   onChange={(e) => handleCustomerSelect(e.target.value)}
@@ -1740,23 +2316,46 @@ export default function ServiceTracking() {
                   bg={inputBg}
                   color={inputTextColor}
                   borderColor={inputBorderColor}
+                    _hover={{ borderColor: brandColor }}
+                    _focus={{ 
+                      borderColor: brandColor,
+                      boxShadow: `0 0 0 1px ${brandColor}`
+                    }}
+                    _placeholder={{ color: secondaryTextColor }}
                   disabled={loadingCustomers}
+                    sx={{
+                      '> option': {
+                        backgroundColor: inputBg,
+                        color: inputTextColor,
+                      },
+                      '& option:hover': {
+                        backgroundColor: cardBg,
+                      }
+                    }}
                 >
                   {customers.map(customer => (
-                    <option key={customer.id} value={customer.id} style={{ backgroundColor: optionBg, color: optionTextColor }}>
+                      <option 
+                        key={customer.id} 
+                        value={customer.id} 
+                        style={{ 
+                          backgroundColor: inputBg, 
+                          color: inputTextColor 
+                        }}
+                      >
                       {customer.name} - {customer.vespaModel} ({customer.plateNumber})
                     </option>
                   ))}
                 </Select>
                 {loadingCustomers && (
-                  <CText fontSize="xs" color="gray.500" mt={1}>
+                    <CText fontSize="xs" color={secondaryTextColor} mt={1}>
                     Müşteri listesi yükleniyor...
                   </CText>
                 )}
               </FormControl>
+              )}
 
               {/* Müşteri Bilgileri */}
-              {selectedCustomer && (
+              {selectedCustomer && !isWalkInCustomer && (
                 <CBox p="4" bg={blueBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
                   <CText fontWeight="bold" mb="2" color={brandColor}>Müşteri Bilgileri:</CText>
                   <Stack spacing={1}>
@@ -1770,7 +2369,7 @@ export default function ServiceTracking() {
               )}
 
               {/* Müşteri Servis Geçmişi */}
-              {selectedCustomer && (
+              {selectedCustomer && !isWalkInCustomer && (
                 <CBox p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
                   <CText fontWeight="bold" mb="2" color={brandColor}>Servis Geçmişi:</CText>
                   {customerServiceHistory.length > 0 ? (
@@ -1778,7 +2377,7 @@ export default function ServiceTracking() {
                     {customerServiceHistory.slice(-3).map(service => (
                       <CBox key={service.id} p="2" bg={cardBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
                         <CText fontSize="sm" color={textColor}>
-                          <strong>{service.serviceDate}</strong> - {service.serviceType} <span style={{color:'#888', fontSize:'12px'}}>({service.mileage} km)</span>
+                          <strong>{service.serviceDate}</strong> - {service.serviceType} <span style={{color:'#888', fontSize: '12px'}}>({service.mileage} km)</span>
                         </CText>
                         <CText fontSize="xs" color={secondaryTextColor}>{service.description}</CText>
                       </CBox>
@@ -1827,8 +2426,8 @@ export default function ServiceTracking() {
                 <FormControl isRequired>
                   <FormLabel color={textColor}>Servis Türü</FormLabel>
                   <Select
-                    value={formData.serviceType}
-                    onChange={(e) => setFormData({...formData, serviceType: e.target.value})}
+                    value={formData.serviceType || ''}
+                    onChange={(e) => handleServiceTypeChange(e.target.value)}
                     placeholder="Servis türü seçin"
                     bg={inputBg}
                     color={inputTextColor}
@@ -2039,33 +2638,97 @@ export default function ServiceTracking() {
                 </NumberInput>
               </FormControl>
 
-              <FormControl>
-                <FormLabel color={textColor}>Kullanılan Parçalar ({selectedCustomer ? selectedCustomer.vespaModel : 'Müşteri Seç'})</FormLabel>
-                <CBox border="1px" borderColor={borderColor} p="4" borderRadius="md" maxH="300px" overflowY="auto">
-                  {selectedCustomer ? (
+              {/* Kullanılan Parçalar */}
+              <FormControl mb={4}>
+                <FormLabel color={textColor} fontSize="md" fontWeight="semibold">
+                  🔧 Kullanılan Parçalar ({
+                    isWalkInCustomer 
+                      ? (walkInCustomerData.vespaModel || 'Model Seç') 
+                      : (selectedCustomer ? selectedCustomer.vespaModel : 'Müşteri Seç')
+                  })
+                </FormLabel>
+                
+                {/* Available Parts Selection */}
+                {((selectedCustomer && !isWalkInCustomer) || (isWalkInCustomer && walkInCustomerData.vespaModel)) && (
+                  <CBox mb={4} border="1px" borderColor={borderColor} borderRadius="md">
+                    <CBox p={3} bg={cardBg} borderTopRadius="md" borderBottom="1px solid" borderColor={borderColor}>
+                      <CFlex justify="space-between" align="center">
+                        <CText fontWeight="semibold" color={brandColor} fontSize="sm">
+                          📦 Mevcut Parçalar - Seçim Yapın
+                        </CText>
+                        <CBox w="200px">
+                          <InputGroup size="sm">
+                            <InputLeftElement pointerEvents="none">
+                              <Icon as={MdSearch} color="gray.400" />
+                            </InputLeftElement>
+                            <Input
+                              placeholder="Parça ara..."
+                              value={partsSearchTerm}
+                              onChange={(e) => setPartsSearchTerm(e.target.value)}
+                              bg={inputBg}
+                              color={inputTextColor}
+                              borderColor={inputBorderColor}
+                              _placeholder={{ color: secondaryTextColor }}
+                              _focus={{ 
+                                borderColor: brandColor,
+                                boxShadow: `0 0 0 1px ${brandColor}`
+                              }}
+                            />
+                          </InputGroup>
+                        </CBox>
+                      </CFlex>
+                    </CBox>
+                    <CBox p={3} maxH="200px" overflowY="auto">
                     <VStack align="start" spacing={2}>
-                      {getPartsForModel(selectedCustomer.vespaModel).map(part => {
+                        {(() => {
+                          const modelName = isWalkInCustomer ? (walkInCustomerData?.vespaModel || '') : (selectedCustomer?.vespaModel || '');
+                          const list = getPartsForModel(modelName, partsSearchTerm);
+                          // trigger background stock fetches (fire-and-forget)
+                          list.forEach(async p => {
+                            if (partStockById[p.id]) return;
+                            try {
+                              const locs = await apiService.getPartLocations(p.id);
+                              const locations = locs.locations || [];
+                              const store = locations.find(l => (l.location_type || l.type) === 'STORE');
+                              const others = locations.filter(l => (l.location_type || l.type) !== 'STORE');
+                              const storeStock = store ? (store.available_qty ?? store.quantity ?? 0) : 0;
+                              const depotStock = others.reduce((s, l) => s + (l.available_qty ?? l.quantity ?? 0), 0);
+                              let note = '';
+                              if (storeStock <= 0 && depotStock > 0) note = 'Mağazada yok, depoda mevcut';
+                              else if (storeStock <= 0 && depotStock <= 0) note = 'Stok yok';
+                              else if (storeStock > 0 && depotStock > 0 && storeStock < 3) note = 'Mağaza düşük stok, depo mevcut';
+                              setPartStockById(prev => ({ ...prev, [p.id]: { storeQty: storeStock, warehouseQty: depotStock, stockNote: note } }));
+                            } catch {}
+                          });
+                          return list.map(part => {
+                            const stock = partStockById[part.id] || {};
                         const selectedPart = selectedParts.find(p => p.id === part.id);
                         const isSelected = !!selectedPart;
                         
                         return (
-                          <HStack key={part.id} w="100%" justify="space-between">
+                            <HStack key={part.id} w="100%" justify="space-between" p={2} borderRadius="md" _hover={{bg: cardBg}} transition="all 0.2s">
                             <Checkbox
                               isChecked={isSelected}
                               onChange={(e) => handlePartSelection(part.id, e.target.checked)}
-                            >
-                              <HStack>
-                                <Image
-                                  src={part.images?.thumbnail || part.images?.main || 'https://via.placeholder.com/32x32?text=No+Image'}
-                                  alt={part.name}
-                                  boxSize="32px"
-                                  objectFit="contain"
-                                  borderRadius="md"
-                                  mr="2"
-                                  fallbackSrc="https://via.placeholder.com/32x32?text=No+Image" />
+                                colorScheme="brand"
+                              >
+                                <HStack spacing={3}>
+                                  <CBox w="40px" h="40px" bg={inputBg} borderRadius="md" display="flex" alignItems="center" justifyContent="center">
+                                    <CText fontSize="lg">🔩</CText>
+                                  </CBox>
                                 <VStack align="start" spacing={0}>
-                                  <CText fontWeight="medium">{part.name}</CText>
-                                  <CText fontSize="sm" color="gray.600">₺{part.price?.toLocaleString()}</CText>
+                                    <CText fontWeight="medium" color={textColor}>{part.name}</CText>
+                                    <CText fontSize="sm" color={secondaryTextColor}>₺{part.price?.toLocaleString()}</CText>
+                                    {(stock.storeQty !== undefined || stock.warehouseQty !== undefined) && (
+                                      <CText fontSize="xs" color={secondaryTextColor}>
+                                        Mağaza: <b>{stock.storeQty ?? '-'}</b> | Depo: <b>{stock.warehouseQty ?? '-'}</b>
+                                      </CText>
+                                    )}
+                                    {stock.stockNote && (
+                                      <Badge colorScheme={stock.stockNote.includes('yok') ? 'red' : 'orange'} fontSize="0.65rem" mt={1}>
+                                        {stock.stockNote}
+                                      </Badge>
+                                    )}
                                 </VStack>
                               </HStack>
                             </Checkbox>
@@ -2077,7 +2740,7 @@ export default function ServiceTracking() {
                                 onChange={(value) => updatePartQuantity(part.id, parseInt(value) || 1)}
                                 min={1}
                               >
-                                <NumberInputField />
+                                  <NumberInputField bg={inputBg} borderColor={inputBorderColor} />
                                 <NumberInputStepper>
                                   <NumberIncrementStepper />
                                   <NumberDecrementStepper />
@@ -2086,12 +2749,115 @@ export default function ServiceTracking() {
                             )}
                           </HStack>
                         );
-                      })}
+                          });
+                        })()}
                     </VStack>
-                  ) : (
-                    <CText color="gray.500">Önce müşteri seçiniz</CText>
-                  )}
+                    </CBox>
+                  </CBox>
+                )}
+
+                {/* Selected Parts Display */}
+                {selectedParts.length > 0 && (
+                  <CBox border="1px" borderColor={borderColor} borderRadius="md" bg={cardBg}>
+                    <CBox p={3} bg={blueBg} borderTopRadius="md" borderBottom="1px solid" borderColor={borderColor}>
+                      <CText fontWeight="semibold" color={brandColor} fontSize="sm">
+                        ✅ Seçilen Parçalar ({selectedParts.length} adet)
+                      </CText>
                 </CBox>
+                    <Stack spacing={2} p={3}>
+                      {selectedParts.map((part, index) => (
+                        <CFlex key={part.id || index} justify="space-between" align="center" p={3} bg={inputBg} borderRadius="md" border="1px solid" borderColor={inputBorderColor}>
+                          <CFlex align="center" flex="1">
+                            <CBox w="40px" h="40px" bg={brandColor} borderRadius="md" display="flex" alignItems="center" justifyContent="center" mr={3}>
+                              <CText fontSize="lg" color="white">🔩</CText>
+                            </CBox>
+                            <VStack align="start" spacing={0} flex="1">
+                              <CText fontWeight="semibold" color={textColor} fontSize="sm">
+                                {part.name}
+                              </CText>
+                              <HStack spacing={4}>
+                                <CText fontSize="xs" color={secondaryTextColor}>
+                                  Miktar: {part.quantity}
+                                </CText>
+                                <CText fontSize="xs" color={secondaryTextColor}>
+                                  Birim: ₺{part.price?.toLocaleString()}
+                                </CText>
+                              </HStack>
+                            </VStack>
+                          </CFlex>
+                          <CFlex align="center" gap={2}>
+                            <CText fontSize="sm" color={textColor} fontWeight="semibold">
+                              ₺{part.cost?.toLocaleString()}
+                            </CText>
+                            <Button
+                              size="xs"
+                              colorScheme="red"
+                              variant="ghost"
+                              onClick={() => setSelectedParts(selectedParts.filter(p => p.id !== part.id))}
+                            >
+                              ❌
+                            </Button>
+                          </CFlex>
+                        </CFlex>
+                      ))}
+                      <Divider borderColor={borderColor} />
+                      <CFlex justify="space-between" align="center" fontWeight="bold" p={2} bg={grayBg} borderRadius="md">
+                        <CText color={textColor}>Toplam Parça:</CText>
+                        <CText color={brandColor} fontSize="lg">₺{selectedParts.reduce((sum, part) => sum + part.cost, 0).toLocaleString()}</CText>
+                      </CFlex>
+                    </Stack>
+                  </CBox>
+                )}
+
+                {/* No Model Selected Message */}
+                {!((selectedCustomer && !isWalkInCustomer) || (isWalkInCustomer && walkInCustomerData.vespaModel)) && (
+                  <CBox p={4} bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor} textAlign="center">
+                    <CText color={secondaryTextColor} fontSize="sm">
+                      {isWalkInCustomer ? "Önce vespa modeli seçiniz" : "Önce müşteri seçiniz"}
+                    </CText>
+                  </CBox>
+                )}
+              </FormControl>
+
+              {/* Müşteri Şikayetleri */}
+              <FormControl>
+                <FormLabel color={textColor}>Müşteri Şikayetleri</FormLabel>
+                <Textarea
+                  value={formData.customerComplaints}
+                  onChange={(e) => setFormData({...formData, customerComplaints: e.target.value})}
+                  placeholder="Müşterinin bildirdiği sorunlar..."
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  rows={3}
+                />
+              </FormControl>
+
+              {/* Yapılan İşler */}
+              <FormControl>
+                <FormLabel color={textColor}>Yapılan İşler</FormLabel>
+                <Textarea
+                  value={formData.workDone}
+                  onChange={(e) => setFormData({...formData, workDone: e.target.value})}
+                  placeholder="Serviste yapılan işlerin detayı..."
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                  rows={3}
+                />
+              </FormControl>
+
+              {/* Teknisyen Adı */}
+              <FormControl>
+                <FormLabel color={textColor}>Teknisyen Adı</FormLabel>
+                <Input
+                  value={formData.technicianName}
+                  onChange={(e) => setFormData({...formData, technicianName: e.target.value})}
+                  placeholder="Servisi yapan teknisyen adı..."
+                  bg={inputBg}
+                  color={inputTextColor}
+                  borderColor={inputBorderColor}
+                />
               </FormControl>
 
               <FormControl>
@@ -2112,22 +2878,27 @@ export default function ServiceTracking() {
               <CBox p="4" bg={grayBg} borderRadius="md" border="1px solid" borderColor={borderColor}>
                 <CText fontWeight="bold" mb="2" color={brandColor}>Maliyet Özeti:</CText>
                 <Stack spacing={1}>
-                  <HStack justify="space-between">
-                    <CText color={textColor}>Servis Ücreti:</CText>
-                    <CText color={textColor}>₺{getWorkTypePrice(formData.serviceType).toLocaleString()}</CText>
-                  </HStack>
+                  {(() => {
+                    const extraLabor = Math.max(0, (formData.laborCost || 0));
+                    const operationsTotal = workItems.reduce((sum, item) => sum + (item.basePrice * (item.quantity || 1)), 0);
+                    const partsTotal = selectedParts.reduce((sum, part) => sum + (part.cost || 0), 0);
+                    return (
+                      <>
                   <HStack justify="space-between">
                     <CText color={textColor}>İşlemler:</CText>
-                    <CText color={textColor}>₺{workItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0).toLocaleString()}</CText>
+                          <CText color={textColor}>₺{operationsTotal.toLocaleString()}</CText>
                   </HStack>
                   <HStack justify="space-between">
                     <CText color={textColor}>Parçalar:</CText>
-                    <CText color={textColor}>₺{selectedParts.reduce((sum, part) => sum + part.cost, 0).toLocaleString()}</CText>
+                          <CText color={textColor}>₺{partsTotal.toLocaleString()}</CText>
                   </HStack>
                   <HStack justify="space-between">
-                    <CText color={textColor}>Ek İşçilik:</CText>
-                    <CText color={textColor}>₺{(formData.laborCost || 0).toLocaleString()}</CText>
+                          <CText color={textColor}>İşçilik:</CText>
+                          <CText color={textColor}>₺{extraLabor.toLocaleString()}</CText>
                   </HStack>
+                      </>
+                    );
+                  })()}
                   <Divider borderColor={borderColor} />
                   <HStack justify="space-between">
                     <CText fontWeight="bold" fontSize="lg" color={brandColor}>Toplam:</CText>
@@ -2251,7 +3022,7 @@ export default function ServiceTracking() {
                       <Tr key={idx}>
                         <Td>{part.name}</Td>
                         <Td>{part.quantity}</Td>
-                        <Td isNumeric>₺{(part.cost * part.quantity).toLocaleString()}</Td>
+                        <Td isNumeric>₺{(part.cost ?? (part.price * part.quantity) ?? 0).toLocaleString()}</Td>
                       </Tr>
                     ))}
                     {/* İşçilik satırı */}
@@ -2336,18 +3107,28 @@ export default function ServiceTracking() {
                 </Tr>
               </Thead>
               <Tbody>
-                {(printInvoiceService?.usedParts || invoiceService?.usedParts || []).map((part, idx) => (
-                  <Tr key={idx}>
+                {(printInvoiceService?.workItems || invoiceService?.workItems || []).map((item, idx) => (
+                  <Tr key={`wi-${idx}`}>
                     <Td>{idx + 1}</Td>
+                    <Td>{item.name}</Td>
+                    <Td>{item.quantity || 1}</Td>
+                    <Td>₺{(item.basePrice || 0).toLocaleString()}</Td>
+                    <Td>%20</Td>
+                    <Td isNumeric>₺{((item.basePrice || 0) * (item.quantity || 1)).toLocaleString()}</Td>
+                  </Tr>
+                ))}
+                {(printInvoiceService?.usedParts || invoiceService?.usedParts || []).map((part, idx) => (
+                  <Tr key={`pt-${idx}`}>
+                    <Td>{((printInvoiceService?.workItems?.length || invoiceService?.workItems?.length || 0) + idx + 1)}</Td>
                     <Td>{part.name}</Td>
                     <Td>{part.quantity}</Td>
-                    <Td>₺{part.price?.toLocaleString()}</Td>
+                    <Td>₺{(part.price ?? (part.cost && part.quantity ? (part.cost / part.quantity) : 0)).toLocaleString()}</Td>
                     <Td>%20</Td>
-                    <Td isNumeric>₺{(part.cost * part.quantity).toLocaleString()}</Td>
+                    <Td isNumeric>₺{(part.cost ?? (part.price * part.quantity) ?? 0).toLocaleString()}</Td>
                   </Tr>
                 ))}
                 <Tr>
-                  <Td>{(printInvoiceService?.usedParts?.length || invoiceService?.usedParts?.length || 0) + 1}</Td>
+                  <Td>{((printInvoiceService?.workItems?.length || invoiceService?.workItems?.length || 0) + (printInvoiceService?.usedParts?.length || invoiceService?.usedParts?.length || 0) + 1)}</Td>
                   <Td>İşçilik Bedeli</Td>
                   <Td>1</Td>
                   <Td>₺{(printInvoiceService?.laborCost || invoiceService?.laborCost || 0).toLocaleString()}</Td>

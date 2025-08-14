@@ -244,7 +244,7 @@ def get_all_parts_with_stock():
     query = """
     SELECT 
         p.id, p.part_code, p.part_name, p.part_type,
-        pc.category_name, p.description,
+        p.category_id, pc.category_name, p.description,
         p.min_stock_level, p.max_stock_level,
         p.brand, p.model, p.color, p.size, p.image_path,
         ISNULL(stock_summary.total_stock, 0) as total_stock,
@@ -260,6 +260,7 @@ def get_all_parts_with_stock():
         ISNULL(pp.sale_price, 0) as sale_price,
         ISNULL(pp.currency_type, 'TRY') as currency_type,
         pp.effective_date,
+        pp.supplier_id as supplier_id,
         s.supplier_name,
         -- Current exchange rates (latest)
         (SELECT TOP 1 sell_rate FROM currency_rates WHERE currency_code = 'EUR' ORDER BY rate_date DESC) as eur_try_today,
@@ -291,16 +292,17 @@ def get_all_parts_with_stock():
     
     parts = []
     for row in rows:
-        # Extract values
-        purchase_price = float(row[17]) if row[17] else 0
-        sale_price = float(row[18]) if row[18] else 0
-        currency_type = row[19] or 'TRY'
-        effective_date = row[20]
-        supplier_name = row[21]
-        eur_try_today = float(row[22]) if row[22] else 35.0
-        usd_try_today = float(row[23]) if row[23] else 32.0
-        eur_try_on_purchase = float(row[24]) if row[24] else 35.0
-        usd_try_on_purchase = float(row[25]) if row[25] else 32.0
+        # Extract values (keep indices in sync with SELECT)
+        purchase_price = float(row[18]) if row[18] else 0
+        sale_price = float(row[19]) if row[19] else 0
+        currency_type = row[20] or 'TRY'
+        effective_date = row[21]
+        supplier_id = row[22]
+        supplier_name = row[23]
+        eur_try_today = float(row[24]) if row[24] else 35.0
+        usd_try_today = float(row[25]) if row[25] else 32.0
+        eur_try_on_purchase = float(row[26]) if row[26] else 35.0
+        usd_try_on_purchase = float(row[27]) if row[27] else 32.0
 
         # Calculate TRY prices
         if currency_type == 'EUR':
@@ -319,23 +321,25 @@ def get_all_parts_with_stock():
             'part_code': row[1],
             'part_name': row[2],
             'part_type': row[3],
-            'category_name': row[4],
-            'description': row[5],
-            'min_stock_level': row[6],
-            'max_stock_level': row[7],
-            'brand': row[8],
-            'model': row[9],
-            'color': row[10],
-            'size': row[11],
-            'image_path': row[12],
-            'total_stock': row[13],
-            'total_reserved': row[14],
-            'available_stock': row[15],
-            'stock_status': row[16],
+            'category_id': row[4],
+            'category_name': row[5],
+            'description': row[6],
+            'min_stock_level': row[7],
+            'max_stock_level': row[8],
+            'brand': row[9],
+            'model': row[10],
+            'color': row[11],
+            'size': row[12],
+            'image_path': row[13],
+            'total_stock': row[14],
+            'total_reserved': row[15],
+            'available_stock': row[16],
+            'stock_status': row[17],
             'purchase_price': purchase_price,
             'sale_price': sale_price,
             'currency_type': currency_type,
             'effective_date': effective_date,
+            'supplier_id': supplier_id,
             'supplier_name': supplier_name,
             # Calculated TRY prices
             'purchase_price_try_at_purchase': round(purchase_price_try_at_purchase, 2),
@@ -344,13 +348,88 @@ def get_all_parts_with_stock():
             'usd_try_today': usd_try_today,
             'eur_try_on_purchase': eur_try_on_purchase,
             'usd_try_on_purchase': usd_try_on_purchase,
-            'is_active': row[26],
-            'created_date': row[27],
-            'updated_date': row[28]
+            'is_active': row[28],
+            'created_date': row[29],
+            'updated_date': row[30]
         })
     
     return parts
 
+
+def get_parts_by_model_with_stock(vespa_model_id, search_term=None):
+    """Get parts compatible with a specific Vespa model (PART type only), including stock and price info.
+    Optional search by part name/code/category.
+    """
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    where_search = ""
+    params = [vespa_model_id]
+    if search_term:
+        where_search = " AND (p.part_name LIKE ? OR p.part_code LIKE ? OR pc.category_name LIKE ?)"
+        like = f"%{search_term}%"
+        params.extend([like, like, like])
+
+    query = f"""
+    SELECT 
+        p.id, p.part_code, p.part_name, p.part_type,
+        pc.category_name, p.description,
+        ISNULL(stock_summary.total_stock, 0) as total_stock,
+        ISNULL(stock_summary.available_stock, 0) as available_stock,
+        ISNULL(price_info.sale_price_tl, 0) as sale_price_tl,
+        p.image_path
+    FROM parts p
+    INNER JOIN part_categories pc ON p.category_id = pc.id
+    INNER JOIN part_model_compatibility pmc ON pmc.part_id = p.id AND pmc.vespa_model_id = ?
+    LEFT JOIN (
+        SELECT 
+            part_id,
+            SUM(current_stock) as total_stock,
+            SUM(current_stock - reserved_stock) as available_stock
+        FROM part_stock_locations
+        GROUP BY part_id
+    ) stock_summary ON p.id = stock_summary.part_id
+    LEFT JOIN (
+        SELECT 
+            pp.part_id,
+            CASE 
+                WHEN pp.currency_type = 'EUR' THEN 
+                    pp.sale_price * ISNULL(cr.sell_rate, 34.50)
+                WHEN pp.currency_type = 'USD' THEN 
+                    pp.sale_price * ISNULL(cr2.sell_rate, 32.00)
+                ELSE pp.sale_price 
+            END as sale_price_tl
+        FROM part_prices pp
+        LEFT JOIN currency_rates cr ON pp.currency_type = 'EUR' 
+            AND cr.rate_date = (SELECT MAX(rate_date) FROM currency_rates WHERE currency_code = 'EUR')
+        LEFT JOIN currency_rates cr2 ON pp.currency_type = 'USD' 
+            AND cr2.rate_date = (SELECT MAX(rate_date) FROM currency_rates WHERE currency_code = 'USD')
+        WHERE pp.is_current = 1
+    ) price_info ON p.id = price_info.part_id
+    WHERE p.is_active = 1 AND p.part_type = 'PART' {where_search}
+    ORDER BY p.part_name
+    """
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    connection.close()
+
+    parts = []
+    for row in rows:
+        parts.append({
+            'id': row[0],
+            'part_code': row[1],
+            'part_name': row[2],
+            'part_type': row[3],
+            'category_name': row[4],
+            'description': row[5],
+            'total_stock': row[6],
+            'available_stock': row[7],
+            'sale_price_tl': float(row[8]) if row[8] else 0.0,
+            'image_path': row[9] or ''
+        })
+
+    return parts
 
 def get_part_stock_by_location(part_id):
     """Get part stock details by location"""
